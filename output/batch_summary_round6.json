@@ -1,0 +1,66 @@
+{
+  "本数": 4,
+  "成功": 3,
+  "失败": 1,
+  "可交付": 3,
+  "拒收(暗黑/质量)": 0,
+  "总成本_cny": 17.63,
+  "墙钟_秒": 1430.0,
+  "均成本_cny": 5.88,
+  "results": [
+    {
+      "src": "ZYGGY01827暴君偷听我心声后开挂了，我负责吃瓜.txt",
+      "ok": true,
+      "title": "女官夺凤：读心皇后监国记",
+      "grade": "B",
+      "out_chapters": 60,
+      "final_chars": 205540,
+      "spotlight_variety": "相邻重复0/59 | 种类6",
+      "暗黑比": 0.0,
+      "values_reject(暗黑饱和应拒)": false,
+      "套话门_重写章数": 22,
+      "final_consistent": false,
+      "cost_cny": 5.8,
+      "seconds": 1430.0,
+      "rejected": false
+    },
+    {
+      "src": "ZYGGY02146穿越荒年超市老板五岁半.txt",
+      "ok": false,
+      "error": "KeyError: 'brief'",
+      "seconds": 901.2
+    },
+    {
+      "src": "ZYGGY02196崽崽惊呆！娘亲她成了逃荒路上的美食供应商.txt",
+      "ok": true,
+      "title": "末世：单亲妈妈的基建称王路",
+      "grade": "B",
+      "out_chapters": 60,
+      "final_chars": 217571,
+      "spotlight_variety": "相邻重复0/59 | 种类6",
+      "暗黑比": 0.0,
+      "values_reject(暗黑饱和应拒)": false,
+      "套话门_重写章数": 22,
+      "final_consistent": true,
+      "cost_cny": 5.9,
+      "seconds": 1265.1,
+      "rejected": false
+    },
+    {
+      "src": "ZYGGY03733团宠小师妹靠摆烂带飞全宗门.txt",
+      "ok": true,
+      "title": "摆烂师妹飞升了",
+      "grade": "A",
+      "out_chapters": 60,
+      "final_chars": 215064,
+      "spotlight_variety": "相邻重复0/59 | 种类9",
+      "暗黑比": 0.05,
+      "values_reject(暗黑饱和应拒)": false,
+      "套话门_重写章数": 22,
+      "final_consistent": false,
+      "cost_cny": 5.93,
+      "seconds": 1352.4,
+      "rejected": false
+    }
+  ]
+}

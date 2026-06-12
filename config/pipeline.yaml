@@ -1,0 +1,26 @@
+# 管线配置（A6 配置驱动）。阈值/模式/预算在此，不在代码。
+output:
+  target_chapters: 60
+  chars_per_chapter: 3500          # ~21 万字
+budget:
+  per_book_cny_cap: 50.0           # C3 单本硬上限
+
+# P0 清洗：网文 txt 垃圾模式（可滚动扩，maintainable）
+ingest:
+  encodings: [utf-8, gbk, gb18030]
+  chapter_regex: '^\s*第\s*[0-9零一二三四五六七八九十百千万两]+\s*[章节卷回]'
+  junk_line_patterns:                # 整行命中即删
+    - '作者[的有]?话'
+    - '求(订阅|月票|推荐票|打赏|收藏)'
+    - '(起点中文网|晋江文学城|笔趣阁|纵横中文网|番茄小说)'
+    - 'https?://|www\.'
+    - '本(章|书)(未完|完)?，?(请|点击)'
+    - '防盗|盗版|正版订阅'
+    - '(PS|ps)[:：]'
+  garbage_char: "�"            # 乱码替换符
+  min_chapter_chars: 200            # 过短章 = 可疑
+
+# 准入分级阈值（占位，M1 用 40 本标杆+金标校准）
+admission:
+  grades: [S, A, B, C, D, Q]
+  # thresholds: 待 M1 校准

@@ -1,0 +1,32 @@
+# DeepSeek-v4 模型与计价（2026-06 核查）。USD/百万 tokens。1元≈$0.14。
+# deepseek-chat/reasoner 2026-07-24 停用 → 用 v4-flash(思考/非思考)+v4-pro。
+models:
+  v4-pro:
+    context: 1000000
+    price_in: 0.435
+    price_out: 0.870
+    cache_in: 0.003625
+  v4-flash:
+    context: 1000000
+    price_in: 0.140
+    price_out: 0.280
+    cache_in: 0.002800
+
+# 阶段路由（A6 配置驱动，不写死在代码）
+routing:
+  extract: v4-pro          # 需推理
+  plan: v4-pro
+  draft: v4-flash          # 走量
+  pk_final: v4-pro         # 终裁对照
+  pk_screen: v4-flash      # 初筛对照
+  book_gate: v4-pro
+  mechanical: null         # 0-LLM
+  # Tier1 全书深挖
+  chunk_extract: v4-flash  # 走量(12窗并发)
+  reduce: v4-pro           # 归并建厚bible,深度推理
+  scene_score: v4-flash    # 场景打分,走量
+  source_grade: v4-pro     # 源分级,判断
+  plan_macro: v4-pro       # 60章骨架,关键推理
+  plan_chapter: v4-flash   # 分章,60协程并发
+  # Tier3 全书对账
+  fact_audit: v4-pro       # 21万字单pass跨章事实矛盾,1M上下文+推理

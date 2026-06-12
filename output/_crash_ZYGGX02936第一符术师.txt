@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "E:\Project_Python\hiki-fiction-cli\claude\src\hiki\batch.py", line 29, in _one
+    rep = await run(src, n_ch, n_chunks, n_cand, refine, min_grade=min_grade)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Project_Python\hiki-fiction-cli\claude\src\hiki\produce.py", line 864, in run
+    audit_fore = audit.foreshadow_advisory(ordered)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Project_Python\hiki-fiction-cli\claude\src\hiki\audit.py", line 281, in foreshadow_advisory
+    return ledger.check_foreshadow(scenes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Project_Python\hiki-fiction-cli\claude\src\hiki\ledger.py", line 66, in check_foreshadow
+    if not any(p[j:j + 2] in q for q in planted2 for j in range(max(0, len(p) - 1))):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Project_Python\hiki-fiction-cli\claude\src\hiki\ledger.py", line 66, in <genexpr>
+    if not any(p[j:j + 2] in q for q in planted2 for j in range(max(0, len(p) - 1))):
+                                                                       ^^^^^^
+TypeError: object of type 'int' has no len()

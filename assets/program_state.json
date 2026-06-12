@@ -1,0 +1,132 @@
+{
+  "program": "自迭代托管 R13→R18+确认批",
+  "started": "2026-06-12",
+  "params": {
+    "交付线_fable": 75,
+    "预算cap_cny": 500,
+    "轮数cap": "R18+确认批16本",
+    "托管形态": "全托管+两软检查点(R13灰区通报/确认批前人工锚)",
+    "锚轮换": [
+      "团宠",
+      "星际"
+    ],
+    "评审协议": "Fable四维同rubric,结构化findings,引文grep验"
+  },
+  "budget": {
+    "spent_cny": 30.39,
+    "note": "从R13起计;R8-R12历史~¥190不计入本程序"
+  },
+  "current": {
+    "round": "R13",
+    "phase": "B1触发,升级等待用户",
+    "backlog_cursor": 0
+  },
+  "backlog": [
+    {
+      "round": "R13",
+      "items": [
+        "控制面entry_facts/inclusion/exclusion",
+        "分幕波次+事实结算",
+        "检测换轨"
+      ],
+      "status": "engineering"
+    },
+    {
+      "round": "R14",
+      "items": [
+        "R13抖动修复",
+        "bible双轨事实",
+        "铁律⑩异时空砍线"
+      ],
+      "status": "conditional_on_B1"
+    },
+    {
+      "round": "R15",
+      "items": [
+        "公式取靶: defect_bank加权扣分×可工程性 top1-2"
+      ],
+      "status": "auto"
+    },
+    {
+      "round": "R16",
+      "items": [
+        "冻结纯验证"
+      ],
+      "status": "auto"
+    },
+    {
+      "round": "R17-R18",
+      "items": [
+        "缓冲轮(仅在未达标时启用,公式取靶)"
+      ],
+      "status": "buffer"
+    }
+  ],
+  "stop_table": {
+    "B1": {
+      "rule": "R13锚配对差分<+2",
+      "action": "停,升级:路线证伪",
+      "softcheck": "+2~+4续跑+灰区通报;>=+4直通",
+      "status": "FIRED"
+    },
+    "A1": {
+      "rule": "连续2轮交付本均值>=75且defect_bank无新增大类",
+      "action": "直进确认批",
+      "status": "armed"
+    },
+    "A2": {
+      "rule": "确认批P(交付>=75)达标",
+      "action": "终止迭代转量产;宣布达标前留人工抽锚(软检查点2)",
+      "status": "armed"
+    },
+    "B2": {
+      "rule": "同一缺陷类连续3轮工程后仍头号扣分",
+      "action": "进不可工程清单;合计损失>目标差距则停",
+      "tracker": {},
+      "status": "armed"
+    },
+    "B3": {
+      "rule": "连续2轮锚差分均在±2内",
+      "action": "工程钝化,停升级",
+      "history": [],
+      "status": "armed"
+    },
+    "C1": {
+      "rule": "单轮净增益连续2轮<噪声带且剩余类召回<30%",
+      "action": "转运营态",
+      "status": "armed"
+    },
+    "D1": {
+      "rule": "锚冻结复评漂移>±4或HFL信号回归残差突变",
+      "action": "暂停直到锁尺(优先级最高)",
+      "status": "armed"
+    },
+    "E1": {
+      "rule": "预算达80%(¥400)或轮数cap",
+      "action": "升级",
+      "status": "armed"
+    }
+  },
+  "escalation_log": [
+    {
+      "date": "2026-06-12",
+      "trigger": "B1",
+      "data": "锚差分-8.8",
+      "diagnosis": "实现bug非概念失败: 控制面inclusion章级清单注入每场景→后场景被铁律命令重演前场景已完成事件(ch49近逐字复刻实锤)",
+      "proposal": "B1-bug例外: 修inclusion注入(只进首场景/后场景标已完成)→锚本单本重跑→复评后重新裁定B1"
+    }
+  ],
+  "delivered_certified": [],
+  "anchor_diff_history": [
+    {
+      "round": "R13",
+      "anchor": "团宠",
+      "prod_score": 57.9,
+      "base": 66.7,
+      "diff": -8.8
+    }
+  ],
+  "notes": [
+    "baseline回放7/11命中,adj_dup召回不稳实锤(4 MISS=已知缺口清单,PLANE_CHECK的对照标的)"
+  ]
+}

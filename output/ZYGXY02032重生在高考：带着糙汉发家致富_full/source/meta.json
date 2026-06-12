@@ -1,0 +1,16 @@
+{
+  "source_path": "fictions_source\\ZYGXY02032重生在高考：带着糙汉发家致富.txt",
+  "encoding": "utf-8",
+  "raw_chars": 1012641,
+  "clean_chars": 1010942,
+  "approx_wan_zi": 101.1,
+  "chapter_count": 338,
+  "removed_junk_lines": 0,
+  "garbage_chars": 0,
+  "short_chapters": 1,
+  "suspected_splice": true,
+  "notes": [
+    "疑似多书拼接（多个'第一章'）→ 需边界确认",
+    "1 个过短章（<200字）→ 可疑"
+  ]
+}

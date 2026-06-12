@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "E:\Project_Python\hiki-fiction-cli\claude\src\hiki\batch.py", line 29, in _one
+    rep = await run(src, n_ch, n_chunks, n_cand, refine, min_grade=min_grade)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Project_Python\hiki-fiction-cli\claude\src\hiki\produce.py", line 435, in run
+    meta = ingest(src, out_dir / "source")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Project_Python\hiki-fiction-cli\claude\src\hiki\ingest.py", line 76, in ingest
+    raw = src.read_bytes()
+          ^^^^^^^^^^^^^^^^
+  File "C:\Python311\Lib\pathlib.py", line 1050, in read_bytes
+    with self.open(mode='rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python311\Lib\pathlib.py", line 1044, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'fictions_source\\CPBGX00031我真不是大罗金仙(带房穿越修仙世界).txt'
