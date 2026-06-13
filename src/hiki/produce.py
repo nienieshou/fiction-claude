@@ -26,6 +26,17 @@ import collections
 
 _DLG = _re.compile(r"[「『“\"'][^」』”\"'\n]*[」』”\"']")  # 对话引号(粗)
 
+# R15 高潮事件关键词。强高潮词(查 title+key_events): 明确不可拆。境界词(仅查 title):
+# 只有"本章标题就是该境界突破"才算高潮章——避免"配角突破金丹"等key_events噪声误伤普通章("突破"太泛已删)。
+_CLIMAX_STRONG = ("飞升", "渡劫", "破虚", "九九", "天劫", "认主", "夺舍", "决战", "陨落", "合体", "大乘")
+_CLIMAX_REALM = ("化神", "元婴", "结丹", "凝丹", "金丹", "筑基")
+
+
+def _is_climax_ch(ch: dict) -> bool:
+    title = str(ch.get("title", ""))
+    blob = title + "".join(str(e) for e in (ch.get("key_events") or []))
+    return any(k in blob for k in _CLIMAX_STRONG) or any(k in title for k in _CLIMAX_REALM)
+
 
 def _first_person_ratio(text: str) -> float:
     """引号外叙述里第一人称占比（对话内'我'不计）。判 POV 离群章用。"""
@@ -251,8 +262,12 @@ def _wave_bounds(beats: list[dict], n_ch: int) -> list[tuple[int, int]]:
     return out
 
 
+_ITEM_TERMINAL = ("碎", "毁", "耗尽", "丢失", "灰飞", "湮灭", "送出", "易主", "炸")
+
+
 def _settle_facts(settled: dict, facts: list[dict], start_ch: int) -> None:
-    """波间结算: extract_facts 的逐章事实并入滚动状态(只进不退,死亡/最高修为/事件)。"""
+    """波间结算: extract_facts 的逐章事实并入滚动状态(只进不退,死亡/最高修为/事件)。
+    R14: 物品终态账——碎/毁/耗尽类只记首次,后续波次铁律禁其完好复出(雷灵珠ch50碎→ch52复用实证)。"""
     for off, f in enumerate(facts):
         ch = start_ch + off + 1                      # 1-based
         for d in f.get("deaths") or []:
@@ -262,11 +277,22 @@ def _settle_facts(settled: dict, facts: list[dict], start_ch: int) -> None:
         for pair in f.get("power") or []:
             if isinstance(pair, (list, tuple)) and len(pair) >= 2:
                 settled["power"][str(pair[0]).strip()] = (str(pair[1])[:20], ch)
+        for pair in f.get("items") or []:
+            if isinstance(pair, (list, tuple)) and len(pair) >= 2:
+                name, state = str(pair[0]).strip(), str(pair[1]).strip()
+                if name and 2 <= len(name) <= 8 and any(k in state for k in _ITEM_TERMINAL):
+                    settled.setdefault("items", {}).setdefault(name, (state[:12], ch))
 
 
-def _control_plane(ci: int, plan: dict, settled: dict, prev_exit: str) -> str:
+def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
+                   id_map: dict | None = None) -> str:
     """R13 章级控制面(inkos控制面+WriteHERE inclusion/exclusion+autonovel病例的反面):
-    事实由代码编译进起草输入,不靠模型回忆;铁律优先级>brief。"""
+    事实由代码编译进起草输入,不靠模型回忆;铁律优先级>brief。
+    B1-bug修(R13锚-8.8根因): inclusion(本章必演)是**章级**清单,原先每场景都注入→
+    章内后场景被铁律命令重演首场景已完成的事件(团宠ch49近逐字复刻实锤)。
+    改: 必演/开场前提只进首场景(si==0);后场景(si>0)把这批事件改标"已演完,绝不重演,只顺势推进"。
+    R14 账本扩面(团宠三臂实证:有对账守得住/错账更糟/无账放任漂移):
+    +身份账(canon,bible来源,治傅礼三版身份) +物品账(prose终态,治雷灵珠碎后复用)。"""
     chs = plan["chapters"]
     cur = chs[ci]
     inc = [str(k) for k in (cur.get("key_events") or []) if str(k).strip()][:3]
@@ -277,15 +303,31 @@ def _control_plane(ci: int, plan: dict, settled: dict, prev_exit: str) -> str:
                 excl.append(f"第{j + 1}章已演:{str(k)[:40]}")
     dead = [f"{w}(第{c}章亡,绝不再出场)" for w, c in sorted(settled["deaths"].items(), key=lambda x: x[1])][-8:]
     pw = [f"{w}={v}(截至第{c}章)" for w, (v, c) in list(settled["power"].items())[-6:]]
+    # R14 身份账: 本章场景文本里点到名的 canon 角色,身份钉死(确定性匹配,cap5防膨胀)
+    ids: list[str] = []
+    if id_map:
+        ch_txt = json.dumps(cur, ensure_ascii=False)
+        ids = [f"{n}={r}" for n, r in id_map.items() if n and n in ch_txt][:5]
+    # R14 物品账: 已终结物品,禁完好复出
+    items = [f"{n}(第{c}章{s},绝不再完好出现/使用)" for n, (s, c) in
+             list(settled.get("items", {}).items())[-6:]]
     lines = ["【控制面·铁律(优先级高于场景brief的叙述)】"]
-    if prev_exit:
+    if prev_exit and si == 0:                        # 开场前提=章首场景的事,后场景接的是本章前序场景
         lines.append(f"开场前提: 上一章结束于——{prev_exit[:80]};本章从此处接续。")
     if dead:
         lines.append("生死账(已结算,违者即硬伤): " + "；".join(dead))
     if pw:
         lines.append("修为/数值账(只升不降): " + "；".join(pw))
+    if ids:
+        lines.append("身份账(canon,全书不变,违者即硬伤): " + "；".join(ids))
+    if items:
+        lines.append("物品账(已终结): " + "；".join(items))
     if inc:
-        lines.append("本章必演(具体写出过程与结果): " + "；".join(inc))
+        if si == 0:                                  # 章首场景才命令演出本章关键事件
+            lines.append("本章必演(具体写出过程与结果): " + "；".join(inc))
+        else:                                        # 后场景: 同批事件已在本章前序场景演完→禁重演
+            lines.append("本章关键事件已在前序场景演出完毕(绝不重演/换角度重写,只顺势推进其后续): "
+                         + "；".join(inc))
     if excl:
         lines.append("绝不重演(已在前章演出完毕,只可一句带过): " + "；".join(excl[-6:]))
     return "\n" + "\n".join(lines) + "\n"
@@ -301,8 +343,11 @@ async def _plan_dedup_pass(cli: Client, plan: dict, cap: int = 16) -> list[str]:
     sys_p, usr_t = prompts.PLAN_DUP_CHECK
 
     def _digest(ch: dict) -> str:
-        return (str(ch.get("title", "")) + " | " + " ; ".join(
-            str(sc.get("brief", ""))[:150] for sc in ch.get("scenes", []) if isinstance(sc, dict)))[:600]
+        # R16: 喂 key_events(剧情进展信号)+brief——治邻章"同一剧情进展无推进"(ch23-24试探江清清),
+        # 旧版只喂brief判不出(brief措辞不同但剧情原地踏步)。
+        ke = "；".join(str(e)[:40] for e in (ch.get("key_events") or []))
+        return (str(ch.get("title", "")) + " | 进展:" + ke + " | " + " ; ".join(
+            str(sc.get("brief", ""))[:120] for sc in ch.get("scenes", []) if isinstance(sc, dict)))[:700]
 
     async def _check(j: int) -> dict:
         for t in range(3):
@@ -506,9 +551,10 @@ async def _handshake_pass(cli: Client, plan: dict, beats: list[dict], scenes: li
 
 
 async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
-              refine_rounds: int = 5, min_grade: str | None = None) -> dict:
+              refine_rounds: int = 5, min_grade: str | None = None,
+              out_dir: Path | None = None) -> dict:
     t0 = time.time()
-    out_dir = Path("output") / (src.stem + "_full")
+    out_dir = out_dir or (Path("output") / (src.stem + "_full"))   # M3: best-of-K 并行跑用独立目录
     meta = ingest(src, out_dir / "source")
     clean = (out_dir / "source" / "clean.txt").read_text(encoding="utf-8")
     print(f"源 {meta.approx_wan_zi}万字/{meta.chapter_count}章 → 全书深挖({n_chunks}窗)")
@@ -600,6 +646,34 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         if hk and ch["scenes"]:
             last = ch["scenes"][-1]
             last["brief"] = (last.get("brief") or "") + f"；本章必须收在钩子上:{hk}(结尾留悬念/危机,不写圆满收场)"
+    # R15 语义双版本治根(ch14讨债/ch59飞升各两版实证: plan把高潮拆2场景,两场景brief都覆盖高潮→
+    # 起草各演一遍;R13c前置标注/R14检测拦截只止损不治本——根在场景2 brief仍含高潮指令)。
+    # 高潮章: 场景2+的brief**整个替换**为纯收束(删掉原高潮指令,起草看不到"再演高潮")+强制SUMMARIZE压缩。
+    # 非高潮章: 保留R13c前置标注(边际有效)。
+    climax_chs = intra_dup = 0
+    for ch in plan["chapters"]:
+        scs = ch["scenes"]
+        if len(scs) < 2:
+            continue
+        if _is_climax_ch(ch):                        # 高潮章: 首场景演透, 其余只写后续
+            core = (scs[0].get("brief") or str(ch.get("title", "")))[:50]
+            for k in range(1, len(scs)):
+                scs[k]["mode"] = "SUMMARIZE"
+                scs[k]["brief"] = (f"(铁律: 本章高潮「{core}」已在第一个场景完整演出。本场景**严禁**以任何措辞"
+                                   f"重写/重演/换角度复述该高潮过程; 只写它**之后**的直接后果——他人反应/"
+                                   f"主角状态/一两句收束或转场, 压缩带过, 绝不再展开高潮本身)")
+            climax_chs += 1
+        else:                                        # 非高潮章: R13c 前置标注
+            for k in range(1, len(scs)):
+                pb = (scs[k - 1].get("brief") or "").strip()[:60]
+                if pb:
+                    scs[k]["brief"] = (f"(铁律:上一场景已把「{pb}」完整演出——本场景从其结束状态顺势推进，"
+                                       f"绝不从头重写/换机制重演/换角度复述该事件) ") + (scs[k].get("brief") or "")
+                    intra_dup += 1
+    if climax_chs:
+        print(f"R15高潮章单场景化: {climax_chs} 章(高潮后续场景强制收束+SUMMARIZE)")
+    if intra_dup:
+        print(f"章内禁重演标注(非高潮): {intra_dup} 个次场景")
 
     # 规划产物落盘(Tier3): 复评/选优点修/B实验都要"同plan重起草",规划不再是一次性中间态
     for nm, obj in (("bible", bible), ("macro", macro), ("plan", plan)):
@@ -635,14 +709,22 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
 
     # R13: 分幕波次起草+事实结算——波内并行、波间结算(AI_NovelGenerator"定稿即结算"闸门思路);
     # 控制面(entry_facts/inclusion/exclusion)由代码编译进每章起草输入,铁律优先级>brief。
-    settled: dict = {"deaths": {}, "power": {}}
+    settled: dict = {"deaths": {}, "power": {}, "items": {}}
+    # R14 身份账源: canon 角色名→身份(角色role+阵营),主角也入账(治傅礼ch2太一宗代理宗主类硬伤)
+    id_map: dict = {}
+    for c in bible.get("characters", []):
+        n, role, fac = (c.get("name") or "").strip(), (c.get("role") or "").strip(), (c.get("faction") or "").strip()
+        if n and role:
+            id_map[n] = (role + (f"({fac})" if fac and fac not in role else ""))[:24]
+    if p.get("name") and p.get("identity"):
+        id_map[p["name"].strip()] = str(p["identity"])[:24]
 
     async def _draft_chapter(ci: int) -> list[str]:
         parts: list[str] = []
         prev_exit = (plan["chapters"][ci - 1].get("exit_state") or "") if ci > 0 else ""
-        plane = _control_plane(ci, plan, settled, prev_exit)
         for si, sc in enumerate(plan["chapters"][ci]["scenes"]):
             i = starts[ci] + si
+            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map)   # B1修+R14账本扩面
             ctx = (ledger.format_context(ledger.state_before(ordered, i)) + _handoff(jobs, plan, i)
                    + plane)
             if parts:
@@ -853,6 +935,20 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         print(f"控制面核对跳过:{type(e).__name__}")
     final = _assemble(plan, ch_texts)
 
+    # R14 章内自重复检测(确定性,0-LLM): 治整章双版本(ch59飞升写两遍/讨债两版类语义重演)。
+    # 12-gram 章内两半重合>8%=同章把同一事件演两遍(读者可见killer);final_consistent兜底不可靠(ch59漏放)。
+    def _intra_repeat(t: str, thr: float = 0.08) -> float:
+        s = _re.sub(r"\s", "", t or "")
+        if len(s) < 800:
+            return 0.0
+        h = len(s) // 2
+        g1 = {s[i:i + 12] for i in range(0, h - 12, 3)}
+        g2 = {s[i:i + 12] for i in range(h, len(s) - 12, 3)}
+        return (len(g1 & g2) / max(1, min(len(g1), len(g2)))) if g1 and g2 else 0.0
+    intra_rep = [(i, r) for i, t in enumerate(ch_texts) if (r := _intra_repeat(t)) > 0.08]
+    if intra_rep:
+        print(f"章内自重复(整章双版本): {[(f'第{i+1}章', f'{r:.0%}') for i, r in intra_rep]}")
+
     det = [i for t in ch_texts for i in gate.deterministic_checks(t, bible, 3500)]
     advisory_raw = [o for o in (cont.get("other_issues") or []) if o]
     advisory = await _verify_advisories(cli, advisory_raw, bible)   # R11 灰区判读后才进fc/门
@@ -893,8 +989,11 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         ship_issues.append(f"残缝{seam_residual}处(章缝修复采用不足)")
     if not final_consistent:
         ship_issues.append("final_consistent=false(连续性残留)")
-    if len(reenact_hits) >= 2:                        # R13: 版本互斥换轨判据(每处=读者可见重演)
+    if len(reenact_hits) >= 1:                        # R13: 版本互斥换轨判据(每处=读者可见重演)
         ship_issues.append(f"事件重演{len(reenact_hits)}处(控制面核对)")
+    if intra_rep:                                     # R14: 整章双版本(ch59飞升两遍实证,final_consistent漏放)
+        ship_issues.append(f"章内双版本{[f'第{i+1}章{r:.0%}' for i, r in intra_rep]}(整章重演)")
+        # R13c: 阈值2→1——bug版实证1处重演(ch50复刻ch49)漏网误放57.9分书,单处即读者可见硬伤
     deliverable = not ship_issues
 
     # 成品命名：给复写新书起商业书名+卖点，输出《书名》.md（final.md 保留供下游）

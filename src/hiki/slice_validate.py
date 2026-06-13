@@ -72,16 +72,25 @@ async def _process_scene(cli: Client, sc: dict, bible: dict, voice: str, target:
     cands = await _draft_candidates(cli, sc, bible, voice, target, n, gold=gold[:600], context=context,
                                     tmpl=tmpl)
     cands = [c for c in cands if c.strip()] or cands     # 防全空
-    sys_p, usr_t = prompts.PICK
-    listed = "\n\n".join(f"【候选{i+1}】\n{c}" for i, c in enumerate(cands))
-    raw = await cli.complete("pk_final", sys_p, usr_t.format(n=len(cands), candidates=listed),
-                             json_mode=True, max_tokens=2500, temperature=0.3)
-    pick = gate._safe_json(raw) or {}                    # 健壮解析:单个flaky PICK绝不杀整本
-    try:
-        wi = int(pick.get("winner", 1))
-    except (ValueError, TypeError):
-        wi = 1                                           # 选裁flaky→退化取候选1(最长者更稳)
-    win = cands[max(1, min(len(cands), wi)) - 1]
+    # M1(stable-75): 选优判别器 PICK→GOLD_PK。判别器实验实锤: PICK(绝对自评)≈噪声(与对照仅25%一致,
+    # Goodhart),对照GOLD_PK(候选vs金标95锚打分)75%命中。有金标→对照打分选最高(吃模型尾部);无金标退PICK。
+    if gold and len(cands) > 1:
+        pks = await asyncio.gather(*[gate.gold_pk(cli, c, gold) for c in cands])
+        scores = [float(pk.get("score") or 0) for pk in pks]
+        wi_idx = max(range(len(cands)), key=lambda i: scores[i])
+        win = cands[wi_idx]
+        pick = {"winner": wi_idx + 1, "method": "gold_pk", "scores": scores}
+    else:                                                # 无金标(题材不匹配_load_gold空)→退PICK
+        sys_p, usr_t = prompts.PICK
+        listed = "\n\n".join(f"【候选{i+1}】\n{c}" for i, c in enumerate(cands))
+        raw = await cli.complete("pk_final", sys_p, usr_t.format(n=len(cands), candidates=listed),
+                                 json_mode=True, max_tokens=2500, temperature=0.3)
+        pick = gate._safe_json(raw) or {}                # 健壮解析:单个flaky PICK绝不杀整本
+        try:
+            wi = int(pick.get("winner", 1))
+        except (ValueError, TypeError):
+            wi = 1                                        # 选裁flaky→退化取候选1
+        win = cands[max(1, min(len(cands), wi)) - 1]
 
     gold_status = None
     if is_peak and gold:                          # 大件②：peak 对照金标(95上锚)多轮精修探测

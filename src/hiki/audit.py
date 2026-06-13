@@ -158,18 +158,35 @@ def check_factions(bible: dict, scenes: list[dict]) -> list[str]:
 _POWER_ORDER = ["凡人", "炼气", "筑基", "结丹", "金丹", "元婴", "化神", "炼虚", "合体", "大乘", "渡劫"]
 
 
-def _power_rank(p: str) -> int:
-    for j, k in enumerate(_POWER_ORDER):
-        if k in (p or ""):
-            return j
-    return -1
+def _power_rank(p: str, order: list[str] | None = None) -> int:
+    """R13c修(锚-5.9主因,52处钉反实锤): 旧版按梯子序找子串,'练气大圆满（渡劫中）'被括号状语
+    命中'渡劫'判rank=10(最高),后续筑基/金丹全被当'回退'钉回低值。改:
+    ①取**字符串中最早出现**的境界词(主境界在串首,状语注释在后); ②炼/练归一('练气'旧版rank=-1)。"""
+    s = (p or "").replace("炼气", "练气")
+    best, pos = -1, 1 << 30
+    for j, k in enumerate(order or _POWER_ORDER):
+        i = s.find(k.replace("炼气", "练气"))
+        if 0 <= i < pos:
+            best, pos = j, i
+    return best
+
+
+def power_order_from_bible(bible: dict) -> list[str] | None:
+    """从 bible.escalation_ladder 解析本书境界梯('练气→筑基→金丹…，赌注从…'→取→链头段)。
+    解析不出≥3级返回 None(调用方退默认梯);宁缺勿错。"""
+    raw = str((bible or {}).get("escalation_ladder") or "")
+    head = re.split(r"[，。,;；\s]", raw)[0]
+    stages = [t.strip() for t in re.split(r"[→>＞]+", head) if 1 < len(t.strip()) <= 6]
+    return stages if len(stages) >= 3 else None
 
 
 def fix_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
     """维5 shift-left：plan 里回退的 power_after 钉回当前最高境界，起草前执行。
     Fable三本实证翻案: 维5标记不是噪声——plan层修为回退会被起草忠实写进正文
     (化神→金丹→筑基三连倒退,正文跟着乱),人类编辑只读开头看不见,全读就是killer。
-    '隐藏实力/虚弱'是prose层的演法,canon真实境界只升不降。"""
+    '隐藏实力/虚弱'是prose层的演法,canon真实境界只升不降。
+    R13c: 优先用 bible 专属梯子;rank判不出(任一侧-1)绝不钉——宁漏勿错钉(钉反=主动造伤)。"""
+    order = power_order_from_bible(bible)
     alias = _alias_map(bible)
     cur: dict[str, tuple[int, str]] = {}
     fixed = []
@@ -179,7 +196,7 @@ def fix_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
             sp = _str_pair(pair)
             if sp:
                 who, p = alias.get(sp[0], sp[0]), sp[1]
-                r = _power_rank(p)
+                r = _power_rank(p, order)
                 if r >= 0:
                     cr, cs = cur.get(who, (-1, ""))
                     if r < cr:                       # 回退 → 钉回当前最高
@@ -193,8 +210,8 @@ def fix_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
 
 
 def check_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
-    """维5：修为不可回退(战力崩坏)。用境界序粗判。"""
-    rank = _power_rank
+    """维5：修为不可回退(战力崩坏)。用境界序粗判(R13c: 同步bible专属梯)。"""
+    order = power_order_from_bible(bible)
     alias = _alias_map(bible)
     cur: dict[str, int] = {}
     issues = []
@@ -204,7 +221,7 @@ def check_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
             if not sp:
                 continue
             who, pw = alias.get(sp[0], sp[0]), sp[1]
-            r = rank(pw)
+            r = _power_rank(pw, order)
             if r < 0:
                 continue
             if who in cur and r < cur[who]:
