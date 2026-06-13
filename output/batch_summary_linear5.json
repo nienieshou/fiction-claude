@@ -1,0 +1,160 @@
+{
+  "批": "线性甜区5本 best-of-3",
+  "本数": 5,
+  "裸过门_可交付": 2,
+  "总成本_cny": 105.29,
+  "墙钟_秒": 13280.5,
+  "results": [
+    {
+      "src": "ZTGXY01825误嫁豪门，战神老公蓄意偏宠.txt",
+      "best_bok": 0,
+      "best_score": 1,
+      "ship_issues": [
+        "事件重演3处(控制面核对)"
+      ],
+      "deliverable": false,
+      "rejected": null,
+      "grade": "A",
+      "暗黑比": 0.02,
+      "out_chapters": 60,
+      "final_chars": 214835,
+      "output_file": "ZTGXY01825误嫁豪门，战神老公蓄意偏宠_full_bestof3/《军婚十年：从被嫌到被宠》.不可交付.md",
+      "k_cost": 20.76,
+      "all_scores": [
+        [
+          0,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ]
+    },
+    {
+      "src": "ZYGXY01893怀孕命剩三月，傅爷说要回家过夜.txt",
+      "best_bok": 0,
+      "best_score": 2,
+      "ship_issues": [
+        "残缝11处(章缝修复采用不足)",
+        "事件重演1处(控制面核对)"
+      ],
+      "deliverable": false,
+      "rejected": null,
+      "grade": "A",
+      "暗黑比": 0.0,
+      "out_chapters": 60,
+      "final_chars": 209893,
+      "output_file": "ZYGXY01893怀孕命剩三月，傅爷说要回家过夜_full_bestof3/《带球跑后，我成了自己的光》.不可交付.md",
+      "k_cost": 20.82,
+      "all_scores": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          4
+        ]
+      ]
+    },
+    {
+      "src": "ZYGGY03052傲世狂妃太逆天.txt",
+      "best_bok": 0,
+      "best_score": 0,
+      "ship_issues": [
+        "通过"
+      ],
+      "deliverable": true,
+      "rejected": null,
+      "grade": "A",
+      "暗黑比": 0.02,
+      "out_chapters": 60,
+      "final_chars": 210521,
+      "output_file": "ZYGGY03052傲世狂妃太逆天_full_bestof3/《兽世神医：她靠自然祈愿立约》.md",
+      "k_cost": 23.84,
+      "all_scores": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    {
+      "src": "ZYGXN01960六零饥荒年：我靠团购娇养冷面知青.txt",
+      "best_bok": 2,
+      "best_score": 0,
+      "ship_issues": [
+        "通过"
+      ],
+      "deliverable": true,
+      "rejected": null,
+      "grade": "A",
+      "暗黑比": 0.0,
+      "out_chapters": 60,
+      "final_chars": 214263,
+      "output_file": "ZYGXN01960六零饥荒年：我靠团购娇养冷面知青_full_bestof3/《1970年代饥荒背景，女》.md",
+      "k_cost": 20.73,
+      "all_scores": [
+        [
+          2,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          4
+        ]
+      ]
+    },
+    {
+      "src": "ZTGXY01837退婚后，她被财阀大佬娇养了.txt",
+      "best_bok": 2,
+      "best_score": 1,
+      "ship_issues": [
+        "事件重演2处(控制面核对)"
+      ],
+      "deliverable": false,
+      "rejected": null,
+      "grade": "A",
+      "暗黑比": 0.0,
+      "out_chapters": 60,
+      "final_chars": 213426,
+      "output_file": "ZTGXY01837退婚后，她被财阀大佬娇养了_full_bestof3/《替身千金：陆总护妻查真相》.不可交付.md",
+      "k_cost": 19.14,
+      "all_scores": [
+        [
+          2,
+          1
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          1,
+          4
+        ]
+      ]
+    }
+  ]
+}

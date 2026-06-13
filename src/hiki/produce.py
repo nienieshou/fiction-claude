@@ -284,8 +284,54 @@ def _settle_facts(settled: dict, facts: list[dict], start_ch: int) -> None:
                     settled.setdefault("items", {}).setdefault(name, (state[:12], ch))
 
 
+def _spine_map(bible: dict) -> dict:
+    """Fact Spine(M1): 从 bible 全量配角+主角编成冻结角色表 {本名:{role,aliases,rel}}。
+    M0 实证: 现有 id_map 只钉身份不钉名,且长尾配角漏列→同角色多名漂移(生父4名/顾明骁↔景)。
+    Spine 把全量角色的规范名+禁用别名+血缘关系编成硬约束注入起草。"""
+    sm: dict = {}
+    for c in (bible.get("characters") or []):
+        n = (c.get("name") or "").strip()
+        if not n:
+            continue
+        sm[n] = {"role": (c.get("role") or "").strip()[:24],
+                 "aliases": [a.strip() for a in (c.get("aliases") or []) if isinstance(a, str) and a.strip() and a.strip() != n][:5],
+                 "rel": (c.get("key_relation") or c.get("relation_arc") or "").strip()[:30]}
+    p = bible.get("protagonist") or {}
+    if (p.get("name") or "").strip():
+        sm[p["name"].strip()] = {"role": str(p.get("identity") or "")[:24],
+                                 "aliases": [a for a in (p.get("aliases") or []) if a][:5], "rel": "主角"}
+    return sm
+
+
+def _spine_block(cur: dict, spine_map: dict) -> str:
+    """本章登场角色的冻结角色表(只列本章点到名/别名的角色),硬约束: 禁改名/禁新造名/身份钉死。"""
+    if not spine_map:
+        return ""
+    ch_txt = json.dumps(cur, ensure_ascii=False)
+    rows = []
+    for name, info in spine_map.items():
+        hit = name in ch_txt or any(a in ch_txt for a in info["aliases"])
+        if not hit:
+            continue
+        seg = f"{name}"
+        if info["rel"]:
+            seg += f"〔{info['rel']}〕"
+        if info["role"]:
+            seg += f"={info['role']}"
+        if info["aliases"]:
+            seg += f"(全书只称「{name}」,禁用异名:{'/'.join(info['aliases'])})"
+        rows.append(seg)
+        if len(rows) >= 10:
+            break
+    if not rows:
+        return ""
+    return ("\n角色名钉死(Fact Spine·冻结,违者即承重硬伤): " + "；".join(rows)
+            + "\n  铁律: 本章涉及的角色一律只用上列**本名**,**禁止为任何角色新造名字或改用别名/改写身份血缘**"
+              "(治同一角色多名/同名多身份漂移);上表没有的新角色才可命名。")
+
+
 def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
-                   id_map: dict | None = None) -> str:
+                   id_map: dict | None = None, spine_map: dict | None = None) -> str:
     """R13 章级控制面(inkos控制面+WriteHERE inclusion/exclusion+autonovel病例的反面):
     事实由代码编译进起草输入,不靠模型回忆;铁律优先级>brief。
     B1-bug修(R13锚-8.8根因): inclusion(本章必演)是**章级**清单,原先每场景都注入→
@@ -320,6 +366,7 @@ def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
         lines.append("修为/数值账(只升不降): " + "；".join(pw))
     if ids:
         lines.append("身份账(canon,全书不变,违者即硬伤): " + "；".join(ids))
+    sb = _spine_block(cur, spine_map) if (spine_map and os.environ.get("HIKI_SPINE") == "1") else ""
     if items:
         lines.append("物品账(已终结): " + "；".join(items))
     if inc:
@@ -330,7 +377,7 @@ def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
                          + "；".join(inc))
     if excl:
         lines.append("绝不重演(已在前章演出完毕,只可一句带过): " + "；".join(excl[-6:]))
-    return "\n" + "\n".join(lines) + "\n"
+    return "\n" + "\n".join(lines) + sb + "\n"
 
 
 async def _plan_dedup_pass(cli: Client, plan: dict, cap: int = 16) -> list[str]:
@@ -420,20 +467,40 @@ def _handoff(jobs: list, plan: dict, i: int) -> str:
     return f"\n紧邻前文(本场景开场必须从此接续,时空/动作不得倒退): {txt}" if txt else ""
 
 
+def _title_ok(t: str) -> bool:
+    """书名合法性守卫：必须像书名不像简介片段（治 setting[:12] 残句类 bug）。"""
+    t = (t or "").strip()
+    if not (3 <= len(t) <= 16):
+        return False
+    if any(c in t for c in "。，、…；"):                # 描述句标点=简介(冒号放行:主副标题是合法网文命名)
+        return False
+    if t[0].isdigit():                                  # "1970年代饥荒背景，女" 类残句
+        return False
+    if any(w in t for w in ("背景", "设定", "题材", "语域", "世界观", "主角", "复写")):
+        return False
+    return True
+
+
 async def gen_title(cli: Client, bible: dict, ending: str = "") -> dict:
-    """给复写新书起商业书名+卖点（flash，便宜）。喂实际结尾→书名/卖点贴真实结局(治承诺落空)。"""
+    """给复写新书起商业书名+卖点（flash，便宜）。喂实际结尾→书名/卖点贴真实结局(治承诺落空)。
+    带重试+合法性守卫(flash 偶发吐空/吐残句)；兜底用主角名,绝不用 setting 描述片段当书名。"""
     p = bible.get("protagonist", {})
     sys_p, usr_t = prompts.TITLE
-    raw = await cli.complete("plan_chapter", sys_p, usr_t.format(
+    usr = usr_t.format(
         protagonist=f"{p.get('name','')}/{p.get('identity','')}/{p.get('goal','')}",
         conflict=bible.get("central_conflict", ""), setting=bible.get("setting", ""),
         voice=bible.get("voice", ""), ladder=bible.get("escalation_ladder", ""),
-        ending=ending[-3000:] or "（无）"),
-        json_mode=True, max_tokens=2000, temperature=0.8)
-    r = gate._safe_json(raw) or {}
-    if not r.get("title"):
-        r = {"title": _safe_filename(bible.get("setting", "")[:12] or "复写成品"), "tagline": "", "alts": []}
-    return r
+        ending=ending[-3000:] or "（无）")
+    r: dict = {}
+    for t in range(3):                                  # 空/残句书名 → 重试(与其余 flaky 类同处理)
+        raw = await cli.complete("plan_chapter", sys_p, usr,
+                                 json_mode=True, max_tokens=2000, temperature=0.8 + 0.05 * t)
+        r = gate._safe_json(raw) or {}
+        if _title_ok(r.get("title", "")):
+            return r
+    name = (p.get("name") or "").strip()                # 三次仍不合法 → 主角名兜底,绝不拿 setting 描述
+    fb = f"{name}的逆袭" if name else "绝世逆袭"
+    return {"title": _safe_filename(fb), "tagline": r.get("tagline", ""), "alts": r.get("alts", [])}
 
 
 async def _plan_macro(cli: Client, bible: dict, scenes: list[dict], n_ch: int, tries: int = 3) -> dict:
@@ -604,6 +671,10 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
                               "characters": [{"name": c.get("name"), "goal": c.get("goal")}
                                              for c in bible.get("characters", [])[:8]],
                               "setting": bible.get("setting")}, ensure_ascii=False)[:3000]
+    if os.environ.get("HIKI_SPINE") == "1":             # Fact Spine: 规划也喂全量冻结角色名表(plan 用规范名)
+        roster = "；".join(f"{n}={i['role']}" + (f"〔{i['rel']}〕" if i['rel'] else "")
+                           for n, i in _spine_map(bible).items())[:2500]
+        bible_brief += ("\n【冻结角色表(全书规范名,规划与命名只用这些本名,禁新造同义角色)】\n" + roster)
     def _beat_brief(b: dict) -> str:
         return (b.get("beat") or "")[:60] or "（无）"
     plan_chs = await asyncio.gather(*[
@@ -718,13 +789,16 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
             id_map[n] = (role + (f"({fac})" if fac and fac not in role else ""))[:24]
     if p.get("name") and p.get("identity"):
         id_map[p["name"].strip()] = str(p["identity"])[:24]
+    spine_map = _spine_map(bible)                        # Fact Spine(M1,HIKI_SPINE=1): 冻结全量角色名表
+    if os.environ.get("HIKI_SPINE") == "1":
+        print(f"Fact Spine: 冻结 {len(spine_map)} 个角色规范名(注入起草硬约束,禁改名/新造名)")
 
     async def _draft_chapter(ci: int) -> list[str]:
         parts: list[str] = []
         prev_exit = (plan["chapters"][ci - 1].get("exit_state") or "") if ci > 0 else ""
         for si, sc in enumerate(plan["chapters"][ci]["scenes"]):
             i = starts[ci] + si
-            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map)   # B1修+R14账本扩面
+            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map, spine_map)  # B1修+R14账本扩面+Spine名钉死
             ctx = (ledger.format_context(ledger.state_before(ordered, i)) + _handoff(jobs, plan, i)
                    + plane)
             if parts:
