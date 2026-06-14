@@ -197,10 +197,11 @@ async def _adj_dup_pass(cli: Client, ch_texts: list[str], cap: int = 12):
     return ch_texts, fixed, len(bad)
 
 
-def _wave_bounds(beats: list[dict], n_ch: int) -> list[tuple[int, int]]:
+def _wave_bounds(beats: list[dict], n_ch: int,
+                 fallback_cuts: list[int] | None = None, min_ch: int = 4) -> list[tuple[int, int]]:
     """R13 波次界: act 对齐 + 确定性护栏(泛性来自护栏不来自对齐)。
-    切点=act转换处;单波>12强制加切;<4并入邻波;act畸形(波数<3或>8)退化固定切口8/20/33/46。
-    返回 [(start,end)) 0-based。"""
+    切点=act转换处;单波>12强制加切;<min_ch并入邻波;act畸形(波数<3或>8)退化固定切口(默认8/20/33/46)。
+    fallback_cuts/min_ch 可由 config.production 覆盖(D3);默认=历史校准值。返回 [(start,end)) 0-based。"""
     cuts = []
     prev_act = None
     for i, b in enumerate(beats[:n_ch]):
@@ -214,10 +215,10 @@ def _wave_bounds(beats: list[dict], n_ch: int) -> list[tuple[int, int]]:
         return list(zip(pts, pts[1:]))
     waves = _to_waves(cuts)
     if not (3 <= len(waves) <= 8):                   # act 畸形 → 固定切口
-        waves = _to_waves([8, 20, 33, 46])
-    merged: list[tuple[int, int]] = []               # 护栏①: <4 先并入邻波
+        waves = _to_waves(fallback_cuts or [8, 20, 33, 46])
+    merged: list[tuple[int, int]] = []               # 护栏①: <min_ch 先并入邻波
     for w in waves:
-        if merged and (w[1] - w[0] < 4 or merged[-1][1] - merged[-1][0] < 4):
+        if merged and (w[1] - w[0] < min_ch or merged[-1][1] - merged[-1][0] < min_ch):
             merged[-1] = (merged[-1][0], w[1])
         else:
             merged.append(w)
@@ -686,6 +687,9 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
               refine_rounds: int = 5, min_grade: str | None = None,
               out_dir: Path | None = None) -> dict:
     t0 = time.time()
+    _cfg = config.load("pipeline") or {}                # D2/D3: 结构/成本旋钮入 config
+    _out_cfg, prod = _cfg.get("output") or {}, _cfg.get("production") or {}
+    target_chars = int(_out_cfg.get("chars_per_chapter", 3500))
     out_dir = out_dir or (Path("output") / (src.stem + "_full"))   # M3: best-of-K 并行跑用独立目录
     meta = ingest(src, out_dir / "source")
     clean = (out_dir / "source" / "clean.txt").read_text(encoding="utf-8")
@@ -693,7 +697,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
 
     cli = Client()
     # 1) 全书深挖：map-reduce 厚bible + 全局场景池(打分筛选) + REDUCE后源分级
-    keep_scenes = int(n_ch * 1.4)                       # ~1.4 场景/章
+    keep_scenes = int(n_ch * prod.get("scene_per_chapter", 1.4))
     mined = await mining.mine_book(cli, clean, n_chunks, keep_scenes)
     bible, scenes, grade = mined["bible"], mined["scenes"], mined["grade"]
     p = bible.get("protagonist", {})
@@ -825,7 +829,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
 
     # 3) 并发起草所有场景（注入圣经+前情账本；造峰：开篇+富场景给大N+金标精修）
     spc = max(1.0, n_scenes / max(1, len(plan["chapters"])))
-    target = int(3500 / spc * 0.92)
+    target = int(target_chars / spc * 0.92)
     jobs = [(ci, si, sc) for ci, ch in enumerate(plan["chapters"]) for si, sc in enumerate(ch["scenes"])]
 
     def _rich(sc: dict) -> int:
@@ -833,10 +837,10 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         s = scenes[idx] if isinstance(idx, int) and 0 <= idx < len(scenes) else {}
         return len(s.get("payoffs", [])) + len(s.get("hooks", []))
     rich = [_rich(sc) for _, _, sc in jobs]
-    n_peaks = max(2, n_scenes // 12)
+    n_peaks = max(2, n_scenes // int(prod.get("peak_divisor", 12)))
     peaks = {0} | set(sorted(range(len(jobs)), key=lambda i: rich[i], reverse=True)[:n_peaks])
     gold = _load_gold(bible.get("voice", ""))
-    n_peak = n_cand + 5
+    n_peak = n_cand + int(prod.get("n_peak_bonus", 5))
     n_per = [n_peak if i in peaks else n_cand for i in range(len(jobs))]
     print(f"造峰:{len(peaks)}场用N={n_peak}+金标{refine_rounds}轮,其余N={n_cand}|金标={'有' if gold else '无'}")
     # R9: 跨章并行、**章内顺序**——场景2+带本章已写实际正文起草(治R8头号类'章内多版本重演':
@@ -883,7 +887,8 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
             parts.append(res["winner"])
         return parts
 
-    waves = _wave_bounds(beats, len(plan["chapters"]))
+    waves = _wave_bounds(beats, len(plan["chapters"]),
+                         prod.get("wave_fallback_cuts"), int(prod.get("wave_min_chapters", 4)))
     print(f"波次: {len(waves)} 波 {[(a + 1, b) for a, b in waves]} (act对齐+护栏)")
     ch_texts = []
     for wi, (wa, wb) in enumerate(waves):
@@ -897,15 +902,15 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
                   f"里程碑账{sum(len(v) for v in settled.get('milestones', {}).values())}")
 
     # 4) 后端：双向控字 + 硬截断 + POV统一 + 人名归一(双名守卫+近似名) + advisory连续性
-    ch_texts = await asyncio.gather(*[_fit_chapter(cli, t, 3500) for t in ch_texts])
-    short = [i for i, t in enumerate(ch_texts) if len(t) < 3500 * 0.7]   # 扩写flaky残留→再试一次
+    ch_texts = await asyncio.gather(*[_fit_chapter(cli, t, target_chars) for t in ch_texts])
+    short = [i for i, t in enumerate(ch_texts) if len(t) < target_chars * 0.7]   # 扩写flaky残留→再试一次
     if short:                                                            # (过短≥3章会被交付门拦)
-        refit = await asyncio.gather(*[_fit_chapter(cli, ch_texts[i], 3500) for i in short])
+        refit = await asyncio.gather(*[_fit_chapter(cli, ch_texts[i], target_chars) for i in short])
         for i, t in zip(short, refit):
             ch_texts[i] = t
         print(f"控字: {len(short)} 章过短二次扩写")
     # 末章给1.6×上限(治断尾: 硬截断会把结局收束拍切掉,Fable预评坐实'最后一句是高潮中断')
-    ch_texts = [_truncate(t, int(3500 * (1.6 if i == len(ch_texts) - 1 else 1.15)))
+    ch_texts = [_truncate(t, int(target_chars * (1.6 if i == len(ch_texts) - 1 else 1.15)))
                 for i, t in enumerate(ch_texts)]
     # 4a) POV：把误用人称的离群章统一回全书主人称(治整章第一人称误用)
     person, outliers = _pov_outliers(ch_texts)
@@ -1115,7 +1120,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     if intra_rep:
         print(f"章内自重复(整章双版本): {[(f'第{i+1}章', f'{r:.0%}') for i, r in intra_rep]}")
 
-    det = [i for t in ch_texts for i in gate.deterministic_checks(t, bible, 3500)]
+    det = [i for t in ch_texts for i in gate.deterministic_checks(t, bible, target_chars)]
     advisory_raw = [o for o in (cont.get("other_issues") or []) if o]
     advisory = await _verify_advisories(cli, advisory_raw, bible)   # R11 灰区判读后才进fc/门
     if len(advisory) < len(advisory_raw):

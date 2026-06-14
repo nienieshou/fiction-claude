@@ -20,7 +20,15 @@ _ROUTING = (config.load("models") or {}).get("routing", {})
 _API = {"v4-pro": "deepseek-v4-pro", "v4-flash": "deepseek-v4-flash"}
 
 
+_warned_stages: set[str] = set()
+
+
 def _model_for(stage: str) -> str:
+    if stage not in _ROUTING and stage not in _warned_stages:   # D5: typo'd stage 静默降级 flash → 显式告警
+        _warned_stages.add(stage)
+        import sys
+        print(f"⚠ 路由未知阶段 '{stage}' → 默认 v4-flash(检查 config/models.yaml routing 是否拼错)",
+              file=sys.stderr)
     return _API[_ROUTING.get(stage, "v4-flash")]
 
 

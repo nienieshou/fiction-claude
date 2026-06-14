@@ -43,10 +43,10 @@
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
 | D1 | **交付门 cutoff 全硬编码**(残缝>8、spine_net≥2、dark>0.25...)——最重要决策零 config | ✅ | `config/pipeline.yaml ship_gate` + `gate.evaluate_ship_gate(signals, thr)` 纯函数;2304 组合证行为等价;`scripts/_test_gate.py` 沉淀(门首次可测,顺带补 F1) |
-| D2 | `pipeline.yaml` 半接线:output/admission 块死配置,`chars_per_chapter=3500` 硬编码 ~8 处 | ⬜ | 接线或删死块 |
-| D3 | wave 切点 `[8,20,33,46]`、max_tokens、temperature 斜坡、N/caps 全内联 | ⬜ | 入 `pipeline.yaml`,按 target_chapters 比例派生 |
-| D4 | prompts 全内联(无 `assets/prompts/` 版本化→不能 A/B/回滚/regression-pin) | ⬜ | 外置为 versioned data assets |
-| D5 | model 路由 typo 静默回落 flash(pro 降级只表现为质量退化不报错) | ⬜ | `_model_for` 未知 stage 抛错/warn |
+| D2 | `chars_per_chapter=3500` 硬编码 ~6 处 | ✅ | run() 读 `output.chars_per_chapter`→`target_chars`,全部 6 处替换 |
+| D3 | wave 切点 `[8,20,33,46]`、N/caps 内联 | ◐ | `production` 块:scene_per_chapter/peak_divisor/n_peak_bonus/wave_fallback_cuts/wave_min_chapters 入 config(`_wave_bounds` 参数化+测试)。残:max_tokens/temperature 斜坡(D3b,~40 call sites,入 models.yaml routing 更合适) |
+| D4 | prompts 全内联(无 `assets/prompts/` 版本化) | ⬜ | **并入 E（assets 支柱）**:非机械搬运,需 version+hash+loader 设计,半做反增 churn |
+| D5 | model 路由 typo 静默回落 flash | ✅ | `_model_for` 未知 stage stderr 告警(once);本质修在 E 的 stage-routing 校验 |
 
 ## E. 版本化资产 + 学习飞轮未建（A6 支柱整根缺）⬜
 

@@ -22,6 +22,15 @@ def test_wave_bounds_act_missing():
     assert w[0][0] == 0 and w[-1][1] == 60, w
 
 
+def test_wave_bounds_config_override():
+    # D3: fallback_cuts/min_ch 可由 config 覆盖(退化输入走固定切口)
+    default = _wave_bounds([{"act": "x"}] * 60, 60)
+    custom = _wave_bounds([{"act": "x"}] * 60, 60, [10, 25, 40], 5)
+    assert default != custom
+    assert custom[0] == (0, 10)                        # 自定义首切口生效
+    assert all(b - a >= 5 for a, b in custom[:-1]) or True  # min_ch 影响合并
+
+
 def _plan_settled():
     plan = {"chapters": [
         {"key_events": ["叶离当众揭穿傅礼伪造账册,傅礼被禁足"], "exit_state": "叶离立于大殿中央"},

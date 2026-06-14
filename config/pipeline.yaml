@@ -5,6 +5,14 @@ output:
 budget:
   per_book_cny_cap: 50.0           # C3 单本硬上限
 
+# 量产结构/成本旋钮（D3）
+production:
+  scene_per_chapter: 1.4           # keep_scenes = 章数 × 此
+  peak_divisor: 12                 # 造峰数 = 场景数 // 此（min 2）
+  n_peak_bonus: 5                  # 高潮章候选 N = n_cand + 此
+  wave_fallback_cuts: [8, 20, 33, 46]   # act 畸形时的固定波切口
+  wave_min_chapters: 4             # 波合并下限
+
 # 交付门阈值（人工 6+10 本校准;改动须 scripts/replay_gate.py 回放验证不退化）
 ship_gate:
   too_short_chapters: 3            # 过短<70% 章数 ≥ → 拦

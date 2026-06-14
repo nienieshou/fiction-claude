@@ -13,6 +13,10 @@ _DEFAULTS: dict[str, Any] = {
         "too_short_chapters": 3, "dark_ratio_max": 0.25, "seam_residual_max": 8,
         "reenact_min": 1, "spine_net_min": 2, "intra_repeat_thr": 0.08,
     },
+    "production": {                              # 量产结构/成本旋钮(D3)
+        "scene_per_chapter": 1.4, "peak_divisor": 12, "n_peak_bonus": 5,
+        "wave_fallback_cuts": [8, 20, 33, 46], "wave_min_chapters": 4,
+    },
     "ingest": {
         "encodings": ["utf-8", "gbk", "gb18030"],
         "chapter_regex": r"^\s*第\s*[0-9零一二三四五六七八九十百千万两]+\s*[章节卷回]",
