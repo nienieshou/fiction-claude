@@ -87,6 +87,34 @@ def collect_observations(chunk_results: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def collect_facts(chunk_results: list[dict]) -> str:
+    """归并各窗 fact_observations → 每个事实项的多值+频次(冲突原样留给 REDUCE 裁成单值)。
+    M1.5 ②: 数值脊柱的原料——彩礼/年龄/婚龄/失散年数等应单值设定,各窗可能给冲突值。"""
+    by_item: dict[str, Counter] = {}
+    for r in chunk_results:
+        for pair in r.get("fact_observations") or []:
+            if isinstance(pair, (list, tuple)) and len(pair) >= 2:
+                item, val = str(pair[0]).strip(), str(pair[1]).strip()
+                if item and val:
+                    by_item.setdefault(item, Counter())[val] += 1
+    lines = []
+    for item, vals in by_item.items():
+        shown = "、".join(f"{v}(×{c})" for v, c in vals.most_common(6))
+        flag = " ⚠多值冲突,需裁单值" if len(vals) > 1 else ""
+        lines.append(f"【{item}】{shown}{flag}")
+    return "\n".join(lines) if lines else "(无)"
+
+
+def collect_places(chunk_results: list[dict]) -> str:
+    """归并各窗 places → 频次表(供 REDUCE 归并成规范名,治地名/公司名/城名横跳)。"""
+    c: Counter = Counter()
+    for r in chunk_results:
+        for p in r.get("places") or []:
+            if isinstance(p, str) and p.strip():
+                c[p.strip()] += 1
+    return "、".join(f"{p}(×{n})" for p, n in c.most_common(40)) if c else "(无)"
+
+
 def scene_stats(scenes: list[dict]) -> str:
     c = Counter(sc.get("scene_type", "其它") for sc in scenes)
     return "、".join(f"{k}×{v}" for k, v in c.most_common())
@@ -106,7 +134,8 @@ async def reduce_bible(cli: Client, chunk_results: list[dict], scenes: list[dict
     """归并厚 bible。pro 思考模式偶发吐空/截断 → 重试（实测重试即成功）。"""
     sys_p, usr_t = prompts.REDUCE_BIBLE
     obs = collect_observations(chunk_results)
-    usr = usr_t.format(observations=obs[:40000], scene_stats=scene_stats(scenes))
+    usr = usr_t.format(observations=obs[:40000], fact_obs=collect_facts(chunk_results)[:8000],
+                       place_obs=collect_places(chunk_results)[:4000], scene_stats=scene_stats(scenes))
     best = {}
     for t in range(tries):
         raw = await cli.complete("reduce", sys_p, usr,

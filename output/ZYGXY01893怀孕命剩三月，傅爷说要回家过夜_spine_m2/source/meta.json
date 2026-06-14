@@ -1,0 +1,15 @@
+{
+  "source_path": "fictions_source/ZYGXY01893怀孕命剩三月，傅爷说要回家过夜.txt",
+  "encoding": "utf-8",
+  "raw_chars": 711371,
+  "clean_chars": 710809,
+  "approx_wan_zi": 71.1,
+  "chapter_count": 282,
+  "removed_junk_lines": 0,
+  "garbage_chars": 0,
+  "short_chapters": 2,
+  "suspected_splice": false,
+  "notes": [
+    "2 个过短章（<200字）→ 可疑"
+  ]
+}

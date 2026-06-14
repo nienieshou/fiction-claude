@@ -265,6 +265,22 @@ def _wave_bounds(beats: list[dict], n_ch: int) -> list[tuple[int, int]]:
 _ITEM_TERMINAL = ("碎", "毁", "耗尽", "丢失", "灰飞", "湮灭", "送出", "易主", "炸")
 
 
+_MILESTONE_KW = [
+    ("分娩", ("分娩", "生下", "产下", "生子", "生女", "临盆", "早产", "剖腹", "诞下", "生产", "出生")),
+    ("成婚", ("完婚", "结婚", "大婚", "领证", "成婚", "婚礼", "嫁给", "迎娶", "出嫁")),
+    ("离婚", ("离婚", "和离")),
+    ("认亲", ("认亲", "认祖", "归宗", "相认", "身世揭", "验亲", "滴血", "亲子鉴定", "DNA")),
+]
+
+
+def _milestone_type(ev: str) -> str:
+    """里程碑归类(同类只记首次):分娩/成婚/离婚/认亲;不匹配则用前4字。"""
+    for t, kws in _MILESTONE_KW:
+        if any(k in ev for k in kws):
+            return t
+    return ev[:4]
+
+
 def _settle_facts(settled: dict, facts: list[dict], start_ch: int) -> None:
     """波间结算: extract_facts 的逐章事实并入滚动状态(只进不退,死亡/最高修为/事件)。
     R14: 物品终态账——碎/毁/耗尽类只记首次,后续波次铁律禁其完好复出(雷灵珠ch50碎→ch52复用实证)。"""
@@ -282,6 +298,12 @@ def _settle_facts(settled: dict, facts: list[dict], start_ch: int) -> None:
                 name, state = str(pair[0]).strip(), str(pair[1]).strip()
                 if name and 2 <= len(name) <= 8 and any(k in state for k in _ITEM_TERMINAL):
                     settled.setdefault("items", {}).setdefault(name, (state[:12], ch))
+        for pair in f.get("milestones") or []:       # M1.5: 不可逆人生里程碑账(治孕产/婚育时间线退步)
+            if isinstance(pair, (list, tuple)) and len(pair) >= 2:
+                who, ev = str(pair[0]).strip(), str(pair[1]).strip()
+                if who and 2 <= len(who) <= 6 and ev:
+                    t = _milestone_type(ev)          # 按类型去重(措辞每章不同,'分娩'类只记首次)
+                    settled.setdefault("milestones", {}).setdefault(who, {}).setdefault(t, (ev[:24], ch))
 
 
 def _spine_map(bible: dict) -> dict:
@@ -330,8 +352,73 @@ def _spine_block(cur: dict, spine_map: dict) -> str:
               "(治同一角色多名/同名多身份漂移);上表没有的新角色才可命名。")
 
 
+def _spine_facts(bible: dict) -> str:
+    """Fact Spine(M1.5 ②): 把 bible.facts(归并后的单值设定数值)编成「数值钉死」硬约束。
+    M1 实证: 只钉名+身份不够,彩礼30/60/15万、年龄22/21/24 照漂——因为数值无单一真相、
+    起草各编各的。此块把冻结单值注入每章起草,优先级 > brief 现编。条目少(~10),全章注入。"""
+    rows = []
+    for f in (bible.get("facts") or []):
+        if not isinstance(f, dict):
+            continue
+        item, val = str(f.get("item") or "").strip(), str(f.get("value") or "").strip()
+        if not (item and val):
+            continue
+        rule = str(f.get("rule") or "").strip()
+        rows.append(f"{item}={val}" + (f"〔{rule}〕" if rule else ""))
+        if len(rows) >= 16:
+            break
+    if not rows:
+        return ""
+    return ("\n数值钉死(Fact Spine·冻结单值,违者即承重数值矛盾): " + "；".join(rows)
+            + "\n  铁律: 涉及上列设定数值时**只能用冻结值**(单调标记者只可按序递增,绝不写低/回退);"
+              "brief 或情节需要而上表未列的数值才可自定,且全书须自洽。")
+
+
+def _spine_roster(spine_map: dict) -> str:
+    """M1.5③ 身份维钉死: 全书角色身份的 always-on 冻结总表(治身份漂移)。
+    名钉死(_spine_block)只防「同角色多名」;身份漂移是另一类——draft 给已知角色另派身份/职务/辈分
+    (顾明骁大少↔二少、秦江洲表弟↔表叔),或复用人名作新职务(周柏森 律师↔人力总监,M1.5③精读头号残留致命)。
+    这些名钉死管不到,需身份维硬约束 + 「新功能角色必须另起新名」规则。"""
+    rows = []
+    for name, info in spine_map.items():
+        tag = (info.get("role") or "").strip() or (info.get("rel") or "").strip()
+        if tag:
+            rows.append(f"{name}={tag}")
+        if len(rows) >= 18:
+            break
+    if not rows:
+        return ""
+    return ("\n角色身份钉死(Fact Spine·全书冻结,违者即承重硬伤): " + "；".join(rows)
+            + "\n  铁律: ①上列角色的身份/职业/头衔/辈分/亲属称谓一经设定全书不得变更"
+              "(禁:顾家大少写成二少、表弟写成表叔、律师写成总监、哥哥写成父亲);"
+              "②同一人名绝不承担两种互斥身份/职务;③需要新职务的功能性角色(某公司总监/某律师等)"
+              "**必须另起新名,严禁复用上表或前文已出现过的人名**。")
+
+
+def _spine_world(bible: dict) -> str:
+    """M2 失效类: 世界观体系登记表(地点/势力/战力体系钉死)。
+    M2 实证两持平本死于地名横跳(云城↔武边↔凤城、霖洲↔槐居↔百川致命)+战力体系乱序(金丹↔数字段)。
+    名/数值钉死不覆盖非人实体——补地点/势力规范名 + 单一体系定义,治世界观漂移。"""
+    out = ""
+    places = [p.get("name", "").strip() for p in (bible.get("places") or [])
+              if isinstance(p, dict) and p.get("name")][:12]
+    facs = [f.get("name", "").strip() for f in (bible.get("factions") or [])
+            if isinstance(f, dict) and f.get("name")][:8]
+    sysdef = (bible.get("power_system") or "").strip()
+    if places:
+        out += "\n地点钉死(全书规范地名/城名,禁中途改名换城): " + "、".join(places)
+    if facs:
+        out += "\n势力/机构钉死(规范名,禁异名): " + "、".join(facs)
+    if sysdef and sysdef not in ("无", "None"):
+        out += "\n战力/体系钉死(全书唯一阶梯,禁混用别套或等级乱序/回退): " + sysdef[:220]
+    if out:
+        out += "\n  铁律: 涉及上列地点/势力/体系一律用规范称谓与单一体系,禁中途改地名、换公司名、混用别套战力或等级倒退。"
+    return out
+
+
 def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
-                   id_map: dict | None = None, spine_map: dict | None = None) -> str:
+                   id_map: dict | None = None, spine_map: dict | None = None,
+                   spine_facts: str = "", spine_roster: str = "", spine_world: str = "") -> str:
     """R13 章级控制面(inkos控制面+WriteHERE inclusion/exclusion+autonovel病例的反面):
     事实由代码编译进起草输入,不靠模型回忆;铁律优先级>brief。
     B1-bug修(R13锚-8.8根因): inclusion(本章必演)是**章级**清单,原先每场景都注入→
@@ -366,7 +453,15 @@ def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
         lines.append("修为/数值账(只升不降): " + "；".join(pw))
     if ids:
         lines.append("身份账(canon,全书不变,违者即硬伤): " + "；".join(ids))
-    sb = _spine_block(cur, spine_map) if (spine_map and os.environ.get("HIKI_SPINE") == "1") else ""
+    spine_on = os.environ.get("HIKI_SPINE") == "1"
+    sb = _spine_block(cur, spine_map) if (spine_map and spine_on) else ""
+    sb += (spine_roster + spine_facts + spine_world) if spine_on else ""
+    if spine_on and settled.get("milestones"):       # M1.5: 里程碑账(不可逆,治孕产/婚育时间线退步)
+        ms = []
+        for w, types in list(settled["milestones"].items())[-8:]:
+            ms.append(f"{w}: " + "、".join(f"{ev}(第{c}章)" for ev, c in types.values()))
+        lines.append("里程碑账(已发生·不可逆,绝不退回此前状态/不重演该事件;如已分娩绝不再写未孕待产、已完婚绝不再写未婚): "
+                     + "；".join(ms))
     if items:
         lines.append("物品账(已终结): " + "；".join(items))
     if inc:
@@ -675,6 +770,10 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         roster = "；".join(f"{n}={i['role']}" + (f"〔{i['rel']}〕" if i['rel'] else "")
                            for n, i in _spine_map(bible).items())[:2500]
         bible_brief += ("\n【冻结角色表(全书规范名,规划与命名只用这些本名,禁新造同义角色)】\n" + roster)
+        facts_line = "；".join(f"{f.get('item')}={f.get('value')}" for f in (bible.get("facts") or [])
+                              if isinstance(f, dict) and f.get("item") and f.get("value"))[:1500]
+        if facts_line:
+            bible_brief += ("\n【冻结设定数值(全书单值,节拍涉及时只用这些值)】\n" + facts_line)
     def _beat_brief(b: dict) -> str:
         return (b.get("beat") or "")[:60] or "（无）"
     plan_chs = await asyncio.gather(*[
@@ -790,15 +889,20 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     if p.get("name") and p.get("identity"):
         id_map[p["name"].strip()] = str(p["identity"])[:24]
     spine_map = _spine_map(bible)                        # Fact Spine(M1,HIKI_SPINE=1): 冻结全量角色名表
+    spine_facts = _spine_facts(bible)                    # M1.5 ②: 冻结单值设定数值(彩礼/年龄/婚龄...)
+    spine_roster = _spine_roster(spine_map)              # M1.5 ③: 冻结角色身份总表(治身份维漂移)
+    spine_world = _spine_world(bible)                     # M2 失效类: 地点/势力/战力体系登记表(治世界观漂移)
     if os.environ.get("HIKI_SPINE") == "1":
-        print(f"Fact Spine: 冻结 {len(spine_map)} 个角色规范名(注入起草硬约束,禁改名/新造名)")
+        print(f"Fact Spine: 冻结 {len(spine_map)} 角色规范名 + {len(bible.get('facts') or [])} 数值设定"
+              f" + {len(bible.get('places') or [])} 地点 + 身份/体系钉死")
 
     async def _draft_chapter(ci: int) -> list[str]:
         parts: list[str] = []
         prev_exit = (plan["chapters"][ci - 1].get("exit_state") or "") if ci > 0 else ""
         for si, sc in enumerate(plan["chapters"][ci]["scenes"]):
             i = starts[ci] + si
-            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map, spine_map)  # B1修+R14账本扩面+Spine名钉死
+            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map, spine_map,
+                                   spine_facts, spine_roster, spine_world)  # +Spine名/数值/身份/地点·体系钉死
             ctx = (ledger.format_context(ledger.state_before(ordered, i)) + _handoff(jobs, plan, i)
                    + plane)
             if parts:
@@ -820,7 +924,8 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         if wb < len(plan["chapters"]):               # 末波不结算(无下游)
             wfacts = await prose_facts.extract_facts(cli, wave_texts)
             _settle_facts(settled, wfacts, wa)
-            print(f"  波{wi + 1}({wa + 1}-{wb}章)结算: 生死账{len(settled['deaths'])} 修为账{len(settled['power'])}")
+            print(f"  波{wi + 1}({wa + 1}-{wb}章)结算: 生死账{len(settled['deaths'])} 修为账{len(settled['power'])} "
+                  f"里程碑账{sum(len(v) for v in settled.get('milestones', {}).values())}")
 
     # 4) 后端：双向控字 + 硬截断 + POV统一 + 人名归一(双名守卫+近似名) + advisory连续性
     ch_texts = await asyncio.gather(*[_fit_chapter(cli, t, 3500) for t in ch_texts])
@@ -929,6 +1034,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     #     identity低置信只留 fact_table.json 供点修,不进摘要防称谓噪声淹没)
     ft_deaths_verified: list[dict] = []
     fact_table_ok = False
+    spine_net_num, spine_net_id = 0, 0               # §3.6 Spine薄网: 起草违反冻结事实的残漏(对照后进交付门)
     try:
         ft = await prose_facts.fact_table_audit(cli, ch_texts)
         # R9: 生死候选过 PROSE_REVIVAL_VERIFY 才计入门——常规题材3/3真,但死遁/重生题材1/3
@@ -972,6 +1078,12 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
                         ch_texts[f["ch_b"] - 1] = t
                         pw_fixed_n += 1
                 print(f"修为闭环: {len(pw_cand)}候选→verify真{len(pw_real)}→修复{pw_fixed_n}")
+        if os.environ.get("HIKI_SPINE") == "1":       # §3.6 薄网: cross_check真矛盾(对照冻结Spine)进交付门
+            if any(f.get("cat") == "身份" for f in ft["findings"]):
+                await prose_facts.verify_identity(cli, ft["findings"], ch_texts)   # 真矛盾过滤(①)
+            spine_net_num = sum(1 for f in ft["findings"] if f.get("cat") == "数值" and f.get("conf") == "低")
+            spine_net_id = sum(1 for f in ft["findings"] if f.get("cat") == "身份" and f.get("real"))
+            ft["spine_net"] = {"数值真矛盾": spine_net_num, "身份真矛盾": spine_net_id}
         fact_adv = [f["why"] for f in ft["findings"] if f.get("conf") in ("高", "中")]
         (out_dir / "fact_table.json").write_text(
             json.dumps(ft, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1067,6 +1179,8 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         ship_issues.append(f"事件重演{len(reenact_hits)}处(控制面核对)")
     if intra_rep:                                     # R14: 整章双版本(ch59飞升两遍实证,final_consistent漏放)
         ship_issues.append(f"章内双版本{[f'第{i+1}章{r:.0%}' for i, r in intra_rep]}(整章重演)")
+    if spine_net_num + spine_net_id >= 2:             # §3.6 Spine薄网: 起草违反冻结事实的残漏(≥2防单条噪声误拦)
+        ship_issues.append(f"Spine薄网真矛盾: 数值{spine_net_num}/身份{spine_net_id}条(起草违反冻结事实,详见fact_table.json)")
         # R13c: 阈值2→1——bug版实证1处重演(ch50复刻ch49)漏网误放57.9分书,单处即读者可见硬伤
     deliverable = not ship_issues
 
