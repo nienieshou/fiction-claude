@@ -117,7 +117,7 @@ async def continuity_check(cli: Client, text: str, bible: dict) -> dict:
 
 
 def structural_lite(plan: dict, dna: dict) -> dict:
-    """轻量结构指标：场景/钩子/爽点覆盖（完整 5 指标见 metrics.py）。"""
+    """轻量结构指标：场景/钩子/爽点覆盖（plan/dna 派生，确定性）。"""
     scenes = [sc for ch in plan.get("chapters", []) for sc in ch["scenes"]]
     dscenes = dna.get("scenes", [])
     hooks = sum(1 for s in dscenes if s.get("hooks"))
@@ -125,29 +125,6 @@ def structural_lite(plan: dict, dna: dict) -> dict:
     n = len(dscenes) or 1
     return {"chapters": len(plan.get("chapters", [])), "scenes": len(scenes),
             "hook_coverage": round(hooks / n, 2), "payoff_coverage": round(payoffs / n, 2)}
-
-
-async def reconcile_bible(cli: Client, bible: dict, issues: list[str]) -> dict:
-    """闭环修复 step1：据审计问题校订圣经（补漏角色/纠错设定）。"""
-    sys_p, usr_t = prompts.RECONCILE
-    raw = await cli.complete("plan", sys_p, usr_t.format(
-        bible=json.dumps(bible, ensure_ascii=False), issues="；".join(issues)),
-        json_mode=True, max_tokens=3000, temperature=0.2)
-    try:
-        fixed = json.loads(raw)
-        return fixed if fixed.get("protagonist") else bible
-    except Exception:
-        return bible
-
-
-async def repair_chapter(cli: Client, text: str, bible: dict, issues: list[str]) -> str:
-    """闭环修复 step2：据圣经定向修复本章不一致，其余不动。"""
-    sys_p, usr_t = prompts.REPAIR
-    out = await cli.complete("draft", sys_p, usr_t.format(
-        bible=json.dumps(bible, ensure_ascii=False), issues="；".join(issues), text=text),
-        max_tokens=8000, temperature=0.3)
-    out = "\n".join(ln for ln in out.split("\n") if not _MARKER_RE.match(ln)).strip()
-    return out or text
 
 
 async def gold_pk(cli: Client, scene: str, gold: str) -> dict:

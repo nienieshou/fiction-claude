@@ -6,10 +6,11 @@
 from __future__ import annotations
 import asyncio
 import os
+import random
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from openai import RateLimitError, APIError
+from openai import RateLimitError, APIError, APIConnectionError, APITimeoutError
 from . import config, budget
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -55,13 +56,17 @@ class Client:
                         self.cost_usd += budget.call_cost_usd(
                             _ROUTING.get(stage, "v4-flash"), u.prompt_tokens, u.completion_tokens, cached)
                     self.calls += 1
-                    return (r.choices[0].message.content or "") if r.choices else ""
+                    content = (r.choices[0].message.content or "") if r.choices else ""
+                    # A4: 空响应(flash 偶发抽风)当可重试,不静默返回 "" 误导调用方"修好了/无问题"
+                    if content.strip() or attempt == 5:
+                        return content
+                    await asyncio.sleep(min(2 ** attempt, 10) * (0.5 + random.random()))
                 except RateLimitError:
-                    await asyncio.sleep(min(2 ** attempt, 30))      # 429 指数退避
-                except APIError:
+                    await asyncio.sleep(min(2 ** attempt, 30) * (0.5 + random.random()))   # 429 指数退避+jitter 防同步重撞
+                except (APIError, APIConnectionError, APITimeoutError):  # 含连接/超时,否则单次闪断 abort 整跑
                     if attempt == 5:
                         raise
-                    await asyncio.sleep(min(2 ** attempt, 15))
+                    await asyncio.sleep(min(2 ** attempt, 15) * (0.5 + random.random()))
             raise RuntimeError(f"{stage}: 重试耗尽")
 
     @property

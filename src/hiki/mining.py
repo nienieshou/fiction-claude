@@ -223,9 +223,16 @@ async def grade_source(cli: Client, bible: dict, dark: dict | None = None) -> di
     brief += (f"\n主角弧:{prot.get('arc','')} | 主目标:{prot.get('goal','')}/{prot.get('goal_internal','')}"
               f"\n内在转变节点:{json.dumps(prot.get('arc_milestones') or [], ensure_ascii=False)}"
               f" | 主动事例:{len(prot.get('agency_examples') or [])}条")
-    raw = await cli.complete("source_grade", sys_p, usr_t.format(bible=brief),
-                             json_mode=True, max_tokens=2500, temperature=0.3)
-    g = gate._safe_json(raw) or {"grade": "B", "mode": "强化改写"}
+    g = None
+    for t in range(3):                               # 重试(配合 client 空响应重试),pro 偶发截断
+        raw = await cli.complete("source_grade", sys_p, usr_t.format(bible=brief),
+                                 json_mode=True, max_tokens=2500, temperature=0.3 + 0.1 * t)
+        cand = gate._safe_json(raw)
+        if isinstance(cand, dict) and cand.get("grade"):
+            g = cand
+            break
+    if g is None:                                    # A5: 评级无法解析→不铸造可交付的B(否则Q源拿免费全本¥draft);失败即拒,省钱不裸奔
+        return {"grade": "Q", "mode": "拒收", "reason": "源评级多次解析失败,无法判级→拒收(防裸奔出货)"}
     # 人物弧硬判据('人'维是源决定的,选源即选分): 无弧工具人→最高C,表面弧→最高B
     arc = (g.get("protagonist_arc") or "").strip()
     if arc.startswith("无"):

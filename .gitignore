@@ -152,3 +152,16 @@ cython_debug/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Generated novel outputs — keep authoritative evidence (_full*, _spine_m2/m3, batch_summary*),
+# ignore intermediate best-of-K runs and experiment dumps (tech-debt G3)
+output/*_bok[0-9]/
+output/*_gbok[0-9]/
+output/*_full_gen/
+output/*_gen/
+output/_crash_*
+output/_disc/
+output/_logs/
+output/_m0_seq/
+output/_pregrade/
+output/pregrade_map.*

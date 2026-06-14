@@ -18,7 +18,8 @@ _CH_SPLIT = re.compile(r"^# 第\d+章.*$", re.M)
 _CATS = {"生死", "体系", "时间轴", "身份", "数值"}
 # 语义可变量(随情节合法变化,跨章不同≠矛盾):钱包余额/不同合同/股价等。
 # 刻意排除 彩礼/年龄/婚龄/年限/走失年数 等应单值的设定不变量(不在此表)。
-_MUTABLE = re.compile(r"余额|存款|现金|流水|身价|资产|合同|报价|成交|转账|欠款|借款|售价|股价|存款|车程|路程")
+# 局限:表面词denylist枚举不全(synonym漏/子串误伤),正解是 LLM 抽取时标 mutable 语义——见 §fact_spine ⑥ 残留。
+_MUTABLE = re.compile(r"余额|存款|现金|流水|身价|资产|合同|报价|成交|转账|欠款|借款|售价|股价|车程|路程")
 _PUNCT = re.compile(r"[\s,。！？!?、：:;；“”‘’…—\"'《》()（）]")
 
 
@@ -97,10 +98,15 @@ def _cn_to_num(s: str) -> float | None:
     return float(total + section + num) if found else None
 
 
+_UNIT_MUL = {"万": 1e4, "亿": 1e8, "千": 1e3, "百": 1e2}
+
+
 def _num_of(s: str) -> float | None:
     m = _NUM.search(s)
     if m:
-        return float(m.group(1))
+        v = float(m.group(1))
+        tail = s[m.end():m.end() + 1]              # 紧跟的量纲字:'30万'→30×1e4,与'三十万'(=300000)一致
+        return v * _UNIT_MUL.get(tail, 1.0)
     return _cn_to_num(s)                           # 中文数字(婚龄'四年'/'四十分钟'类)
 
 
@@ -186,13 +192,15 @@ def cross_check(facts: list[dict]) -> list[dict]:
                                         "why": f"{k}: 第{ca}章「{va}」vs 第{cb}章「{vb}」",
                                         "conf": "低"})
     # 身份类放宽到4条/实体(让 LLM 真矛盾门去伪,不在此处用盲cap误杀真矛盾);数值类仍封2条
+    # cap 计数键含 cat: 否则同名实体的身份findings会吃光共享计数,误删其数值findings(独立cap本意)
     cap = {"身份": 4, "数值": 2}
-    per_entity: dict[str, int] = {}
+    per_entity: dict[tuple[str, str], int] = {}
     for f in id_findings:
-        c = per_entity.get(f["who"], 0)
+        key = (f["cat"], f["who"])
+        c = per_entity.get(key, 0)
         if c < cap.get(f["cat"], 2):
             findings.append(f)
-            per_entity[f["who"]] = c + 1
+            per_entity[key] = c + 1
     return findings
 
 
@@ -238,11 +246,13 @@ async def verify_identity(cli: Client, findings: list[dict], ch_texts: list[str]
 
 
 async def fact_table_audit(cli: Client, ch_texts: list[str]) -> dict:
-    """A2' 入口: 抽取→对比。返回 {findings, n_high(生死类数)}。advisory,不进门。"""
+    """A2' 入口: 抽取→对比。返回 {findings, n_high(生死类数), n_unaudited}。
+    A1: n_unaudited=抽取失败(空)的章数——区分"审计过=干净"与"没审到"(后者非0时 findings 不可当可信干净)。"""
     facts = await extract_facts(cli, ch_texts)
     findings = cross_check(facts)
     return {"findings": findings,
-            "n_high": sum(1 for f in findings if f.get("conf") == "高")}
+            "n_high": sum(1 for f in findings if f.get("conf") == "高"),
+            "n_unaudited": sum(1 for f in facts if not f)}    # 空 dict = 该章抽取重试后仍失败
 
 
 async def _main(out_dir: str) -> None:

@@ -358,17 +358,6 @@ async def craft_audit(cli, text: str) -> list[str]:
     return (r or {}).get("issues", []) if isinstance(r, dict) else []
 
 
-def registry_summary() -> str:
-    """37 维注册表概览（按轴）。"""
-    out = []
-    for ax in ("承重", "笔力", "人", "故事性"):
-        dims = [d for d in DIMENSIONS if d.axis == ax]
-        det = sum(1 for d in dims if d.kind in ("det", "metric"))
-        out.append(f"{ax}({len(dims)}维,{det}确定性/指标): " +
-                   "、".join(f"{d.id}{d.name}[{d.kind}{d.status}]" for d in dims))
-    return "\n".join(out)
-
-
 _CJK_SLASH = re.compile(r"[一-鿿]/[一-鿿]")
 
 
