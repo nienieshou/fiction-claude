@@ -1,0 +1,7 @@
+# 运行依赖（生产管线）
+openai>=1.0
+python-dotenv
+PyYAML
+
+# 测试
+pytest>=7.4

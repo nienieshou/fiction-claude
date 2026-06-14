@@ -58,12 +58,12 @@
 
 > E 与 system-review 的「测量危机」(Opus 承重 ±40)同根:没有可信测量+回归网,承重收益无法守住。
 
-## F. 测试与 CI ◐
+## F. 测试与 CI ✅（Phase 0+1 已建网）
 
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
-| F1 | 纯函数覆盖 ~18%:`cross_check`(矛盾引擎)、`_cn_to_num`(自带 bug 史)、整个 `ledger`、5 个 spine 渲染器无测试 | ◐ | 本轮 code-review/A/G 改动均补了即时单测,但**未沉淀进自动化套件** |
-| F2 | 无 pytest/CI/runner;3 个手跑 assert 脚本无人自动跑 | ⬜ | 立 pytest+CI,转换现有 _test_*,push 即跑纯函数测试 |
+| F1 | 纯函数覆盖 ~18%:`cross_check`(矛盾引擎)、`_cn_to_num`(自带 bug 史)、整个 `ledger`、5 个 spine 渲染器无测试 | ✅ | Phase1:`tests/` 补 characterization——cross_check 四类/`_cn_to_num`·`_num_of`/ledger 5 函数(原 0%)/5 个 spine 渲染器/gate/审计核心,**钉死当前行为供后续重构证等价**。残:full audit 套件/slice_validate |
+| F2 | 无 pytest/CI/runner;手跑 assert 脚本无人自动跑 | ✅ | Phase0:`pyproject.toml`(pytest+pythonpath)+`requirements.txt`+`.github/workflows/ci.yml`(push/PR 跑 pytest);旧 `scripts/_test_*.py` 迁入 `tests/`;**44 测 0.47s 全绿** |
 
 ## G. 死代码 & 仓库卫生 ✅（本轮已清）
 
