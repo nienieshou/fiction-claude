@@ -5,6 +5,15 @@ output:
 budget:
   per_book_cny_cap: 50.0           # C3 单本硬上限
 
+# 交付门阈值（人工 6+10 本校准;改动须 scripts/replay_gate.py 回放验证不退化）
+ship_gate:
+  too_short_chapters: 3            # 过短<70% 章数 ≥ → 拦
+  dark_ratio_max: 0.25             # 暗黑饱和比 > → 拦
+  seam_residual_max: 8             # 残缝 > → 拦
+  reenact_min: 1                   # 事件重演处数 ≥ → 拦
+  spine_net_min: 2                 # Spine薄网真矛盾(数值+身份) ≥ → 拦
+  intra_repeat_thr: 0.08           # 章内12-gram双半重合 > → 判整章双版本
+
 # P0 清洗：网文 txt 垃圾模式（可滚动扩，maintainable）
 ingest:
   encodings: [utf-8, gbk, gb18030]

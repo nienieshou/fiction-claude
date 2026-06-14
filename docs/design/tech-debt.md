@@ -38,15 +38,15 @@
 | C6 | ~半数 37 维 + 多扫描器是 advisory/哨兵,算了就扔(白烧 token) | 用 DIMENSIONS 单一注册表 gating=True/False 驱动 |
 | C7 | `point_repair` 重实现 produce 尾门(复活/收尾/连续性),手工同步 | 抽共享 gate 函数,两处都 call |
 
-## D. 配置驱动缺口（违 NFR-M2）⬜
+## D. 配置驱动缺口（违 NFR-M2）◐
 
-| | 项 | 备注 |
-|---|---|---|
-| D1 | **交付门 cutoff 全硬编码**(残缝>8、spine_net≥2、dark>0.25...)——最重要决策零 config | 抽 `ship_gate:` 块 + `evaluate_ship_gate(signals, thresholds)` 纯函数(顺带可测) |
-| D2 | `pipeline.yaml` 半接线:output/admission 块死配置,`chars_per_chapter=3500` 硬编码 ~8 处 | 接线或删死块 |
-| D3 | wave 切点 `[8,20,33,46]`、max_tokens、temperature 斜坡、N/caps 全内联 | 入 `pipeline.yaml`,按 target_chapters 比例派生 |
-| D4 | prompts 全内联(无 `assets/prompts/` 版本化→不能 A/B/回滚/regression-pin) | 外置为 versioned data assets |
-| D5 | model 路由 typo 静默回落 flash(pro 降级只表现为质量退化不报错) | `_model_for` 未知 stage 抛错/warn |
+| | 项 | 状态 | 备注 |
+|---|---|---|---|
+| D1 | **交付门 cutoff 全硬编码**(残缝>8、spine_net≥2、dark>0.25...)——最重要决策零 config | ✅ | `config/pipeline.yaml ship_gate` + `gate.evaluate_ship_gate(signals, thr)` 纯函数;2304 组合证行为等价;`scripts/_test_gate.py` 沉淀(门首次可测,顺带补 F1) |
+| D2 | `pipeline.yaml` 半接线:output/admission 块死配置,`chars_per_chapter=3500` 硬编码 ~8 处 | ⬜ | 接线或删死块 |
+| D3 | wave 切点 `[8,20,33,46]`、max_tokens、temperature 斜坡、N/caps 全内联 | ⬜ | 入 `pipeline.yaml`,按 target_chapters 比例派生 |
+| D4 | prompts 全内联(无 `assets/prompts/` 版本化→不能 A/B/回滚/regression-pin) | ⬜ | 外置为 versioned data assets |
+| D5 | model 路由 typo 静默回落 flash(pro 降级只表现为质量退化不报错) | ⬜ | `_model_for` 未知 stage 抛错/warn |
 
 ## E. 版本化资产 + 学习飞轮未建（A6 支柱整根缺）⬜
 

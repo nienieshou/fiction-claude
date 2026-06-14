@@ -13,7 +13,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts
+from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config
 from .client import Client
 from .ingest import ingest
 from .slice_validate import (_process_scene, _fit_chapter, _truncate, _assemble,
@@ -950,9 +950,10 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     ch_texts, prose_rep = await prose_continuity.audit_and_repair(cli, ch_texts, canon_names=valid_names,
                                                                   source_text=clean)
     print(f"prose连续性: 异名归一={prose_rep['prose_name_fixes']} | 复活修复={prose_rep['prose_revivals_fixed']}")
+    gate_thr = (config.load("pipeline") or {}).get("ship_gate") or gate.SHIP_GATE_DEFAULTS  # D1: 交付门阈值入config
     # 4d) PROSE 内容过滤(治暗黑厌女:bible级content_flag失灵,读实际场景净化)
     ch_texts, dark_rep = await prose_continuity.content_filter(cli, ch_texts)
-    values_reject = dark_rep["dark_ratio"] > 0.25      # 暗黑饱和(>25%章)→净化救不动,应拒收
+    values_reject = dark_rep["dark_ratio"] > gate_thr["dark_ratio_max"]   # 暗黑饱和→净化救不动,应拒收
     if dark_rep["dark_fixed"] != ["无"]:
         print(f"内容过滤: 净化 {len(dark_rep['dark_fixed'])} 章 (暗黑比{dark_rep['dark_ratio']}"
               f"{'→暗黑饱和,标记拒收' if values_reject else ''})")
@@ -1110,7 +1111,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         g1 = {s[i:i + 12] for i in range(0, h - 12, 3)}
         g2 = {s[i:i + 12] for i in range(h, len(s) - 12, 3)}
         return (len(g1 & g2) / max(1, min(len(g1), len(g2)))) if g1 and g2 else 0.0
-    intra_rep = [(i, r) for i, t in enumerate(ch_texts) if (r := _intra_repeat(t)) > 0.08]
+    intra_rep = [(i, r) for i, t in enumerate(ch_texts) if (r := _intra_repeat(t)) > gate_thr["intra_repeat_thr"]]
     if intra_rep:
         print(f"章内自重复(整章双版本): {[(f'第{i+1}章', f'{r:.0%}') for i, r in intra_rep]}")
 
@@ -1134,35 +1135,25 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     # 篇幅类(过短/超长)不污染一致性位——过短≥3章由门单独拦(原bug:"长"滤不掉"过短",75分好书也被标false)
     final_consistent = not advisory and not [d for d in det if "长" not in d and "短" not in d]
     seam_residual = seam_found - len(seam_fixed)
-    ship_issues = []
-    if audit_struct.get("维2阵营串线"):
-        ship_issues.append(f"阵营串线{len(audit_struct['维2阵营串线'])}条(canon级硬伤)")
-    if len(too_short) >= 3:
-        ship_issues.append(f"{len(too_short)}章过短<70%(二次扩写后仍稀薄)")
-    if values_reject:
-        ship_issues.append(f"暗黑饱和(暗黑比{dark_rep['dark_ratio']}>0.25)")
-    if climax_skipped:
-        ship_issues.append(f"预告事件被跳过未演({climax_skipped})")
-    # R10b: 生死的权威仪器=prose事实表(detect→verify→repair→复验);plan维14是plan元数据信号,
-    # 团宠R10/末世实证: prose全干净时维14仍报(陈旧元数据)→事实表正常跑过则维14只advisory,
-    # 失败时才兜底进门(冷战纪老夫人案已被事实表生死通道覆盖,召回测试实证)。
-    if audit_struct.get("维14死人复活") and not fact_table_ok:
-        ship_issues.append(f"死人复活{len(audit_struct['维14死人复活'])}处(plan维14,事实表未跑兜底)")
-    if ft_deaths_verified:                            # 修复后仍残留的才拦
-        ship_issues.append(f"事实表死人复活{len(ft_deaths_verified)}处(verify确认,修复未净)")
-    if seam_residual > 8:
-        ship_issues.append(f"残缝{seam_residual}处(章缝修复采用不足)")
-    if not final_consistent:
-        ship_issues.append("final_consistent=false(连续性残留)")
-    if len(reenact_hits) >= 1:                        # R13: 版本互斥换轨判据(每处=读者可见重演)
-        ship_issues.append(f"事件重演{len(reenact_hits)}处(控制面核对)")
-    if intra_rep:                                     # R14: 整章双版本(ch59飞升两遍实证,final_consistent漏放)
-        ship_issues.append(f"章内双版本{[f'第{i+1}章{r:.0%}' for i, r in intra_rep]}(整章重演)")
-    if spine_net_num + spine_net_id >= 2:             # §3.6 Spine薄网: 起草违反冻结事实的残漏(≥2防单条噪声误拦)
-        ship_issues.append(f"Spine薄网真矛盾: 数值{spine_net_num}/身份{spine_net_id}条(起草违反冻结事实,详见fact_table.json)")
-    if fact_audit_crashed:                            # A2: 承重审计崩了 → 不能判"干净",拦下重跑(审计未完成≠无矛盾)
-        ship_issues.append("承重事实审计非预期中断,结果不可信(不可判定一致性,需重跑)")
-        # R13c: 阈值2→1——bug版实证1处重演(ch50复刻ch49)漏网误放57.9分书,单处即读者可见硬伤
+    # D1: 门策略=纯函数 gate.evaluate_ship_gate(信号, config阈值);信号在此组装,阈值在 config/pipeline.yaml
+    # 信号语义见各检测器;维14 生死的权威仪器=prose事实表,事实表跑过则 plan维14 只 advisory(失败才兜底进门)
+    ship_signals = {
+        "阵营串线": len(audit_struct.get("维2阵营串线") or []),
+        "过短章数": len(too_short),
+        "暗黑比": dark_rep["dark_ratio"],
+        "预告跳过": climax_skipped,
+        "plan维14复活": len(audit_struct.get("维14死人复活") or []),
+        "事实表跑过": fact_table_ok,
+        "事实表复活残留": len(ft_deaths_verified),
+        "残缝": seam_residual,
+        "final_consistent": final_consistent,
+        "事件重演": len(reenact_hits),
+        "章内双版本": [f"第{i + 1}章{r:.0%}" for i, r in intra_rep] if intra_rep else None,
+        "数值真矛盾": spine_net_num,
+        "身份真矛盾": spine_net_id,
+        "承重审计崩溃": fact_audit_crashed,
+    }
+    ship_issues = gate.evaluate_ship_gate(ship_signals, gate_thr)
     deliverable = not ship_issues
 
     # 成品命名：给复写新书起商业书名+卖点，输出《书名》.md（final.md 保留供下游）

@@ -9,6 +9,10 @@ _CONFIG_DIR = _ROOT / "config"
 _DEFAULTS: dict[str, Any] = {
     "output": {"target_chapters": 60, "chars_per_chapter": 3500},
     "budget": {"per_book_cny_cap": 50.0},
+    "ship_gate": {                               # 交付门阈值(与 gate.SHIP_GATE_DEFAULTS 同步)
+        "too_short_chapters": 3, "dark_ratio_max": 0.25, "seam_residual_max": 8,
+        "reenact_min": 1, "spine_net_min": 2, "intra_repeat_thr": 0.08,
+    },
     "ingest": {
         "encodings": ["utf-8", "gbk", "gb18030"],
         "chapter_regex": r"^\s*第\s*[0-9零一二三四五六七八九十百千万两]+\s*[章节卷回]",
