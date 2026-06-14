@@ -683,20 +683,22 @@ async def _handshake_pass(cli: Client, plan: dict, beats: list[dict], scenes: li
     return plan, len(bad), fixed
 
 
-async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
-              refine_rounds: int = 5, min_grade: str | None = None,
-              out_dir: Path | None = None) -> dict:
-    t0 = time.time()
-    _cfg = config.load("pipeline") or {}                # D2/D3: 结构/成本旋钮入 config
-    _out_cfg, prod = _cfg.get("output") or {}, _cfg.get("production") or {}
-    target_chars = int(_out_cfg.get("chars_per_chapter", 3500))
-    out_dir = out_dir or (Path("output") / (src.stem + "_full"))   # M3: best-of-K 并行跑用独立目录
+async def _stage_mine(cli: Client, src: Path, out_dir: Path, n_ch: int, n_chunks: int,
+                      min_grade: str | None, prod: dict, force: bool = False) -> dict:
+    """阶段1 mine(B1): ingest + map-reduce 厚bible + 场景筛选 + 源分级。
+    → {bible,scenes,grade,meta,clean,all_scene_count,chunks} 或 {rejected,report}。
+    resume(B2): bible/scenes/grade/mine.json 齐且 not force → 直接 load,跳过 ¥1-2 的 mine。"""
     meta = ingest(src, out_dir / "source")
     clean = (out_dir / "source" / "clean.txt").read_text(encoding="utf-8")
+    arts = {n: out_dir / f"{n}.json" for n in ("bible", "scenes", "grade", "mine")}
+    if not force and all(a.exists() for a in arts.values()):
+        ld = {n: json.loads(a.read_text(encoding="utf-8")) for n, a in arts.items()}
+        print(f"[resume] mine 产物已存在 → 载入 bible/scenes/grade(跳过深挖)")
+        return {"bible": ld["bible"], "scenes": ld["scenes"], "grade": ld["grade"],
+                "meta": meta, "clean": clean,
+                "all_scene_count": ld["mine"].get("all_scene_count", len(ld["scenes"])),
+                "chunks": ld["mine"].get("chunks", n_chunks)}
     print(f"源 {meta.approx_wan_zi}万字/{meta.chapter_count}章 → 全书深挖({n_chunks}窗)")
-
-    cli = Client()
-    # 1) 全书深挖：map-reduce 厚bible + 全局场景池(打分筛选) + REDUCE后源分级
     keep_scenes = int(n_ch * prod.get("scene_per_chapter", 1.4))
     mined = await mining.mine_book(cli, clean, n_chunks, keep_scenes)
     bible, scenes, grade = mined["bible"], mined["scenes"], mined["grade"]
@@ -720,13 +722,30 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
                   "cost_cny": round(cli.cost_cny, 2)}
         (out_dir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"⚠ 源分级={grade.get('grade')} → 拒收（{why}）。成本¥{cli.cost_cny:.2f}")
-        return report
-
+        return {"rejected": True, "report": report}
     # 把 agency 素材并进 arc，让起草的"主动"有真材料（决策:人维洼地）
     if p.get("agency_examples"):
         p["arc"] = (p.get("arc", "") + " | 主动事例:" + "；".join(p["agency_examples"][:3]))[:200]
+    for nm, obj in (("bible", bible), ("scenes", scenes), ("grade", grade),
+                    ("mine", {"all_scene_count": mined["all_scene_count"], "chunks": mined.get("chunks", n_chunks)})):
+        (out_dir / f"{nm}.json").write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
+    return {"bible": bible, "scenes": scenes, "grade": grade, "meta": meta, "clean": clean,
+            "all_scene_count": mined["all_scene_count"], "chunks": mined.get("chunks", n_chunks)}
 
-    # 2) 两层规划：macro 60章节拍图 → 分章并发
+
+async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_ch: int,
+                      force: bool = False) -> dict:
+    """阶段2 plan(B1): macro 60章节拍 → 分章并发 → 确定性 plan-repair 栈。
+    → {plan,beats,ordered,n_scenes,macro}。resume(B2): macro/plan.json 齐且 not force → load
+    (plan.json 已是全部 repair 后的终态,ordered 由其展平)。"""
+    if not force and (out_dir / "macro.json").exists() and (out_dir / "plan.json").exists():
+        macro = json.loads((out_dir / "macro.json").read_text(encoding="utf-8"))
+        plan = json.loads((out_dir / "plan.json").read_text(encoding="utf-8"))
+        ordered = [sc for ch in plan["chapters"] for sc in ch["scenes"]]
+        print(f"[resume] plan 产物已存在 → 载入 {len(plan['chapters'])}章/{len(ordered)}场景(跳过规划)")
+        return {"plan": plan, "beats": macro.get("chapters", [])[:n_ch], "ordered": ordered,
+                "n_scenes": len(ordered), "macro": macro}
+    p = bible.get("protagonist", {})
     macro = await _plan_macro(cli, bible, scenes, n_ch)
     beats = macro.get("chapters", [])[:n_ch]
     if len(beats) < int(n_ch * 0.7):
@@ -790,10 +809,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         if hk and ch["scenes"]:
             last = ch["scenes"][-1]
             last["brief"] = (last.get("brief") or "") + f"；本章必须收在钩子上:{hk}(结尾留悬念/危机,不写圆满收场)"
-    # R15 语义双版本治根(ch14讨债/ch59飞升各两版实证: plan把高潮拆2场景,两场景brief都覆盖高潮→
-    # 起草各演一遍;R13c前置标注/R14检测拦截只止损不治本——根在场景2 brief仍含高潮指令)。
-    # 高潮章: 场景2+的brief**整个替换**为纯收束(删掉原高潮指令,起草看不到"再演高潮")+强制SUMMARIZE压缩。
-    # 非高潮章: 保留R13c前置标注(边际有效)。
+    # R15 语义双版本治根: 高潮章场景2+的brief整个替换为纯收束(删高潮指令)+SUMMARIZE;非高潮章保留R13c前置标注
     climax_chs = intra_dup = 0
     for ch in plan["chapters"]:
         scs = ch["scenes"]
@@ -818,14 +834,41 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         print(f"R15高潮章单场景化: {climax_chs} 章(高潮后续场景强制收束+SUMMARIZE)")
     if intra_dup:
         print(f"章内禁重演标注(非高潮): {intra_dup} 个次场景")
-
     # 规划产物落盘(Tier3): 复评/选优点修/B实验都要"同plan重起草",规划不再是一次性中间态
     for nm, obj in (("bible", bible), ("macro", macro), ("plan", plan)):
         (out_dir / f"{nm}.json").write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
-
-    # 2.5) 承重确定性审计（advisory，60章不做昂贵全局re-plan；靠注入前情账本+归一兜底）
+    # 2.5) 承重确定性审计（advisory，仅打印;0 下游消费）
     det_struct = {k: v for k, v in audit.deterministic_audit(bible, ordered).items() if v}
     print(f"规划:{len(plan['chapters'])}章/{n_scenes}场景 | 承重硬检残留={sum(len(v) for v in det_struct.values())} → 起草...")
+    return {"plan": plan, "beats": beats, "ordered": ordered, "n_scenes": n_scenes, "macro": macro,
+            "stats": {"dropped": dropped, "hs_found": hs_found, "hs_fixed": hs_fixed,
+                      "ev_fixed": ev_fixed, "plan_dups": plan_dups, "pw_fixed": pw_fixed}}
+
+
+async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
+              refine_rounds: int = 5, min_grade: str | None = None,
+              out_dir: Path | None = None, force: bool = False) -> dict:
+    t0 = time.time()
+    _cfg = config.load("pipeline") or {}                # D2/D3: 结构/成本旋钮入 config
+    _out_cfg, prod = _cfg.get("output") or {}, _cfg.get("production") or {}
+    target_chars = int(_out_cfg.get("chars_per_chapter", 3500))
+    out_dir = out_dir or (Path("output") / (src.stem + "_full"))   # M3: best-of-K 并行跑用独立目录
+    cli = Client()
+    # 1) mine + 2) plan(B1 拆为纯阶段,各自 resume;B2)
+    mine = await _stage_mine(cli, src, out_dir, n_ch, n_chunks, min_grade, prod, force)
+    if mine.get("rejected"):
+        return mine["report"]
+    bible, scenes, grade = mine["bible"], mine["scenes"], mine["grade"]
+    meta, clean = mine["meta"], mine["clean"]
+    all_scene_count, chunks = mine["all_scene_count"], mine["chunks"]
+    p = bible.get("protagonist", {})                     # 起草区 POV/人名归一仍用 p
+    pl = await _stage_plan(cli, bible, scenes, out_dir, n_ch, force)
+    plan, beats, ordered = pl["plan"], pl["beats"], pl["ordered"]
+    n_scenes, macro = pl["n_scenes"], pl["macro"]
+    _ps = pl.get("stats", {})                            # plan-repair 统计(供 report;resume 时缺省)
+    dropped = _ps.get("dropped", [])
+    hs_found, hs_fixed = _ps.get("hs_found", 0), _ps.get("hs_fixed", 0)
+    ev_fixed, plan_dups, pw_fixed = _ps.get("ev_fixed", []), _ps.get("plan_dups", []), _ps.get("pw_fixed", [])
 
     # 3) 并发起草所有场景（注入圣经+前情账本；造峰：开篇+富场景给大N+金标精修）
     spc = max(1.0, n_scenes / max(1, len(plan["chapters"])))
@@ -1182,7 +1225,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "output_file": out_name,
         "deliverable": deliverable, "交付门": ship_issues or ["通过"],
         "source": src.name, "wan_zi": meta.approx_wan_zi, "out_chapters": len(plan["chapters"]),
-        "scenes": n_scenes, "all_scene_count": mined["all_scene_count"], "chunks": mined["chunks"],
+        "scenes": n_scenes, "all_scene_count": all_scene_count, "chunks": chunks,
         "grade": grade, "central_conflict": macro.get("central_conflict", ""),
         "砍掉支线": dropped or ["无"],
         "final_chars": len(final), "avg_chapter_chars": len(final) // max(1, len(plan["chapters"])),

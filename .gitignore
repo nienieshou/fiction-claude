@@ -165,3 +165,4 @@ output/_logs/
 output/_m0_seq/
 output/_pregrade/
 output/pregrade_map.*
+output/*_b1smoke/

@@ -17,12 +17,12 @@
 | A5 | `grade_source` 解析失败默认 B 级 → Q 源拿免费全本 ¥draft | ✅ | 重试+失败即拒(Q/拒收),实测短路 |
 | A3 | **LLM 输出零 schema 校验**(违 A1/R2):全走 `_safe_json`→裸 dict→`.get()` 默认;缺字段当合法流下去 | ⬜ | 需 validate(raw, schema)→retry→reject 层,每个 LLM 契约一个 schema。`schemas.py` 当前仅 IngestMeta 活 |
 
-## B. 结构：god-function + 无断点续跑 ⬜
+## B. 结构：god-function + 无断点续跑 ◐（B1-1 已落,方案见 `b1-run-refactor.md`）
 
-| | 项 | 备注 |
-|---|---|---|
-| B1 | `run()` = 528 行 god-function,9 阶段内联,违反自己的 A1「阶段=纯函数」 | 拆 ingest/mine/plan/draft/repair/gate/assemble 为纯阶段,run() 变 ~40 行编排 |
-| B2 | **无 resume/幂等**(spec 头条「全量断点续跑」是空头支票):每跑重新 mine+plan+draft,晚期一崩全本 ¥5-6 全扔 | 阶段产物存在即 load(plan.json/bible.json/per-wave draft);配 A4 网络抖动尤其痛 |
+| | 项 | 状态 | 备注 |
+|---|---|---|---|
+| B1 | `run()` = 528 行 god-function,9 阶段内联,违反自己的 A1「阶段=纯函数」 | ◐ | **B1-1**:`_stage_mine`+`_stage_plan` 抽出为纯阶段,run() 头瘦成 ~12 行编排;smoke 跑出完整 60 章+48 测绿。剩 B1-2~6(finalize/gate/draft/refine) |
+| B2 | **无 resume/幂等**(spec 头条「全量断点续跑」是空头支票) | ◐ | **mine/plan resume 已落**:产物在即 load(零API 端到端验证,跳过 ¥1.5);`force=True` 绕过。剩 draft 逐章/refine resume |
 | B3 | 跨阶段变量遮蔽(`cont`/`ec`/`sys_pv` 复用),已实锤让 3 本崩 | B1 拆函数后自然消除(局部死在函数边界) |
 | B4 | 8 参函数 + 闭包捕获 10+ 可变量,wave-draft 无法脱离 run() 测 | 引入 frozen DraftContext dataclass |
 
