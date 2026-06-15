@@ -117,13 +117,19 @@ async def continuity_check(cli: Client, text: str, bible: dict) -> dict:
 
 
 # 交付门阈值默认（人工 6+10 本校准;config/pipeline.yaml ship_gate 可覆盖,改动须回放验证)
+# 阈值经 human-eval-5(2026-06-15, docs/evidence/human_eval5_calibration.md)重标。
+# 真值表证伪了旧的承重微观硬门：5 本里机器信号与人类承重/可追**不单调可分**——
+# 最可追本(隐婚 总76)含 6 处重演(全场最多)、4 数值矛盾;不可追本(武神60.8)仅 2 处重演。
+# 故承重微观计数(重演/spine薄网/final_consistent/预告跳过)降为 advisory,硬门只留"灾难级+定类硬伤"。
 SHIP_GATE_DEFAULTS = {
-    "too_short_chapters": 3,     # 过短<70% 章数 ≥ → 拦
-    "dark_ratio_max": 0.25,      # 暗黑饱和比 > → 拦
-    "seam_residual_max": 8,      # 残缝 > → 拦
-    "reenact_min": 1,            # 事件重演处数 ≥ → 拦
-    "spine_net_min": 2,          # Spine薄网真矛盾(数值+身份) ≥ → 拦
-    "intra_repeat_thr": 0.08,    # 章内12-gram双半重合 > → 判整章双版本(检测侧用,非门内)
+    "too_short_chapters": 3,         # 过短<70% 章数 ≥ → 拦(定类质量地板,非承重)
+    "dark_ratio_max": 0.25,          # 暗黑饱和比 > → 拦(定类)
+    "seam_residual_max": 8,          # 残缝 > → 拦(章缝;human-eval 未越线,保留)
+    "reenact_min": 7,                # 事件重演 ≥ → 拦。旧=1(误杀100%);human可追本含6处→只挡极端泛滥
+    "spine_net_min": 6,              # Spine薄网真矛盾(数值+身份) ≥ → 拦。旧=2;human可追本含4→留头寸
+    "block_on_climax_skip": False,   # 预告跳过 是否硬拦。旧=硬拦;仅命中可追本(星厨74.8"基本连得上")→降advisory
+    "block_on_final_inconsistent": False,  # final_consistent=否 是否硬拦。旧=硬拦;反相关(只命中隐婚/团宠两可追本)→降advisory
+    "intra_repeat_thr": 0.08,        # 章内12-gram双半重合 > → 判整章双版本(检测侧用,非门内)
 }
 
 
@@ -138,7 +144,7 @@ def evaluate_ship_gate(sig: dict, thr: dict | None = None) -> list[str]:
         issues.append(f"{sig['过短章数']}章过短<70%(二次扩写后仍稀薄)")
     if sig.get("暗黑比", 0) > t["dark_ratio_max"]:
         issues.append(f"暗黑饱和(暗黑比{sig['暗黑比']}>{t['dark_ratio_max']})")
-    if sig.get("预告跳过"):
+    if sig.get("预告跳过") and t.get("block_on_climax_skip"):
         issues.append(f"预告事件被跳过未演({sig['预告跳过']})")
     if sig.get("plan维14复活", 0) > 0 and not sig.get("事实表跑过"):
         issues.append(f"死人复活{sig['plan维14复活']}处(plan维14,事实表未跑兜底)")
@@ -146,7 +152,7 @@ def evaluate_ship_gate(sig: dict, thr: dict | None = None) -> list[str]:
         issues.append(f"事实表死人复活{sig['事实表复活残留']}处(verify确认,修复未净)")
     if sig.get("残缝", 0) > t["seam_residual_max"]:
         issues.append(f"残缝{sig['残缝']}处(章缝修复采用不足)")
-    if not sig.get("final_consistent", True):
+    if not sig.get("final_consistent", True) and t.get("block_on_final_inconsistent"):
         issues.append("final_consistent=false(连续性残留)")
     if sig.get("事件重演", 0) >= t["reenact_min"]:
         issues.append(f"事件重演{sig['事件重演']}处(控制面核对)")

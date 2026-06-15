@@ -14,12 +14,16 @@ production:
   wave_min_chapters: 4             # 波合并下限
 
 # 交付门阈值（人工 6+10 本校准;改动须 scripts/replay_gate.py 回放验证不退化）
+# 阈值经 human-eval-5(2026-06-15)重标;真值表见 docs/evidence/human_eval5_calibration.md。
+# 承重微观信号与人类承重不单调可分→降 advisory,硬门只留灾难级+定类硬伤。
 ship_gate:
-  too_short_chapters: 3            # 过短<70% 章数 ≥ → 拦
-  dark_ratio_max: 0.25             # 暗黑饱和比 > → 拦
-  seam_residual_max: 8             # 残缝 > → 拦
-  reenact_min: 1                   # 事件重演处数 ≥ → 拦
-  spine_net_min: 2                 # Spine薄网真矛盾(数值+身份) ≥ → 拦
+  too_short_chapters: 3            # 过短<70% 章数 ≥ → 拦(定类质量地板)
+  dark_ratio_max: 0.25             # 暗黑饱和比 > → 拦(定类)
+  seam_residual_max: 8             # 残缝 > → 拦(human-eval 未越线,保留)
+  reenact_min: 7                   # 事件重演 ≥ → 拦。旧=1(误杀100%);human可追本含6处
+  spine_net_min: 6                 # Spine薄网真矛盾(数值+身份) ≥ → 拦。旧=2;human可追本含4
+  block_on_climax_skip: false      # 预告跳过 硬拦?旧=是;仅命中可追本→降advisory
+  block_on_final_inconsistent: false  # final_consistent=否 硬拦?旧=是;反相关→降advisory
   intra_repeat_thr: 0.08           # 章内12-gram双半重合 > → 判整章双版本
 
 # P0 清洗：网文 txt 垃圾模式（可滚动扩，maintainable）

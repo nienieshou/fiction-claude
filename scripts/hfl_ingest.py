@@ -49,7 +49,8 @@ def main():
     records, by_book = [], {}                       # by_book[slug] = list[(rater, dims, total)]
     for c in cards:
         doc = yaml.safe_load(c.read_text(encoding="utf-8")) or {}
-        rater, date, scores = doc.get("rater", c.stem), doc.get("date", ""), doc.get("scores") or {}
+        rater, scores = doc.get("rater", c.stem), doc.get("scores") or {}
+        date = str(doc.get("date", ""))             # yaml 把无引号日期解析成 date 对象,str 化以便 json 序列化
         for slug, s in scores.items():
             dims = {k: s.get(k) for k in _DIMS}
             if any(not isinstance(v, (int, float)) for v in dims.values()):

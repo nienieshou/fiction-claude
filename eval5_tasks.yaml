@@ -1,17 +1,46 @@
-# 人工评分批次:5 题材强源,当前代码全新跑(--spine n=3)。slug 带题材,评分包自解释。
+# ============================================================================
+# 人工评分批次 · 5 题材强源 · 当前代码全新跑
+# ----------------------------------------------------------------------------
+# 规范运行命令（参数即下方"生效配置"，重跑此命令可复现）：
+#   PYTHONPATH=src python3 -m hiki run --tasks-file eval5_tasks.yaml --spine --parallel 5
+#
+# 生效配置（全取 CLI 默认，未在 task 内覆盖）：
+#   chapters       = 60     目标章数
+#   chunks         = 12     深挖窗口数（mining map-reduce 并发窗）
+#   candidates (n) = 3      每场景候选数 → 普通章 best-of-3
+#   refine_rounds  = 5      造峰章金标精修轮数
+#   --spine                 启用 Fact Spine 事前一致性（HIKI_SPINE=1）
+#   --parallel 5            5 本全并发（实测零限流；账号峰值 pro≤550/flash≤1920）
+#   续跑（默认，非 --force）：已有阶段产物跳过，崩溃从断点续
+#
+# best-of-N 实际行为（config/pipeline.yaml: n_peak_bonus=5, peak_divisor=12）：
+#   普通章   → best-of-3，并发生成后 PK 选优（pk_screen=flash 初筛 / pk_final=pro 终裁）
+#   造峰章   → best-of-8（3+5），每本 5-7 场高潮，+金标 5 轮 gold-PK 重写
+#   金标=有/无 取决于该本是否有 gold 参照样本（傲世/六零=有；退婚/修仙/星际=无）
+#
+# 本批结果（2026-06-15，code ba1c88a 后续）：
+#   交付门 0/5 过 → 全 《书名》.不可交付.md（承重残留：事件重演/数值/身份矛盾）
+#   Opus 机器四维基线 批均 64.8（承重维 38-52 全塌，故/笔 60-76）— 详见 EVAL_README.md 附录 A
+#   成本：账面总 ¥20.14 / 墙钟 55min；真·全流程单本 ≈¥6.5-7（修仙6.63/星际6.84，
+#         resume 3 本 ¥2.x 偏低因草稿已在上轮付）
+#
+# per-task 可覆盖字段（缺省取上方默认）：
+#   slug / source / out（必）；chapters / chunks / candidates / refine_rounds /
+#   min_grade（如 A，低于此档源拒跑）/ force（true=该本从头重跑）
+# ============================================================================
 tasks:
-  - slug: xianyan_tuihun       # 现言豪门 (A)
+  - slug: xianyan_tuihun       # 现言豪门 (源档 A)
     source: fictions_source/ZTGXY01837退婚后，她被财阀大佬娇养了.txt
     out: output/eval5
-  - slug: guyan_aoshi          # 古言女强 (A)
+  - slug: guyan_aoshi          # 古言女强 (源档 A)
     source: fictions_source/ZYGGY03052傲世狂妃太逆天.txt
     out: output/eval5
-  - slug: niandai_liuling      # 年代种田 (A)
+  - slug: niandai_liuling      # 年代种田 (源档 A)
     source: fictions_source/ZYGXN01960六零饥荒年：我靠团购娇养冷面知青.txt
     out: output/eval5
-  - slug: xiuxian_lingqi       # 修仙·男主 (A)
+  - slug: xiuxian_lingqi       # 修仙·男主 (源档 A)
     source: fictions_source/CPBGX00192灵气复苏：开局无限合成.txt
     out: output/eval5
-  - slug: xingji_dalao         # 星际 (S·全场最强源)
+  - slug: xingji_dalao         # 星际 (源档 S·全场最强源)
     source: fictions_source/ZYGWJ02935大佬她美飒全星际.txt
     out: output/eval5
