@@ -21,7 +21,7 @@
 
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
-| B1 | `run()` = 528 行 god-function,9 阶段内联,违反自己的 A1「阶段=纯函数」 | ◐ | **B1-1**:`_stage_mine`+`_stage_plan` 抽出为纯阶段,run() 头瘦成 ~12 行编排;smoke 跑出完整 60 章+48 测绿。剩 B1-2~6(finalize/gate/draft/refine) |
+| B1 | `run()` = 528 行 god-function,9 阶段内联,违反自己的 A1「阶段=纯函数」 | ◐ | **B1-1** mine/plan 阶段化(smoke 验)；**B1-2** `_stage_finalize`(gen_title+输出+report,真数据验)；**B1-3轻** `_run_ship_gate`(纯 sync,+4 测——门首次端到端可测)。run() 头尾已抽干净,剩 **B1-4 draft / B1-5 refine**(真正的 god-ness) |
 | B2 | **无 resume/幂等**(spec 头条「全量断点续跑」是空头支票) | ◐ | **mine/plan resume 已落**:产物在即 load(零API 端到端验证,跳过 ¥1.5);`force=True` 绕过。剩 draft 逐章/refine resume |
 | B3 | 跨阶段变量遮蔽(`cont`/`ec`/`sys_pv` 复用),已实锤让 3 本崩 | B1 拆函数后自然消除(局部死在函数边界) |
 | B4 | 8 参函数 + 闭包捕获 10+ 可变量,wave-draft 无法脱离 run() 测 | 引入 frozen DraftContext dataclass |

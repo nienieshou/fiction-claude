@@ -845,6 +845,65 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
                       "ev_fixed": ev_fixed, "plan_dups": plan_dups, "pw_fixed": pw_fixed}}
 
 
+def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: list,
+                   seam_residual: int, sig: dict, gate_thr: dict) -> dict:
+    """B1-3(轻): 37维审计 + 信号组装 + 门决策。纯函数(0 LLM,可测)。
+    sig=运行时连续性信号 dict(dark_ratio/climax_skipped/fact_table_ok/ft_deaths_verified/
+    reenact_hits/intra_rep/spine_net_num/spine_net_id/fact_audit_crashed)。
+    → {audit_struct,audit_fore,audit_mech,final_consistent,ship_issues,deliverable}。"""
+    audit_struct = {k: v for k, v in audit.deterministic_audit(bible, ordered).items() if v}
+    audit_fore = audit.foreshadow_advisory(ordered)
+    audit_mech = audit.mechanical_audit(final)
+    too_short = [d for d in det if d.startswith("过短")]
+    # 篇幅类(过短/超长)不污染一致性位——过短≥3章由门单独拦
+    final_consistent = not advisory and not [d for d in det if "长" not in d and "短" not in d]
+    ship_signals = {
+        "阵营串线": len(audit_struct.get("维2阵营串线") or []),
+        "过短章数": len(too_short),
+        "暗黑比": sig["dark_ratio"],
+        "预告跳过": sig["climax_skipped"],
+        "plan维14复活": len(audit_struct.get("维14死人复活") or []),
+        "事实表跑过": sig["fact_table_ok"],
+        "事实表复活残留": len(sig["ft_deaths_verified"]),
+        "残缝": seam_residual,
+        "final_consistent": final_consistent,
+        "事件重演": len(sig["reenact_hits"]),
+        "章内双版本": [f"第{i + 1}章{r:.0%}" for i, r in sig["intra_rep"]] if sig["intra_rep"] else None,
+        "数值真矛盾": sig["spine_net_num"],
+        "身份真矛盾": sig["spine_net_id"],
+        "承重审计崩溃": sig["fact_audit_crashed"],
+    }
+    ship_issues = gate.evaluate_ship_gate(ship_signals, gate_thr)
+    return {"audit_struct": audit_struct, "audit_fore": audit_fore, "audit_mech": audit_mech,
+            "final_consistent": final_consistent, "ship_issues": ship_issues,
+            "deliverable": not ship_issues}
+
+
+async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, final: str,
+                          deliverable: bool, ship_issues: list, report: dict) -> dict:
+    """阶段9 finalize(B1-2): gen_title + 输出《书名》.md + craft审计 + 落 report.json。
+    report 主体在 run() 组装(引用各相位局部);此处补 title/output/craft 字段并落盘后返回。"""
+    tmeta = await gen_title(cli, bible, ending=final)
+    title, tagline = tmeta.get("title", ""), tmeta.get("tagline", "")
+    safe = _safe_filename(title, fallback=_safe_filename(src.stem))
+    book = f"# 《{title}》\n\n> {tagline}\n\n---\n\n{final}" if title else final
+    (out_dir / "final.md").write_text(final, encoding="utf-8")
+    out_name = f"《{safe}》.md" if deliverable else f"《{safe}》.不可交付.md"
+    (out_dir / out_name).write_text(book, encoding="utf-8")
+    if deliverable:
+        print(f"成品命名：《{title}》 —— {tagline}")
+    else:
+        print(f"⛔ 交付门拦截：{'；'.join(ship_issues)} → {out_name}（重跑或拒收，绝不流向编辑）")
+    try:                                          # craft 仅 advisory，绝不为它丢成品/报告
+        audit_craft = await audit.craft_audit(cli, final[:9000])
+    except Exception as e:
+        audit_craft = [f"(craft审计跳过:{type(e).__name__})"]
+    report.update({"title": title, "tagline": tagline, "alt_titles": tmeta.get("alts", []),
+                   "output_file": out_name, "audit_人+故事性_craft(advisory)": audit_craft or ["无"]})
+    (out_dir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report
+
+
 async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
               refine_rounds: int = 5, min_grade: str | None = None,
               out_dir: Path | None = None, force: bool = False) -> dict:
@@ -1169,60 +1228,17 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     if len(advisory) < len(advisory_raw):
         print(f"灰区判读: advisory {len(advisory_raw)}→{len(advisory)} (滤掉龙套/延伸/口径差类)")
 
-    # 5) 37维审计（先于交付门：闸门要用硬检结果）
-    audit_struct = {k: v for k, v in audit.deterministic_audit(bible, ordered).items() if v}
-    audit_fore = audit.foreshadow_advisory(ordered)
-    audit_mech = audit.mechanical_audit(final)
+    # 5+5.5) 37维审计 + 交付门(B1-3轻: 纯函数 _run_ship_gate,可测;阈值在 config)
+    sig = {"dark_ratio": dark_rep["dark_ratio"], "climax_skipped": climax_skipped,
+           "fact_table_ok": fact_table_ok, "ft_deaths_verified": ft_deaths_verified,
+           "reenact_hits": reenact_hits, "intra_rep": intra_rep, "spine_net_num": spine_net_num,
+           "spine_net_id": spine_net_id, "fact_audit_crashed": fact_audit_crashed}
+    g = _run_ship_gate(bible, ordered, final, det, advisory, seam_found - len(seam_fixed), sig, gate_thr)
+    audit_struct, audit_fore, audit_mech = g["audit_struct"], g["audit_fore"], g["audit_mech"]
+    final_consistent, ship_issues, deliverable = g["final_consistent"], g["ship_issues"], g["deliverable"]
 
-    # 5.5) 交付门（人工6本校准:对人工分≤65的三本全拦/≥68的三本全放）。检测早就有效,缺的是这道门——
-    #     37分书 final_consistent=false+阵营串线×3 照常交付过。信号选择:阵营串线(canon级硬伤,
-    #     烂书有/好书无)+过短≥3章(内容稀薄,与人工分单调)+暗黑饱和;战力崩坏/伏笔序是噪声(75分书18条)不入门。
-    #     Tier3 回放扩展(10本回放: ≤65五本全拦/≥68三本零误拦,docs/plans/replay_result.md):
-    #     维14死人复活/残缝>8/final_consistent=false 进门——第7跑实证这三类命中的书人工63-65,旧门照常放行。
-    too_short = [d for d in det if d.startswith("过短")]
-    # 篇幅类(过短/超长)不污染一致性位——过短≥3章由门单独拦(原bug:"长"滤不掉"过短",75分好书也被标false)
-    final_consistent = not advisory and not [d for d in det if "长" not in d and "短" not in d]
-    seam_residual = seam_found - len(seam_fixed)
-    # D1: 门策略=纯函数 gate.evaluate_ship_gate(信号, config阈值);信号在此组装,阈值在 config/pipeline.yaml
-    # 信号语义见各检测器;维14 生死的权威仪器=prose事实表,事实表跑过则 plan维14 只 advisory(失败才兜底进门)
-    ship_signals = {
-        "阵营串线": len(audit_struct.get("维2阵营串线") or []),
-        "过短章数": len(too_short),
-        "暗黑比": dark_rep["dark_ratio"],
-        "预告跳过": climax_skipped,
-        "plan维14复活": len(audit_struct.get("维14死人复活") or []),
-        "事实表跑过": fact_table_ok,
-        "事实表复活残留": len(ft_deaths_verified),
-        "残缝": seam_residual,
-        "final_consistent": final_consistent,
-        "事件重演": len(reenact_hits),
-        "章内双版本": [f"第{i + 1}章{r:.0%}" for i, r in intra_rep] if intra_rep else None,
-        "数值真矛盾": spine_net_num,
-        "身份真矛盾": spine_net_id,
-        "承重审计崩溃": fact_audit_crashed,
-    }
-    ship_issues = gate.evaluate_ship_gate(ship_signals, gate_thr)
-    deliverable = not ship_issues
-
-    # 成品命名：给复写新书起商业书名+卖点，输出《书名》.md（final.md 保留供下游）
-    tmeta = await gen_title(cli, bible, ending=final)
-    title, tagline = tmeta.get("title", ""), tmeta.get("tagline", "")
-    safe = _safe_filename(title, fallback=_safe_filename(src.stem))
-    book = f"# 《{title}》\n\n> {tagline}\n\n---\n\n{final}" if title else final
-    (out_dir / "final.md").write_text(final, encoding="utf-8")
-    out_name = f"《{safe}》.md" if deliverable else f"《{safe}》.不可交付.md"
-    (out_dir / out_name).write_text(book, encoding="utf-8")
-    if deliverable:
-        print(f"成品命名：《{title}》 —— {tagline}")
-    else:
-        print(f"⛔ 交付门拦截：{'；'.join(ship_issues)} → {out_name}（重跑或拒收，绝不流向编辑）")
-    try:                                          # craft 仅 advisory，绝不为它丢成品/报告
-        audit_craft = await audit.craft_audit(cli, final[:9000])
-    except Exception as e:
-        audit_craft = [f"(craft审计跳过:{type(e).__name__})"]
+    # 9) finalize(B1-2): report 主体在此组装(引用各相位局部),title/输出/落盘交给 _stage_finalize
     report = {
-        "title": title, "tagline": tagline, "alt_titles": tmeta.get("alts", []),
-        "output_file": out_name,
         "deliverable": deliverable, "交付门": ship_issues or ["通过"],
         "source": src.name, "wan_zi": meta.approx_wan_zi, "out_chapters": len(plan["chapters"]),
         "scenes": n_scenes, "all_scene_count": all_scene_count, "chunks": chunks,
@@ -1253,13 +1269,12 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "audit_承重_确定性硬检": audit_struct or {"全过": "✓"},
         "audit_维7伏笔序(advisory)": audit_fore or ["无"],
         "audit_笔力_机械": audit_mech or {"全过": "✓"},
-        "audit_人+故事性_craft(advisory)": audit_craft or ["无"],
         "advisory_issues": advisory or ["无"],
         "final_consistent": final_consistent,
         "calls": cli.calls, "cost_cny": round(cli.cost_cny, 2), "seconds": round(time.time() - t0, 1),
     }
-    (out_dir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    return report
+    # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
+    return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report)
 
 
 def _variety(beats: list[dict]) -> str:

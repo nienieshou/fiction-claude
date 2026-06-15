@@ -1,6 +1,39 @@
-"""produce.py 纯函数:_wave_bounds 护栏/退化、_control_plane 编译、_settle_facts。零 API。
-(原 scripts/_test_r13_units.py 迁入)"""
-from hiki.produce import _wave_bounds, _control_plane, _settle_facts
+"""produce.py 纯函数:_wave_bounds 护栏/退化、_control_plane 编译、_settle_facts、_run_ship_gate。零 API。
+(原 scripts/_test_r13_units.py 迁入 + B1-3 门 gather)"""
+from hiki import gate
+from hiki.produce import _wave_bounds, _control_plane, _settle_facts, _run_ship_gate
+
+
+def _clean_sig():
+    return {"dark_ratio": 0.0, "climax_skipped": "", "fact_table_ok": True, "ft_deaths_verified": [],
+            "reenact_hits": [], "intra_rep": [], "spine_net_num": 0, "spine_net_id": 0,
+            "fact_audit_crashed": False}
+
+
+def test_run_ship_gate_clean_deliverable():
+    g = _run_ship_gate({}, [], "正常的一章正文。" * 50, [], [], 0, _clean_sig(), gate.SHIP_GATE_DEFAULTS)
+    assert g["deliverable"] is True and g["ship_issues"] == []
+    assert g["final_consistent"] is True
+
+
+def test_run_ship_gate_reenact_blocks():
+    sig = {**_clean_sig(), "reenact_hits": ["第2章重演[...]"]}
+    g = _run_ship_gate({}, [], "正文", [], [], 0, sig, gate.SHIP_GATE_DEFAULTS)
+    assert g["deliverable"] is False
+    assert any("事件重演" in i for i in g["ship_issues"])
+
+
+def test_run_ship_gate_final_consistent_from_advisory():
+    g = _run_ship_gate({}, [], "正文", [], ["某连续性残留"], 0, _clean_sig(), gate.SHIP_GATE_DEFAULTS)
+    assert g["final_consistent"] is False
+    assert any("final_consistent" in i for i in g["ship_issues"])
+
+
+def test_run_ship_gate_too_short_only_counts_short_det():
+    det = ["过短第1章", "过短第2章", "过短第3章", "超长第4章"]   # 过短≥3 拦,超长不算
+    g = _run_ship_gate({}, [], "正文", det, [], 0, _clean_sig(), gate.SHIP_GATE_DEFAULTS)
+    assert any("过短" in i for i in g["ship_issues"])
+
 
 
 def test_wave_bounds_act_aligned():
