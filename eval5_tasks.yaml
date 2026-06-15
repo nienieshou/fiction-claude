@@ -1,0 +1,17 @@
+# 人工评分批次:5 题材强源,当前代码全新跑(--spine n=3)。slug 带题材,评分包自解释。
+tasks:
+  - slug: xianyan_tuihun       # 现言豪门 (A)
+    source: fictions_source/ZTGXY01837退婚后，她被财阀大佬娇养了.txt
+    out: output/eval5
+  - slug: guyan_aoshi          # 古言女强 (A)
+    source: fictions_source/ZYGGY03052傲世狂妃太逆天.txt
+    out: output/eval5
+  - slug: niandai_liuling      # 年代种田 (A)
+    source: fictions_source/ZYGXN01960六零饥荒年：我靠团购娇养冷面知青.txt
+    out: output/eval5
+  - slug: xiuxian_lingqi       # 修仙·男主 (A)
+    source: fictions_source/CPBGX00192灵气复苏：开局无限合成.txt
+    out: output/eval5
+  - slug: xingji_dalao         # 星际 (S·全场最强源)
+    source: fictions_source/ZYGWJ02935大佬她美飒全星际.txt
+    out: output/eval5
