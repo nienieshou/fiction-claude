@@ -153,18 +153,8 @@ cython_debug/
 Thumbs.db
 desktop.ini
 
-# Generated novel outputs — keep authoritative evidence (_full*, _spine_m2/m3, batch_summary*),
-# ignore intermediate best-of-K runs and experiment dumps (tech-debt G3)
-output/*_bok[0-9]/
-output/*_gbok[0-9]/
-output/*_full_gen/
-output/*_gen/
-output/_crash_*
-output/_disc/
-output/_logs/
-output/_m0_seq/
-output/_pregrade/
-output/pregrade_map.*
-output/*_b1smoke/
-output/*smoke*/
-output/eval5/*/
+# Generated novel outputs — products are fully rebuildable from source + pinned code,
+# so the entire tree is ignored. Authoritative evidence summaries live tracked under
+# docs/evidence/. Only output/README.md (the convention doc) is committed.
+output/*
+!output/README.md
