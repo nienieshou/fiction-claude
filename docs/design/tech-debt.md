@@ -71,7 +71,7 @@
 |---|---|---|
 | G1 | 死函数 `reconcile_bible`/`repair_chapter`/`_normalize_near_names`/`registry_summary`/`within_cap` + 整个 `metrics.py` + `schemas.ChapterSummary` + 死 prompts(RECONCILE/REPAIR) | ✅ 已删(src −73 净) |
 | G2 | `output/` 445M 被跟踪 → 416 中间垃圾文件(`_bok*`/`_gbok*`/`_full_gen`/`_crash_*`/`_disc`/`_m0_seq`/`_pregrade`)移除跟踪 + `.gitignore` 防再入(权威证据全留) | ✅ 987→571 |
-| G3 | `batch.py`/`pregrade.py` 孤儿 CLI(245 行) | ⬜ 保留(有效 CLI,非破损,只是未被当前脚本用) |
+| G3 | `batch.py`/`pregrade.py` 孤儿 CLI(245 行) | ◐ `batch.py` **复活为 `hiki run` 引擎**(任务驱动 tasks.yaml + 单本失败隔离 + resume + 汇总,+7 测);`pregrade.py` 仍独立 |
 | G4 | 14/28 脚本是做完一次性;docs/plans 16 轮记多已被 ARCHIVE 取代 | ⬜ 故意未动(被 plan 文档引用,移动造成 stale 引用,价值低) |
 | G5 | 死配置键 `pk_screen`/`book_gate`;admission 占位块;105M git history bloat | ⬜ 小;history purge 另议 |
 

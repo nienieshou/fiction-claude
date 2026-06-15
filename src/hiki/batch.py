@@ -1,126 +1,123 @@
-"""批量产线：多本源**并行**跑 produce.run，压缩生产周期。
+"""批量产线（`hiki run` 的引擎）：任务驱动(tasks.yaml)或源目录，多本并行跑 produce.run。
 
-I/O-bound（瓶颈=DeepSeek 账号并发上限 ~2500flash/500pro，非 CPU/线程/内存）。
-故"提速"=①每本内部高并发(Client 384flash/110pro) ②**多本并行**(本批=外层并发上限)。
-外层 4 本并行时总并发 4×110=440pro / 4×384=1536flash，均安全在账号上限内。
-单本失败/拒收不影响其余。汇总产出 batch_summary.{json,md}。
-
-用法: python -m hiki.batch <源目录或多个.txt> [--parallel 4] [--chapters 60] [-n 3]
+并发=DeepSeek 账号上限(~2500flash/500pro);提速=①每本内部高并发 ②多本并行(外层 sem)。
+单本失败/拒收**隔离**(一本崩不拖累其余,traceback 落 <out>/<slug>/_crash.txt);
+阶段产物存在即**续跑**(B2),--force 从头重跑。汇总 batch_summary.{json,md}。
 """
 from __future__ import annotations
-import argparse
 import asyncio
 import json
-import sys
 import time
+import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from .produce import run
 
-_KEYS = ("title", "grade", "out_chapters", "final_chars", "spotlight_variety",
-         "暗黑比", "values_reject(暗黑饱和应拒)", "套话门_重写章数", "章缝_检出", "章缝_修复",
+_KEYS = ("title", "grade", "out_chapters", "final_chars", "暗黑比",
          "deliverable", "交付门", "final_consistent", "cost_cny", "seconds")
 
 
-async def _one(sem: asyncio.Semaphore, src: Path, n_ch: int, n_chunks: int,
-               n_cand: int, refine: int, min_grade: str | None = None) -> dict:
-    async with sem:                                   # 外层限并行本数(账号上限内)
-        t0 = time.time()
-        try:
-            rep = await run(src, n_ch, n_chunks, n_cand, refine, min_grade=min_grade)
-            out = {"src": src.name, "ok": True}
-            for k in _KEYS:
-                if k in rep:
-                    out[k] = rep[k]
-            g = rep.get("grade") or {}
-            out["grade"] = g.get("grade") if isinstance(g, dict) else g
-            out["rejected"] = bool(rep.get("rejected") or rep.get("values_reject(暗黑饱和应拒)")
-                                   or rep.get("deliverable") is False)   # 交付门拦下=不可交付
-            return out
-        except Exception as e:
-            import traceback
-            (Path("output") / f"_crash_{src.stem[:24]}.txt").write_text(
-                traceback.format_exc(), encoding="utf-8")     # 完整traceback落盘(崩点定位两次靠猜的教训)
-            return {"src": src.name, "ok": False, "error": f"{type(e).__name__}: {e}"[:200],
-                    "seconds": round(time.time() - t0, 1)}
+@dataclass
+class Task:
+    slug: str
+    source: Path
+    out_dir: Path
+    n_ch: int = 60
+    n_chunks: int = 12
+    n_cand: int = 3
+    refine_rounds: int = 5
+    min_grade: str | None = None
+    force: bool = False
 
 
-async def run_batch(srcs: list[Path], parallel: int, n_ch: int, n_chunks: int,
-                    n_cand: int, refine: int, min_grade: str | None = None) -> list[dict]:
-    sem = asyncio.Semaphore(parallel)
-    return await asyncio.gather(*[_one(sem, s, n_ch, n_chunks, n_cand, refine, min_grade)
-                                  for s in srcs])
+def load_tasks(path: Path, defaults: dict) -> list[Task]:
+    """解析 tasks.yaml → [Task]。out_dir = <out>/<slug>(同 out+不同 slug 各自独立目录)。
+    per-task 可覆盖 chapters/chunks/candidates/refine_rounds/min_grade/force;缺省取 defaults。"""
+    import yaml
+    try:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as e:
+        raise ValueError(f"{path} 解析失败(常见:`out:output/x` 冒号后缺空格,应 `out: output/x`):\n{e}")
+    raw = doc.get("tasks")
+    if not isinstance(raw, list) or not raw:
+        raise ValueError(f"{path}: 顶层需 `tasks:` 列表(检查 yaml 缩进/冒号后空格)")
+    seen, tasks = set(), []
+    for i, t in enumerate(raw):
+        if not isinstance(t, dict):
+            raise ValueError(f"tasks[{i}] 不是映射——常见是 `out:output/x` 冒号后缺空格,应 `out: output/x`")
+        slug = str(t.get("slug") or f"task{i}").strip()
+        if slug in seen:
+            raise ValueError(f"slug 重复: {slug}(每任务需唯一,它决定输出子目录)")
+        seen.add(slug)
+        source = t.get("source")
+        if not source:
+            raise ValueError(f"tasks[{i}]({slug}) 缺 source")
+        out = str(t.get("out") or defaults.get("out") or "output").strip()
+        tasks.append(Task(
+            slug=slug, source=Path(source), out_dir=Path(out) / slug,
+            n_ch=int(t.get("chapters", defaults["chapters"])),
+            n_chunks=int(t.get("chunks", defaults["chunks"])),
+            n_cand=int(t.get("candidates", defaults["candidates"])),
+            refine_rounds=int(t.get("refine_rounds", defaults["refine_rounds"])),
+            min_grade=t.get("min_grade", defaults["min_grade"]),
+            force=bool(t.get("force", defaults["force"])),
+        ))
+    return tasks
 
 
-def _collect_sources(paths: list[str]) -> list[Path]:
-    out = []
-    for p in paths:
-        pa = Path(p)
-        if pa.is_dir():
-            out += sorted(pa.glob("*.txt"))
-        elif pa.suffix.lower() == ".txt":
-            out.append(pa)
+def _pick(rep: dict) -> dict:
+    out = {k: rep[k] for k in _KEYS if k in rep}
+    g = rep.get("grade") or {}
+    out["grade"] = g.get("grade") if isinstance(g, dict) else g
+    out["rejected"] = bool(rep.get("rejected") or rep.get("deliverable") is False)
     return out
 
 
-def main() -> None:
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
-    ap = argparse.ArgumentParser(prog="hiki.batch")
-    ap.add_argument("sources", nargs="+", help="源目录 或 多个 .txt")
-    ap.add_argument("--parallel", type=int, default=4, help="并行本数(账号上限内,建议≤5)")
-    ap.add_argument("--chapters", type=int, default=60)
-    ap.add_argument("--chunks", type=int, default=12)
-    ap.add_argument("-n", "--candidates", type=int, default=3)
-    ap.add_argument("--refine-rounds", type=int, default=5)
-    ap.add_argument("--min-grade", default=None, choices=["S", "A", "B", "C", "D"],
-                    help="源分级门槛:低于此档拒收(如 A=只产S/A好源)")
-    a = ap.parse_args()
+async def _one(sem: asyncio.Semaphore, task: Task) -> dict:
+    async with sem:                                   # 外层限并行本数(账号上限内)
+        t0 = time.time()
+        if not task.source.exists():
+            return {"slug": task.slug, "ok": False, "error": f"源不存在: {task.source}"}
+        try:
+            rep = await run(task.source, task.n_ch, task.n_chunks, task.n_cand,
+                            task.refine_rounds, min_grade=task.min_grade,
+                            out_dir=task.out_dir, force=task.force)
+            return {"slug": task.slug, "ok": True, "out_dir": str(task.out_dir), **_pick(rep)}
+        except Exception as e:                        # 单本失败隔离:落 traceback,不拖累其余
+            task.out_dir.mkdir(parents=True, exist_ok=True)
+            (task.out_dir / "_crash.txt").write_text(traceback.format_exc(), encoding="utf-8")
+            return {"slug": task.slug, "ok": False, "error": f"{type(e).__name__}: {e}"[:200],
+                    "seconds": round(time.time() - t0, 1)}
 
-    srcs = _collect_sources(a.sources)
-    if not srcs:
-        print("未找到 .txt 源"); return
-    print(f"批量: {len(srcs)} 本，并行 {a.parallel}，每本 {a.chapters} 章"
-          f"{f'，源门槛≥{a.min_grade}' if a.min_grade else ''} ...")
-    t0 = time.time()
-    results = asyncio.run(run_batch(srcs, a.parallel, a.chapters, a.chunks,
-                                    a.candidates, a.refine_rounds, a.min_grade))
-    wall = round(time.time() - t0, 1)
 
+async def run_tasks(tasks: list[Task], parallel: int) -> list[dict]:
+    sem = asyncio.Semaphore(parallel)
+    return await asyncio.gather(*[_one(sem, t) for t in tasks])
+
+
+def write_summary(results: list[dict], wall: float, out_dir: Path = Path("output")) -> dict:
     ok = [r for r in results if r.get("ok")]
     fail = [r for r in results if not r.get("ok")]
     delivered = [r for r in ok if not r.get("rejected")]
-    rejected = [r for r in ok if r.get("rejected")]
     cost = round(sum(r.get("cost_cny", 0) or 0 for r in results), 2)
-    summary = {
-        "本数": len(srcs), "成功": len(ok), "失败": len(fail),
-        "可交付": len(delivered), "拒收(暗黑/质量)": len(rejected),
-        "总成本_cny": cost, "墙钟_秒": wall,
-        "均成本_cny": round(cost / max(1, len(ok)), 2),
-        "results": results,
-    }
-    out_dir = Path("output")
-    out_dir.mkdir(exist_ok=True)
+    summary = {"任务数": len(results), "成功": len(ok), "失败": len(fail),
+               "可交付": len(delivered), "拒收/不可交付": len(ok) - len(delivered),
+               "总成本_cny": cost, "墙钟_秒": wall,
+               "均成本_cny": round(cost / max(1, len(ok)), 2), "results": results}
+    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "batch_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    lines = [f"# 批量汇总  {len(srcs)}本/并行{a.parallel}  墙钟{wall}s  总¥{cost}",
-             f"可交付 {len(delivered)} | 拒收/不可交付 {len(rejected)} | 失败 {len(fail)}", "",
-             "| 源 | grade | 章 | 字 | 暗黑比 | 章缝 | 交付门 | ¥ | 秒 |",
-             "|---|---|---|---|---|---|---|---|---|"]
+    lines = [f"# 批量汇总  {len(results)}任务  墙钟{wall}s  总¥{cost}",
+             f"可交付 {len(delivered)} | 拒收/不可交付 {len(ok)-len(delivered)} | 失败 {len(fail)}", "",
+             "| slug | grade | 章 | 字 | 交付门 | ¥ | 秒 | 输出 |",
+             "|---|---|---|---|---|---|---|---|"]
     for r in results:
         if r.get("ok"):
-            gate_txt = "✓" if not r.get("rejected") else "；".join(r.get("交付门") or ["拦截"])[:30]
-            lines.append(f"| {r['src'][:24]} | {r.get('grade')} | {r.get('out_chapters')} | "
-                         f"{r.get('final_chars')} | {r.get('暗黑比')} | {r.get('章缝_检出', '')} | "
-                         f"{gate_txt} | {r.get('cost_cny')} | {r.get('seconds')} |")
+            g = "✓可交付" if not r.get("rejected") else "；".join(r.get("交付门") or ["拦截"])[:28]
+            lines.append(f"| {r['slug']} | {r.get('grade')} | {r.get('out_chapters')} | "
+                         f"{r.get('final_chars')} | {g} | {r.get('cost_cny')} | {r.get('seconds')} | "
+                         f"{r.get('out_dir','')} |")
         else:
-            lines.append(f"| {r['src'][:24]} | **失败** | | | | | | {r.get('seconds')} | {r.get('error','')[:40]}")
+            lines.append(f"| {r['slug']} | **失败** | | | {r.get('error','')[:40]} | | {r.get('seconds','')} | |")
     (out_dir / "batch_summary.md").write_text("\n".join(lines), encoding="utf-8")
-    print(f"\n=== 批量汇总 ===\n可交付 {len(delivered)} | 拒收 {len(rejected)} | 失败 {len(fail)}")
-    print(f"总成本 ¥{cost} | 均 ¥{summary['均成本_cny']}/本 | 墙钟 {wall}s")
-    print(f"明细 → output/batch_summary.md")
-
-
-if __name__ == "__main__":
-    main()
+    return summary
