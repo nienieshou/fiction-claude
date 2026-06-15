@@ -931,6 +931,140 @@ async def _stage_draft(cli: Client, bible: dict, scenes: list, p: dict, plan: di
     return {"ch_texts": ch_texts, "waves": waves}
 
 
+async def _ending_guard(cli: Client, ch_texts: list[str]) -> dict:
+    """4f 结尾收束守卫: 末章断尾→补收束拍; 预告事件被时间跳跃跳过→计入门。→ {ch_texts,ending_fixed,climax_skipped}。
+    (B1-5: 原内联;这里曾发生 cont 变量遮蔽崩 3 本的根因,独立 scope 根除该类。)"""
+    ending_fixed, climax_skipped = "", ""
+    sys_ec, usr_ec = prompts.ENDING_CHECK
+    prev_tail = ch_texts[-2][-800:] if len(ch_texts) >= 2 else "（无）"
+    for t in range(3):                            # retry-on-empty
+        raw = await cli.complete("chunk_extract", sys_ec,
+                                 usr_ec.format(prev_tail=prev_tail, tail=ch_texts[-1][-2500:]),
+                                 json_mode=True, max_tokens=400, temperature=0.1 + 0.1 * t)
+        ec = gate._safe_json(raw) or {}
+        if "ok" in ec:
+            break
+    else:
+        ec = {}
+    if ec.get("skipped") is True:                 # 兑现跳空没法补写一场大战 → 交付门拦
+        climax_skipped = (ec.get("skipped_what") or "预告事件").strip()
+        print(f"结尾守卫: 预告事件被跳过({climax_skipped}) → 计入交付门")
+    if ec.get("ok") is False:
+        prob = (ec.get("problem") or "结尾被截断").strip()
+        sys_ef, usr_ef = prompts.ENDING_FIX
+        tail_fix = await cli.complete("draft", sys_ef, usr_ef.format(problem=prob, tail=ch_texts[-1][-2500:]),
+                                      max_tokens=2000, temperature=0.5)
+        tail_fix = _strip_markers((tail_fix or "").strip())
+        if 100 <= len(tail_fix) <= 1500:          # 守卫:收束拍合理长度才追加
+            ch_texts[-1] = ch_texts[-1].rstrip() + "\n\n" + tail_fix
+            ending_fixed = prob
+            print(f"结尾守卫: 检出断尾({prob}) → 已补收束拍{len(tail_fix)}字")
+    return {"ch_texts": ch_texts, "ending_fixed": ending_fixed, "climax_skipped": climax_skipped}
+
+
+async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path) -> dict:
+    """4i 事实表对账 + 生死/修为定向修复 + §3.6 Spine薄网。原地修 ch_texts、落 fact_table.json。
+    → {ch_texts,fact_table_ok,fact_audit_crashed,spine_net_num,spine_net_id,ft_deaths_verified,fact_adv}。
+    (A1/A2 硬化:抽取覆盖不足/非预期崩溃→fact_audit_crashed 计入门;B1-5 独立 scope。)"""
+    ft_deaths_verified: list[dict] = []
+    fact_table_ok = False
+    fact_audit_crashed = False
+    spine_net_num, spine_net_id = 0, 0
+    fact_adv: list[str] = []
+    try:
+        ft = await prose_facts.fact_table_audit(cli, ch_texts)
+        ft_texts = list(ch_texts)                     # #4: 抽取时快照(下游 repair 会原地改 ch_texts)
+        if ft.get("n_unaudited", 0) > max(3, len(ch_texts) // 4):   # A1: >25%章抽取失败→审计不可信
+            fact_audit_crashed = True
+            print(f"⚠ 事实表对账 {ft['n_unaudited']}/{len(ch_texts)} 章抽取失败——审计覆盖不足,计入交付门")
+        cand = [{"who": f["who"], "clue": (f.get("why") or "")[:30], "revive_ch": f["ch_b"] - 1,
+                 "death_ch": (f["ch_a"] - 1) if isinstance(f.get("ch_a"), int) else None}
+                for f in ft["findings"] if f.get("cat") == "生死"
+                and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= len(ch_texts)]
+        if cand:
+            ft_deaths_verified = await prose_continuity.verify_revivals(cli, ch_texts, cand)
+        if ft_deaths_verified:                        # R9b: 拦不如修——verify过的复活直喂修复器
+            ch_texts = await prose_continuity.repair_revivals_smart(cli, ch_texts, ft_deaths_verified)
+            residual = await prose_continuity.verify_revivals(cli, ch_texts, ft_deaths_verified)
+            print(f"事实表生死: {len(ft_deaths_verified)} 处verify确认 → 定向修复 → 残留{len(residual)}")
+            ft_deaths_verified = residual
+        ft["生死_verify后"] = [f"{r['who']}(第{r['revive_ch'] + 1}章)" for r in ft_deaths_verified]
+        pw_cand = [f for f in ft["findings"] if f.get("cat") == "数值" and f.get("conf") == "中"
+                   and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= len(ch_texts)]
+        pw_fixed_n = 0
+        if pw_cand:
+            sys_pv, usr_pv = prompts.POWER_VERIFY
+            pchecks = await asyncio.gather(*[
+                cli.complete("chunk_extract", sys_pv,
+                             usr_pv.format(who=f.get("who", ""), why=f.get("why", ""),
+                                           text=ch_texts[f["ch_b"] - 1][:6000]),
+                             json_mode=True, max_tokens=300, temperature=0.1) for f in pw_cand])
+            pw_real = [f for f, c in zip(pw_cand, pchecks)
+                       if (gate._safe_json(c) or {}).get("real") is True]
+            if pw_real:
+                sys_pr, usr_pr = prompts.POINT_REPAIR
+                prew = await asyncio.gather(*[
+                    cli.complete("draft", sys_pr,
+                                 usr_pr.format(issues=f"修为/数值写岔:{f['why']}——本章对「{f['who']}」的"
+                                               f"该数值统一为此前已确立的较高值,禁止回退",
+                                               text=ch_texts[f["ch_b"] - 1][:14000]),
+                                 max_tokens=8000, temperature=0.3) for f in pw_real])
+                for f, t in zip(pw_real, prew):
+                    t = _strip_markers((t or "").strip())
+                    if t and len(t) >= len(ch_texts[f["ch_b"] - 1]) * 0.7:
+                        ch_texts[f["ch_b"] - 1] = t
+                        pw_fixed_n += 1
+                print(f"修为闭环: {len(pw_cand)}候选→verify真{len(pw_real)}→修复{pw_fixed_n}")
+        if os.environ.get("HIKI_SPINE") == "1":       # §3.6 薄网: cross_check真矛盾(对照冻结Spine)进交付门
+            spine_net_num = sum(1 for f in ft["findings"] if f.get("cat") == "数值" and f.get("conf") == "低")
+            if spine_net_num < 2 and any(f.get("cat") == "身份" for f in ft["findings"]):   # #7 短路
+                await prose_facts.verify_identity(cli, ft["findings"], ft_texts)            # ①,抽取时快照#4
+                spine_net_id = sum(1 for f in ft["findings"] if f.get("cat") == "身份" and f.get("real"))
+            ft["spine_net"] = {"数值真矛盾": spine_net_num, "身份真矛盾": spine_net_id}
+        fact_adv = [f["why"] for f in ft["findings"] if f.get("conf") in ("高", "中")]
+        (out_dir / "fact_table.json").write_text(json.dumps(ft, ensure_ascii=False, indent=2), encoding="utf-8")
+        fact_table_ok = True
+    except json.JSONDecodeError as e:                 # 解析类=flaky LLM,容忍为 advisory
+        fact_adv = [f"事实表对账解析失败(flaky):{e}"]
+    except Exception as e:                            # A2: 非预期(代码bug/硬故障)→ 计入门
+        fact_adv = [f"事实表对账中断:{type(e).__name__}:{e}"]
+        fact_audit_crashed = True
+        print(f"⚠ 事实表对账非预期中断({type(e).__name__}: {e})——承重审计不完整,计入交付门")
+    if fact_adv:
+        print(f"事实表对账(advisory): {len(fact_adv)} 条: {'；'.join(fact_adv[:3])}"
+              f"{' | 生死verify后:' + str(len(ft_deaths_verified)) + '条进门' if ft_deaths_verified else ''}")
+    return {"ch_texts": ch_texts, "fact_table_ok": fact_table_ok, "fact_audit_crashed": fact_audit_crashed,
+            "spine_net_num": spine_net_num, "spine_net_id": spine_net_id,
+            "ft_deaths_verified": ft_deaths_verified, "fact_adv": fact_adv}
+
+
+async def _plane_check(cli: Client, ch_texts: list[str], plan: dict) -> list[str]:
+    """4j 控制面核对: 章正文 vs 近3章 exclusion 清单(文本对事实清单),检版本互斥重演。→ reenact_hits。"""
+    try:
+        sys_pc, usr_pc = prompts.PLANE_CHECK
+
+        async def _pc(ci: int) -> list[str]:
+            excl = []
+            for j in range(max(0, ci - 3), ci):
+                for k in (plan["chapters"][j].get("key_events") or []):
+                    if str(k).strip():
+                        excl.append(f"第{j + 1}章:{str(k)[:40]}")
+            if not excl:
+                return []
+            raw = await cli.complete("chunk_extract", sys_pc,
+                                     usr_pc.format(exclusion="\n".join(excl[-6:]), text=ch_texts[ci][:6000]),
+                                     json_mode=True, max_tokens=300, temperature=0.1)
+            r = gate._safe_json(raw) or {}
+            return [f"第{ci + 1}章重演[{str(x)[:40]}]" for x in (r.get("reenacted") or []) if str(x).strip()]
+        reenact_hits = [x for lst in await asyncio.gather(*[_pc(ci) for ci in range(len(ch_texts))]) for x in lst]
+        if reenact_hits:
+            print(f"控制面核对: {len(reenact_hits)} 处重演: {reenact_hits[:4]}")
+        return reenact_hits
+    except Exception as e:
+        print(f"控制面核对跳过:{type(e).__name__}")
+        return []
+
+
 def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: list,
                    seam_residual: int, sig: dict, gate_thr: dict) -> dict:
     """B1-3(轻): 37维审计 + 信号组装 + 门决策。纯函数(0 LLM,可测)。
@@ -1090,139 +1224,23 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     ch_texts, adj_fixed, adj_found = await _adj_dup_pass(cli, ch_texts)
     if adj_found:
         print(f"邻章版本: 检出 {adj_found} 对头部重演, 修复 {len(adj_fixed)} 对: {adj_fixed[:6]}")
-    # 4f) 结尾收束守卫(治断尾: 末章高潮处戛然而止/无收束拍; 另判'预告事件被时间跳跃跳过')
-    ending_fixed, climax_skipped = "", ""
-    sys_ec, usr_ec = prompts.ENDING_CHECK
-    prev_tail = ch_texts[-2][-800:] if len(ch_texts) >= 2 else "（无）"
-    for t in range(3):                            # retry-on-empty
-        raw = await cli.complete("chunk_extract", sys_ec,
-                                 usr_ec.format(prev_tail=prev_tail, tail=ch_texts[-1][-2500:]),
-                                 json_mode=True, max_tokens=400, temperature=0.1 + 0.1 * t)
-        ec = gate._safe_json(raw) or {}
-        if "ok" in ec:
-            break
-    else:
-        ec = {}
-    if ec.get("skipped") is True:                 # 兑现跳空没法补写一场大战 → 交付门拦
-        climax_skipped = (ec.get("skipped_what") or "预告事件").strip()
-        print(f"结尾守卫: 预告事件被跳过({climax_skipped}) → 计入交付门")
-    if ec.get("ok") is False:
-        prob = (ec.get("problem") or "结尾被截断").strip()
-        sys_ef, usr_ef = prompts.ENDING_FIX
-        # 第14鲁棒类(变量遮蔽): 这里曾复用变量名 cont,覆盖了4b的continuity dict →
-        # 605行 cont.get 崩——白月光/末世×2 三次"补收束拍的书必崩"的根因
-        tail_fix = await cli.complete("draft", sys_ef, usr_ef.format(problem=prob, tail=ch_texts[-1][-2500:]),
-                                      max_tokens=2000, temperature=0.5)
-        tail_fix = _strip_markers((tail_fix or "").strip())
-        if 100 <= len(tail_fix) <= 1500:          # 守卫:收束拍合理长度才追加
-            ch_texts[-1] = ch_texts[-1].rstrip() + "\n\n" + tail_fix
-            ending_fixed = prob
-            print(f"结尾守卫: 检出断尾({prob}) → 已补收束拍{len(tail_fix)}字")
+    # 4f) 结尾收束守卫(B1-5 → _ending_guard)
+    eg = await _ending_guard(cli, ch_texts)
+    ch_texts, ending_fixed, climax_skipped = eg["ch_texts"], eg["ending_fixed"], eg["climax_skipped"]
     # 4g) 倒叙哨兵(确定性advisory): 章首即倒叙=重演前章事件的直接信号
     flashbacks = _flashback_advisory(ch_texts)
     if flashbacks:
         print(f"倒叙哨兵: {flashbacks}")
     # 4h) 章尾句界强制(残句裁掉,治'断在逗号上')
     ch_texts = [_trim_tail(t) for t in ch_texts]
-    # 4i) R8 A2' 事实表对账(advisory,召回36%不进门;生死高置信+数值倒退=承重头号类的便宜哨兵,
-    #     identity低置信只留 fact_table.json 供点修,不进摘要防称谓噪声淹没)
-    ft_deaths_verified: list[dict] = []
-    fact_table_ok = False
-    fact_audit_crashed = False                       # A2: 非预期中断(代码bug/硬故障) → 审计不可信,不可判干净
-    spine_net_num, spine_net_id = 0, 0               # §3.6 Spine薄网: 起草违反冻结事实的残漏(对照后进交付门)
-    try:
-        ft = await prose_facts.fact_table_audit(cli, ch_texts)
-        ft_texts = list(ch_texts)                     # #4: 抽取时快照(下游 repair 会原地改 ch_texts,薄网 verify 须用抽取时文本)
-        if ft.get("n_unaudited", 0) > max(3, len(ch_texts) // 4):   # A1: >25%章抽取失败 → 承重审计不可信,别当"干净"
-            fact_audit_crashed = True
-            print(f"⚠ 事实表对账 {ft['n_unaudited']}/{len(ch_texts)} 章抽取失败——审计覆盖不足,计入交付门")
-        # R9: 生死候选过 PROSE_REVIVAL_VERIFY 才计入门——常规题材3/3真,但死遁/重生题材1/3
-        # (白月光实测: 归墟亡魂/尸体在场被误判),verify滤假死/亡魂/提及,存疑判否
-        cand = [{"who": f["who"], "clue": (f.get("why") or "")[:30], "revive_ch": f["ch_b"] - 1,
-                 "death_ch": (f["ch_a"] - 1) if isinstance(f.get("ch_a"), int) else None}
-                for f in ft["findings"] if f.get("cat") == "生死"
-                and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= len(ch_texts)]
-        if cand:
-            ft_deaths_verified = await prose_continuity.verify_revivals(cli, ch_texts, cand)
-        if ft_deaths_verified:                        # R9b: 拦不如修——verify过的复活直喂已验证修复器,
-            ch_texts = await prose_continuity.repair_revivals_smart(cli, ch_texts, ft_deaths_verified)
-            residual = await prose_continuity.verify_revivals(cli, ch_texts, ft_deaths_verified)
-            print(f"事实表生死: {len(ft_deaths_verified)} 处verify确认 → 定向修复 → 残留{len(residual)}")
-            ft_deaths_verified = residual             # 只有修不掉的才进交付门
-        ft["生死_verify后"] = [f"{r['who']}(第{r['revive_ch'] + 1}章)" for r in ft_deaths_verified]
-        # R11 修为prose闭环: 数值回退候选→POWER_VERIFY(滤隐藏实力/量纲混)→定向修复(advisory不进门)
-        pw_cand = [f for f in ft["findings"] if f.get("cat") == "数值" and f.get("conf") == "中"
-                   and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= len(ch_texts)]
-        pw_fixed_n = 0
-        if pw_cand:
-            sys_pv, usr_pv = prompts.POWER_VERIFY
-            pchecks = await asyncio.gather(*[
-                cli.complete("chunk_extract", sys_pv,
-                             usr_pv.format(who=f.get("who", ""), why=f.get("why", ""),
-                                           text=ch_texts[f["ch_b"] - 1][:6000]),
-                             json_mode=True, max_tokens=300, temperature=0.1) for f in pw_cand])
-            pw_real = [f for f, c in zip(pw_cand, pchecks)
-                       if (gate._safe_json(c) or {}).get("real") is True]
-            if pw_real:
-                sys_pr, usr_pr = prompts.POINT_REPAIR
-                prew = await asyncio.gather(*[
-                    cli.complete("draft", sys_pr,
-                                 usr_pr.format(issues=f"修为/数值写岔:{f['why']}——本章对「{f['who']}」的"
-                                               f"该数值统一为此前已确立的较高值,禁止回退",
-                                               text=ch_texts[f["ch_b"] - 1][:14000]),
-                                 max_tokens=8000, temperature=0.3) for f in pw_real])
-                for f, t in zip(pw_real, prew):
-                    t = _strip_markers((t or "").strip())
-                    if t and len(t) >= len(ch_texts[f["ch_b"] - 1]) * 0.7:
-                        ch_texts[f["ch_b"] - 1] = t
-                        pw_fixed_n += 1
-                print(f"修为闭环: {len(pw_cand)}候选→verify真{len(pw_real)}→修复{pw_fixed_n}")
-        if os.environ.get("HIKI_SPINE") == "1":       # §3.6 薄网: cross_check真矛盾(对照冻结Spine)进交付门
-            spine_net_num = sum(1 for f in ft["findings"] if f.get("cat") == "数值" and f.get("conf") == "低")
-            # #7: 数值已独自触门(≥2)就无需为 spine_net_id 花 LLM——身份真矛盾门改不了已决的结论
-            if spine_net_num < 2 and any(f.get("cat") == "身份" for f in ft["findings"]):
-                await prose_facts.verify_identity(cli, ft["findings"], ft_texts)   # 真矛盾过滤(①),用抽取时快照(#4)
-                spine_net_id = sum(1 for f in ft["findings"] if f.get("cat") == "身份" and f.get("real"))
-            ft["spine_net"] = {"数值真矛盾": spine_net_num, "身份真矛盾": spine_net_id}
-        fact_adv = [f["why"] for f in ft["findings"] if f.get("conf") in ("高", "中")]
-        (out_dir / "fact_table.json").write_text(
-            json.dumps(ft, ensure_ascii=False, indent=2), encoding="utf-8")
-        fact_table_ok = True
-    except json.JSONDecodeError as e:                 # 解析类=flaky LLM,容忍为 advisory
-        fact_adv = [f"事实表对账解析失败(flaky):{e}"]
-    except Exception as e:                            # A2: 非预期(代码bug/硬故障)→ 不静默放行,审计未完成计入交付门
-        fact_adv = [f"事实表对账中断:{type(e).__name__}:{e}"]
-        fact_audit_crashed = True
-        print(f"⚠ 事实表对账非预期中断({type(e).__name__}: {e})——承重审计不完整,计入交付门")
-    if fact_adv:
-        print(f"事实表对账(advisory): {len(fact_adv)} 条: {'；'.join(fact_adv[:3])}"
-              f"{' | 生死verify后:' + str(len(ft_deaths_verified)) + '条进门' if ft_deaths_verified else ''}")
-    # 4j) R13 检测换轨: 章 vs 控制面exclusion清单核对(文本对事实清单;两轮实证文本对文本召回不足)
-    reenact_hits: list[str] = []
-    try:
-        sys_pc, usr_pc = prompts.PLANE_CHECK
-
-        async def _pc(ci: int) -> list[str]:
-            excl = []
-            for j in range(max(0, ci - 3), ci):
-                for k in (plan["chapters"][j].get("key_events") or []):
-                    if str(k).strip():
-                        excl.append(f"第{j + 1}章:{str(k)[:40]}")
-            if not excl:
-                return []
-            raw = await cli.complete("chunk_extract", sys_pc,
-                                     usr_pc.format(exclusion="\n".join(excl[-6:]),
-                                                   text=ch_texts[ci][:6000]),
-                                     json_mode=True, max_tokens=300, temperature=0.1)
-            r = gate._safe_json(raw) or {}
-            return [f"第{ci + 1}章重演[{str(x)[:40]}]" for x in (r.get("reenacted") or []) if str(x).strip()]
-        pc_res = await asyncio.gather(*[_pc(ci) for ci in range(len(ch_texts))])
-        reenact_hits = [x for lst in pc_res for x in lst]
-        if reenact_hits:
-            print(f"控制面核对: {len(reenact_hits)} 处重演: {reenact_hits[:4]}")
-    except Exception as e:
-        reenact_hits = []
-        print(f"控制面核对跳过:{type(e).__name__}")
+    # 4i) 事实表对账+生死/修为修复+薄网(B1-5 → _fact_audit_repair)
+    fa = await _fact_audit_repair(cli, ch_texts, out_dir)
+    ch_texts = fa["ch_texts"]
+    fact_table_ok, fact_audit_crashed = fa["fact_table_ok"], fa["fact_audit_crashed"]
+    spine_net_num, spine_net_id = fa["spine_net_num"], fa["spine_net_id"]
+    ft_deaths_verified, fact_adv = fa["ft_deaths_verified"], fa["fact_adv"]
+    # 4j) 控制面核对(B1-5 → _plane_check)
+    reenact_hits = await _plane_check(cli, ch_texts, plan)
     final = _assemble(plan, ch_texts)
 
     # R14 章内自重复检测(确定性,0-LLM): 治整章双版本(ch59飞升写两遍/讨债两版类语义重演)。

@@ -1,7 +1,51 @@
-"""B1 阶段函数 resume 路径(零 API:resume 分支不调 cli)。"""
+"""B1 阶段函数 resume 路径(零 API:resume 分支不调 cli)+ refine pass 抽出(monkeypatch)。"""
 import asyncio
 import json
-from hiki.produce import _stage_plan, _stage_mine, _stage_draft
+import hiki.produce as P
+from hiki.produce import _stage_plan, _stage_mine, _stage_draft, _ending_guard, _fact_audit_repair
+
+
+class _FakeCli:
+    def __init__(self, reply="{}"):
+        self.reply = reply
+        self.calls = 0
+
+    async def complete(self, *a, **k):
+        self.calls += 1
+        return self.reply
+
+
+def test_ending_guard_clean():
+    cli = _FakeCli('{"ok": true}')                       # 结尾正常 → 无补拍/无跳空
+    out = asyncio.run(_ending_guard(cli, ["第1章。", "结局圆满收束。"]))
+    assert out["ending_fixed"] == "" and out["climax_skipped"] == ""
+    assert out["ch_texts"][-1] == "结局圆满收束。"
+
+
+def test_ending_guard_skipped_climax():
+    cli = _FakeCli('{"ok": true, "skipped": true, "skipped_what": "大决战"}')
+    out = asyncio.run(_ending_guard(cli, ["a", "b"]))
+    assert out["climax_skipped"] == "大决战"            # → 计入交付门信号
+
+
+def test_fact_audit_repair_crash_sets_flag(tmp_path, monkeypatch):
+    async def boom(cli, ch_texts):
+        raise ValueError("boom")                          # 注意:非 JSONDecodeError → 走 A2 崩溃分支
+    monkeypatch.setattr(P.prose_facts, "fact_table_audit", boom)
+    out = asyncio.run(_fact_audit_repair(_FakeCli(), ["正文"], tmp_path))
+    assert out["fact_audit_crashed"] is True             # A2: 崩溃→不可判干净
+    assert out["fact_table_ok"] is False
+    assert out["ch_texts"] == ["正文"]                   # 崩溃不丢正文
+
+
+def test_fact_audit_repair_clean_no_findings(tmp_path, monkeypatch):
+    async def empty(cli, ch_texts):
+        return {"findings": [], "n_high": 0, "n_unaudited": 0}
+    monkeypatch.setattr(P.prose_facts, "fact_table_audit", empty)
+    out = asyncio.run(_fact_audit_repair(_FakeCli(), ["正文", "正文2"], tmp_path))
+    assert out["fact_table_ok"] is True and out["fact_audit_crashed"] is False
+    assert out["spine_net_num"] == 0 and out["ft_deaths_verified"] == []
+    assert (tmp_path / "fact_table.json").exists()        # 落盘
 
 
 def _draft_inputs(n=60):
