@@ -1,7 +1,7 @@
 """produce.py 纯函数:_wave_bounds 护栏/退化、_control_plane 编译、_settle_facts、_run_ship_gate。零 API。
 (原 scripts/_test_r13_units.py 迁入 + B1-3 门 gather)"""
 from hiki import gate
-from hiki.produce import _wave_bounds, _control_plane, _settle_facts, _run_ship_gate
+from hiki.produce import _wave_bounds, _control_plane, _settle_facts, _run_ship_gate, _open_premise
 
 
 def _clean_sig():
@@ -39,6 +39,26 @@ def test_run_ship_gate_too_short_only_counts_short_det():
     g = _run_ship_gate({}, [], "正文", det, [], 0, _clean_sig(), gate.SHIP_GATE_DEFAULTS)
     assert any("过短" in i for i in g["ship_issues"])
 
+
+
+def test_open_premise_detects_transmigration():
+    assert _open_premise({"genre": "年代穿越种田"}, {"chapters": []}) == "穿越"
+    assert _open_premise({"protagonist": {}, "logline": "她重生回到十八岁"}, {"chapters": []}) == "重生"
+    assert _open_premise({}, {"chapters": [{"key_events": ["主角魂穿古代"]}]}) == "魂穿"
+    assert _open_premise({"protagonist": {"aliases": ["前世名"]}}, {"chapters": []}) == "重生/穿越"  # 双名弱信号
+    assert _open_premise({"genre": "现言豪门", "protagonist": {}}, {"chapters": [{"title": "退婚"}]}) == ""
+
+
+def test_control_plane_transmigration_opening_rule():
+    plan = {"chapters": [{"key_events": ["主角觉醒"], "scenes": [{}]},
+                         {"key_events": ["后续"], "scenes": [{}]}]}
+    settled = {"deaths": {}, "power": {}, "items": {}}
+    r0 = _control_plane(0, 0, plan, settled, "", open_premise="穿越")
+    assert "代入铁律" in r0 and "锚定今世主角" in r0 and "金手指" in r0
+    # 非第1章/非首场景/无前提 → 不注入(避免错位污染后续章)
+    assert "代入铁律" not in _control_plane(1, 0, plan, settled, "", open_premise="穿越")
+    assert "代入铁律" not in _control_plane(0, 1, plan, settled, "", open_premise="穿越")
+    assert "代入铁律" not in _control_plane(0, 0, plan, settled, "", open_premise="")
 
 
 def test_wave_bounds_act_aligned():

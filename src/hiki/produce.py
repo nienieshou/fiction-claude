@@ -387,9 +387,27 @@ def _spine_world(bible: dict) -> str:
     return out
 
 
+_TRANSMIGRATION_KW = ("穿越", "重生", "魂穿", "夺舍", "借尸还魂", "重活", "重回", "再活一世", "一朝穿", "穿书")
+
+
+def _open_premise(bible: dict, plan: dict) -> str:
+    """检测开篇是否穿越/重生类→需代入视角锚今世主角(human-eval-5: 和谈/团宠 栽在原主视角开篇+原身设定
+    自相矛盾+NPC点破金手指)。返回命中的前提词(供铁律标注),否则''。"""
+    p = bible.get("protagonist", {}) or {}
+    hay = " ".join(str(x) for x in (json.dumps(p, ensure_ascii=False), bible.get("genre", ""),
+                                    bible.get("logline", ""), bible.get("voice", "")))
+    chs = plan.get("chapters") or []
+    if chs:
+        hay += " " + json.dumps(chs[0], ensure_ascii=False)
+    for kw in _TRANSMIGRATION_KW:
+        if kw in hay:
+            return kw
+    return "重生/穿越" if (p.get("aliases") or []) else ""        # 前世名/双名 = 弱信号
+
+
 def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
                    id_map: dict | None = None, spine_map: dict | None = None,
-                   spine_global: str = "") -> str:
+                   spine_global: str = "", open_premise: str = "") -> str:
     """R13 章级控制面(inkos控制面+WriteHERE inclusion/exclusion+autonovel病例的反面):
     事实由代码编译进起草输入,不靠模型回忆;铁律优先级>brief。
     B1-bug修(R13锚-8.8根因): inclusion(本章必演)是**章级**清单,原先每场景都注入→
@@ -418,6 +436,14 @@ def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
     lines = ["【控制面·铁律(优先级高于场景brief的叙述)】"]
     if prev_exit and si == 0:                        # 开场前提=章首场景的事,后场景接的是本章前序场景
         lines.append(f"开场前提: 上一章结束于——{prev_exit[:80]};本章从此处接续。")
+    if ci == 0 and si == 0 and open_premise:          # B: 穿越/重生开篇代入铁律(治 human-eval-5 三类硬伤)
+        lines.append(
+            f"穿越/重生开篇·代入铁律({open_premise}): "
+            "①代入视角从开篇第一句就锚定今世主角(穿越/重生者),绝不先用原主/原身视角铺垫其生平再写其死——"
+            "原主之死只作主角醒来后的简短回溯,不单独开场代入(防读者先入为主代入一个即将死掉的人); "
+            "②原身/前世设定一次性交代、全书口径唯一(原身是否已死、婚配状况只设一种,绝不前后矛盾——"
+            "不可前文'原身已死穿越者来'、后文又写'原身嫁人苦死'); "
+            "③金手指/系统由主角自己逐步发现,绝不让其他角色在本章当面点破/说出主角的金手指(它是主角对读者的底牌,非NPC可一眼看穿)。")
     if dead:
         lines.append("生死账(已结算,违者即硬伤): " + "；".join(dead))
     if pw:
@@ -884,6 +910,9 @@ async def _stage_draft(cli: Client, bible: dict, scenes: list, p: dict, plan: di
         id_map[p["name"].strip()] = str(p["identity"])[:24]
     spine_map = _spine_map(bible)
     spine_global = _spine_roster(spine_map) + _spine_facts(bible) + _spine_world(bible)   # 全书常量,算一次
+    open_premise = _open_premise(bible, plan)            # B: 穿越/重生→第1章锁代入视角+原身一致+金手指不被点破
+    if open_premise:
+        print(f"穿越/重生开篇铁律: 检测到'{open_premise}'前提 → 第1章第1场注入代入视角/原身一致/金手指底牌铁律")
     if os.environ.get("HIKI_SPINE") == "1":
         print(f"Fact Spine: 冻结 {len(spine_map)} 角色规范名 + {len(bible.get('facts') or [])} 数值设定"
               f" + {len(bible.get('places') or [])} 地点 + 身份/体系钉死")
@@ -893,7 +922,7 @@ async def _stage_draft(cli: Client, bible: dict, scenes: list, p: dict, plan: di
         prev_exit = (plan["chapters"][ci - 1].get("exit_state") or "") if ci > 0 else ""
         for si, sc in enumerate(plan["chapters"][ci]["scenes"]):
             i = starts[ci] + si
-            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map, spine_map, spine_global)
+            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map, spine_map, spine_global, open_premise)
             ctx = (ledger.format_context(ledger.state_before(ordered, i)) + _handoff(jobs, plan, i) + plane)
             if parts:
                 ctx += ("\n【本章已写前文(其中事件已发生,绝不重演/换角度重写,直接顺势接续)】\n"
