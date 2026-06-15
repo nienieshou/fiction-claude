@@ -845,6 +845,92 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
                       "ev_fixed": ev_fixed, "plan_dups": plan_dups, "pw_fixed": pw_fixed}}
 
 
+async def _stage_draft(cli: Client, bible: dict, scenes: list, p: dict, plan: dict, ordered: list,
+                       beats: list, n_scenes: int, n_cand: int, refine_rounds: int,
+                       target_chars: int, prod: dict, out_dir: Path, force: bool = False) -> dict:
+    """阶段3 draft(B1-4): 造峰+gold+控制面 → 波次并行起草、波间事实结算。→ {ch_texts, waves}。
+    (settled/jobs 纯阶段内部,0 下游消费)。resume(B2): 每章落 draft/ch_NN.md;崩溃只重画未完成章
+    (最贵阶段 ¥4-5 的细粒度续跑);settled 由已画章重算,且只结算"下游仍有未画章"的波(全续跑零结算¥)。"""
+    draft_dir = out_dir / "draft"
+    draft_dir.mkdir(parents=True, exist_ok=True)
+    n_chapters = len(plan["chapters"])
+    spc = max(1.0, n_scenes / max(1, n_chapters))
+    target = int(target_chars / spc * 0.92)
+    jobs = [(ci, si, sc) for ci, ch in enumerate(plan["chapters"]) for si, sc in enumerate(ch["scenes"])]
+
+    def _rich(sc: dict) -> int:
+        idx = sc.get("source_scene_index")
+        s = scenes[idx] if isinstance(idx, int) and 0 <= idx < len(scenes) else {}
+        return len(s.get("payoffs", [])) + len(s.get("hooks", []))
+    rich = [_rich(sc) for _, _, sc in jobs]
+    n_peaks = max(2, n_scenes // int(prod.get("peak_divisor", 12)))
+    peaks = {0} | set(sorted(range(len(jobs)), key=lambda i: rich[i], reverse=True)[:n_peaks])
+    gold = _load_gold(bible.get("voice", ""))
+    n_peak = n_cand + int(prod.get("n_peak_bonus", 5))
+    n_per = [n_peak if i in peaks else n_cand for i in range(len(jobs))]
+    print(f"造峰:{len(peaks)}场用N={n_peak}+金标{refine_rounds}轮,其余N={n_cand}|金标={'有' if gold else '无'}")
+    starts: list[int] = []
+    _acc = 0
+    for ch in plan["chapters"]:
+        starts.append(_acc)
+        _acc += len(ch["scenes"])
+    settled: dict = {"deaths": {}, "power": {}, "items": {}}
+    id_map: dict = {}                                    # R14 身份账源: canon 角色名→身份(role+阵营),主角也入账
+    for c in bible.get("characters", []):
+        n, role, fac = (c.get("name") or "").strip(), (c.get("role") or "").strip(), (c.get("faction") or "").strip()
+        if n and role:
+            id_map[n] = (role + (f"({fac})" if fac and fac not in role else ""))[:24]
+    if p.get("name") and p.get("identity"):
+        id_map[p["name"].strip()] = str(p["identity"])[:24]
+    spine_map = _spine_map(bible)
+    spine_global = _spine_roster(spine_map) + _spine_facts(bible) + _spine_world(bible)   # 全书常量,算一次
+    if os.environ.get("HIKI_SPINE") == "1":
+        print(f"Fact Spine: 冻结 {len(spine_map)} 角色规范名 + {len(bible.get('facts') or [])} 数值设定"
+              f" + {len(bible.get('places') or [])} 地点 + 身份/体系钉死")
+
+    async def _draft_chapter(ci: int) -> str:           # 跨章并行、章内顺序(后场景见本章已写前文)
+        parts: list[str] = []
+        prev_exit = (plan["chapters"][ci - 1].get("exit_state") or "") if ci > 0 else ""
+        for si, sc in enumerate(plan["chapters"][ci]["scenes"]):
+            i = starts[ci] + si
+            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map, spine_map, spine_global)
+            ctx = (ledger.format_context(ledger.state_before(ordered, i)) + _handoff(jobs, plan, i) + plane)
+            if parts:
+                ctx += ("\n【本章已写前文(其中事件已发生,绝不重演/换角度重写,直接顺势接续)】\n"
+                        + "\n\n".join(parts)[-4000:])
+            res = await _process_scene(cli, sc, bible, bible.get("voice", "网文白话"), target,
+                                       n_per[i], gold=gold, is_peak=(i in peaks),
+                                       refine_rounds=refine_rounds, context=ctx)
+            parts.append(res["winner"])
+        return "\n\n".join(parts)
+
+    waves = _wave_bounds(beats, n_chapters, prod.get("wave_fallback_cuts"),
+                         int(prod.get("wave_min_chapters", 4)))
+    print(f"波次: {len(waves)} 波 {[(a + 1, b) for a, b in waves]} (act对齐+护栏)")
+    ch_texts: list = [None] * n_chapters
+    for ci in range(n_chapters):                         # resume: 载入已画章
+        f = draft_dir / f"ch_{ci + 1:02d}.md"
+        if not force and f.exists():
+            ch_texts[ci] = f.read_text(encoding="utf-8")
+    done = sum(1 for t in ch_texts if t is not None)
+    if done:
+        print(f"[resume] draft 已画 {done}/{n_chapters} 章 → 续画其余(settled 由已画章重算)")
+    for wi, (wa, wb) in enumerate(waves):
+        need = [ci for ci in range(wa, wb) if ch_texts[ci] is None]
+        if need:
+            parts = await asyncio.gather(*[_draft_chapter(ci) for ci in need])
+            for ci, txt in zip(need, parts):
+                ch_texts[ci] = txt
+                (draft_dir / f"ch_{ci + 1:02d}.md").write_text(txt, encoding="utf-8")
+        # 末波不结算;且只结算"下游仍有未画章"的波(全续跑→无下游待画→零结算¥)
+        if wb < n_chapters and any(ch_texts[ci] is None for ci in range(wb, n_chapters)):
+            wfacts = await prose_facts.extract_facts(cli, [ch_texts[ci] for ci in range(wa, wb)])
+            _settle_facts(settled, wfacts, wa)
+            print(f"  波{wi + 1}({wa + 1}-{wb}章)结算: 生死账{len(settled['deaths'])} 修为账{len(settled['power'])} "
+                  f"里程碑账{sum(len(v) for v in settled.get('milestones', {}).values())}")
+    return {"ch_texts": ch_texts, "waves": waves}
+
+
 def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: list,
                    seam_residual: int, sig: dict, gate_thr: dict) -> dict:
     """B1-3(轻): 37维审计 + 信号组装 + 门决策。纯函数(0 LLM,可测)。
@@ -929,79 +1015,10 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     hs_found, hs_fixed = _ps.get("hs_found", 0), _ps.get("hs_fixed", 0)
     ev_fixed, plan_dups, pw_fixed = _ps.get("ev_fixed", []), _ps.get("plan_dups", []), _ps.get("pw_fixed", [])
 
-    # 3) 并发起草所有场景（注入圣经+前情账本；造峰：开篇+富场景给大N+金标精修）
-    spc = max(1.0, n_scenes / max(1, len(plan["chapters"])))
-    target = int(target_chars / spc * 0.92)
-    jobs = [(ci, si, sc) for ci, ch in enumerate(plan["chapters"]) for si, sc in enumerate(ch["scenes"])]
-
-    def _rich(sc: dict) -> int:
-        idx = sc.get("source_scene_index")
-        s = scenes[idx] if isinstance(idx, int) and 0 <= idx < len(scenes) else {}
-        return len(s.get("payoffs", [])) + len(s.get("hooks", []))
-    rich = [_rich(sc) for _, _, sc in jobs]
-    n_peaks = max(2, n_scenes // int(prod.get("peak_divisor", 12)))
-    peaks = {0} | set(sorted(range(len(jobs)), key=lambda i: rich[i], reverse=True)[:n_peaks])
-    gold = _load_gold(bible.get("voice", ""))
-    n_peak = n_cand + int(prod.get("n_peak_bonus", 5))
-    n_per = [n_peak if i in peaks else n_cand for i in range(len(jobs))]
-    print(f"造峰:{len(peaks)}场用N={n_peak}+金标{refine_rounds}轮,其余N={n_cand}|金标={'有' if gold else '无'}")
-    # R9: 跨章并行、**章内顺序**——场景2+带本章已写实际正文起草(治R8头号类'章内多版本重演':
-    # 白月光ch1双开场/星际坠机两遍/狂医同章矛盾,根因=章内场景并行起草互不知情。章均1.4场景,墙钟代价极小)
-    starts: list[int] = []
-    _acc = 0
-    for ch in plan["chapters"]:
-        starts.append(_acc)
-        _acc += len(ch["scenes"])
-
-    # R13: 分幕波次起草+事实结算——波内并行、波间结算(AI_NovelGenerator"定稿即结算"闸门思路);
-    # 控制面(entry_facts/inclusion/exclusion)由代码编译进每章起草输入,铁律优先级>brief。
-    settled: dict = {"deaths": {}, "power": {}, "items": {}}
-    # R14 身份账源: canon 角色名→身份(角色role+阵营),主角也入账(治傅礼ch2太一宗代理宗主类硬伤)
-    id_map: dict = {}
-    for c in bible.get("characters", []):
-        n, role, fac = (c.get("name") or "").strip(), (c.get("role") or "").strip(), (c.get("faction") or "").strip()
-        if n and role:
-            id_map[n] = (role + (f"({fac})" if fac and fac not in role else ""))[:24]
-    if p.get("name") and p.get("identity"):
-        id_map[p["name"].strip()] = str(p["identity"])[:24]
-    spine_map = _spine_map(bible)                        # Fact Spine(M1,HIKI_SPINE=1): 冻结全量角色名表
-    # roster(身份)+facts(数值)+world(地点/势力/体系)是全书常量,算一次拼成 spine_global 注入每场景
-    spine_global = _spine_roster(spine_map) + _spine_facts(bible) + _spine_world(bible)
-    if os.environ.get("HIKI_SPINE") == "1":
-        print(f"Fact Spine: 冻结 {len(spine_map)} 角色规范名 + {len(bible.get('facts') or [])} 数值设定"
-              f" + {len(bible.get('places') or [])} 地点 + 身份/体系钉死")
-
-    async def _draft_chapter(ci: int) -> list[str]:
-        parts: list[str] = []
-        prev_exit = (plan["chapters"][ci - 1].get("exit_state") or "") if ci > 0 else ""
-        for si, sc in enumerate(plan["chapters"][ci]["scenes"]):
-            i = starts[ci] + si
-            plane = _control_plane(ci, si, plan, settled, prev_exit, id_map, spine_map,
-                                   spine_global)  # +Spine名(per-scene)/数值·身份·地点·体系(全书常量)
-            ctx = (ledger.format_context(ledger.state_before(ordered, i)) + _handoff(jobs, plan, i)
-                   + plane)
-            if parts:
-                ctx += ("\n【本章已写前文(其中事件已发生,绝不重演/换角度重写,直接顺势接续)】\n"
-                        + "\n\n".join(parts)[-4000:])
-            res = await _process_scene(cli, sc, bible, bible.get("voice", "网文白话"), target,
-                                       n_per[i], gold=gold, is_peak=(i in peaks),
-                                       refine_rounds=refine_rounds, context=ctx)
-            parts.append(res["winner"])
-        return parts
-
-    waves = _wave_bounds(beats, len(plan["chapters"]),
-                         prod.get("wave_fallback_cuts"), int(prod.get("wave_min_chapters", 4)))
-    print(f"波次: {len(waves)} 波 {[(a + 1, b) for a, b in waves]} (act对齐+护栏)")
-    ch_texts = []
-    for wi, (wa, wb) in enumerate(waves):
-        wave_parts = await asyncio.gather(*[_draft_chapter(ci) for ci in range(wa, wb)])
-        wave_texts = ["\n\n".join(p) for p in wave_parts]
-        ch_texts += wave_texts
-        if wb < len(plan["chapters"]):               # 末波不结算(无下游)
-            wfacts = await prose_facts.extract_facts(cli, wave_texts)
-            _settle_facts(settled, wfacts, wa)
-            print(f"  波{wi + 1}({wa + 1}-{wb}章)结算: 生死账{len(settled['deaths'])} 修为账{len(settled['power'])} "
-                  f"里程碑账{sum(len(v) for v in settled.get('milestones', {}).values())}")
+    # 3) draft(B1-4): 造峰+gold+控制面 → 波次并行起草、波间结算(逐章落盘,mid-draft resume)
+    d = await _stage_draft(cli, bible, scenes, p, plan, ordered, beats, n_scenes, n_cand,
+                           refine_rounds, target_chars, prod, out_dir, force)
+    ch_texts, waves = d["ch_texts"], d["waves"]
 
     # 4) 后端：双向控字 + 硬截断 + POV统一 + 人名归一(双名守卫+近似名) + advisory连续性
     ch_texts = await asyncio.gather(*[_fit_chapter(cli, t, target_chars) for t in ch_texts])

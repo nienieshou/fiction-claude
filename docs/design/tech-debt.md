@@ -21,8 +21,8 @@
 
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
-| B1 | `run()` = 528 行 god-function,9 阶段内联,违反自己的 A1「阶段=纯函数」 | ◐ | **B1-1** mine/plan 阶段化(smoke 验)；**B1-2** `_stage_finalize`(gen_title+输出+report,真数据验)；**B1-3轻** `_run_ship_gate`(纯 sync,+4 测——门首次端到端可测)。run() 头尾已抽干净,剩 **B1-4 draft / B1-5 refine**(真正的 god-ness) |
-| B2 | **无 resume/幂等**(spec 头条「全量断点续跑」是空头支票) | ◐ | **mine/plan resume 已落**:产物在即 load(零API 端到端验证,跳过 ¥1.5);`force=True` 绕过。剩 draft 逐章/refine resume |
+| B1 | `run()` = 528 行 god-function,9 阶段内联,违反自己的 A1「阶段=纯函数」 | ◐ | **B1-1** mine/plan · **B1-2** finalize · **B1-3轻** gate(纯+测) · **B1-4** `_stage_draft`(造峰+波次+结算,smoke验完整60章)。run() 头/draft/尾均阶段化,**剩 B1-5 refine**(~10 pass 原地改 ch_texts=真正 god-ness)+ B1-6 BookCtx 收口 |
+| B2 | **无 resume/幂等**(spec 头条「全量断点续跑」是空头支票) | ◐ | mine/plan resume(零API验)+ **draft 逐章 resume**(`draft/ch_NN.md`,full+partial 单测:只重画缺章、智能结算)。`force=True` 绕过。剩 refine resume |
 | B3 | 跨阶段变量遮蔽(`cont`/`ec`/`sys_pv` 复用),已实锤让 3 本崩 | B1 拆函数后自然消除(局部死在函数边界) |
 | B4 | 8 参函数 + 闭包捕获 10+ 可变量,wave-draft 无法脱离 run() 测 | 引入 frozen DraftContext dataclass |
 
