@@ -13,6 +13,13 @@ production:
   wave_fallback_cuts: [8, 20, 33, 46]   # act 畸形时的固定波切口
   wave_min_chapters: 4             # 波合并下限
 
+# 去套话门(笔力)旋钮——human-eval-5(D):現言隐婚22章重写后笔力90=机制有效,默认不松;
+# 古言/修仙残留AI感属"欠检"(未来按评委标注扩 audit._CLICHE 词表),非过检。改默认须多评委数据支撑。
+decliche:
+  over_book_min: 8                 # 套话类全书出现≥此=疲劳类(纳入重写靶)
+  per_chapter_min: 2               # 本章含≥此个疲劳套话实例→候选重写
+  cap: 22                          # 最多重写章数(套话密度优先)
+
 # 交付门阈值（人工 6+10 本校准;改动须 scripts/replay_gate.py 回放验证不退化）
 # 阈值经 human-eval-5(2026-06-15)重标;真值表见 docs/evidence/human_eval5_calibration.md。
 # 承重微观信号与人类承重不单调可分→降 advisory,硬门只留灾难级+定类硬伤。

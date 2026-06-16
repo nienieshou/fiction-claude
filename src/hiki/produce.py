@@ -63,10 +63,13 @@ def _safe_filename(name: str, fallback: str = "成品") -> str:
     return name[:40] or fallback
 
 
-async def _decliche_chapters(cli: Client, ch_texts: list[str], cap: int = 22):
-    """Tier2 套话硬重写门：按**全书累积疲劳**定位过度复读的套话类别,重写它们聚集的章(治读者累积腻)。"""
+async def _decliche_chapters(cli: Client, ch_texts: list[str], cap: int = 22,
+                             over_book_min: int = 8, per_chapter_min: int = 2):
+    """Tier2 套话硬重写门：按**全书累积疲劳**定位过度复读的套话类别,重写它们聚集的章(治读者累积腻)。
+    阈值经 human-eval-5 校准:現言隐婚22章重写后笔力90(机制有效,不松);古言/修仙残留AI感属欠检
+    (未来按评委标注扩 audit._CLICHE 词表),非过检。旋钮入 config.decliche 供后续多评委数据调。"""
     full = "\n".join(ch_texts)
-    over_book = {lab for lab, c in audit.cliche_hits(full).items() if c >= 8}   # 全书≥8次=疲劳类
+    over_book = {lab for lab, c in audit.cliche_hits(full).items() if c >= over_book_min}   # 全书≥此=疲劳类
     if not over_book:
         return ch_texts, []
     scored = []
@@ -74,7 +77,7 @@ async def _decliche_chapters(cli: Client, ch_texts: list[str], cap: int = 22):
         h = audit.cliche_hits(t)
         inst = sum(c for lab, c in h.items() if lab in over_book)
         present = [lab for lab in h if lab in over_book]
-        if inst >= 2:                               # 本章含≥2个疲劳套话实例 → 候选
+        if inst >= per_chapter_min:                 # 本章含≥此个疲劳套话实例 → 候选
             scored.append((inst, i, present))
     scored.sort(reverse=True)
     jobs = [(i, present) for _, i, present in scored[:cap]]   # 取最密的 cap 章
@@ -1215,8 +1218,11 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
             t = _strip_markers(t)
             if t and _first_person_ratio(t) < 0.5:    # 修成功才采用
                 ch_texts[i] = t
-    # 4a2) Tier2 套话硬重写门
-    ch_texts, decliche_done = await _decliche_chapters(cli, ch_texts)
+    # 4a2) Tier2 套话硬重写门(D: 旋钮入 config,human-eval-5 校准默认不变)
+    _dc = _cfg.get("decliche") or {}
+    ch_texts, decliche_done = await _decliche_chapters(
+        cli, ch_texts, cap=int(_dc.get("cap", 22)),
+        over_book_min=int(_dc.get("over_book_min", 8)), per_chapter_min=int(_dc.get("per_chapter_min", 2)))
     if decliche_done:
         print(f"去套话门: 重写 {len(decliche_done)} 章")
     valid_names = set()

@@ -15,6 +15,18 @@ class _FakeCli:
         return self.reply
 
 
+def test_decliche_config_thresholds_gate():
+    # D: 去套话门旋钮入config——阈值未达则不触发、不调 cli(零浪费),验证 config 真生效
+    from hiki.produce import _decliche_chapters
+    chs = ["他不由得笑了。"] * 5                       # "不由得" 全书5次,每章1实例
+    cli = _FakeCli("他笑了。")
+    out, done = asyncio.run(_decliche_chapters(cli, list(chs), over_book_min=8))  # 5<8 不触发
+    assert done == [] and out == chs and cli.calls == 0
+    cli2 = _FakeCli("他笑了。")                         # 触发疲劳类但每章1实例<per_chapter_min=2
+    _, done2 = asyncio.run(_decliche_chapters(cli2, list(chs), over_book_min=3, per_chapter_min=2))
+    assert done2 == [] and cli2.calls == 0             # 无候选章 → 不重写
+
+
 def test_opening_immersion_audit_parses():
     import hiki.audit as A
     cli = _FakeCli('{"代入锚":"warn","premise清晰":"warn","代入感分":48,'
