@@ -45,7 +45,8 @@ def test_open_premise_detects_transmigration():
     assert _open_premise({"genre": "年代穿越种田"}, {"chapters": []}) == "穿越"
     assert _open_premise({"protagonist": {}, "logline": "她重生回到十八岁"}, {"chapters": []}) == "重生"
     assert _open_premise({}, {"chapters": [{"key_events": ["主角魂穿古代"]}]}) == "魂穿"
-    assert _open_premise({"protagonist": {"aliases": ["前世名"]}}, {"chapters": []}) == "重生/穿越"  # 双名弱信号
+    # aliases-only 不触发(隐婚'顾知夏'=真千金本名非前世名,C实证误报)→只信关键词
+    assert _open_premise({"protagonist": {"aliases": ["顾知夏"]}, "genre": "现言豪门"}, {"chapters": []}) == ""
     assert _open_premise({"genre": "现言豪门", "protagonist": {}}, {"chapters": [{"title": "退婚"}]}) == ""
 
 

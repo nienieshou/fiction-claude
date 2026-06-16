@@ -358,6 +358,25 @@ async def craft_audit(cli, text: str) -> list[str]:
     return (r or {}).get("issues", []) if isinstance(r, dict) else []
 
 
+async def opening_immersion_audit(cli, opening_text: str, premise: str = "") -> dict:
+    """C: 开篇代入感/premise连贯审计——补 human-eval-5 机器盲点(和谈笔力高却代入崩:Opus69 vs 人54)。
+    专盯前1-2章读者第一眼:①代入锚(代入对了主角?有无原主/旁观视角开篇)②premise清晰(穿越/重生设定无矛盾;
+    金手指主角自己发现非NPC点破)③代入感分。LLM-judge,advisory(不进交付门——重蹈A的覆辙之鉴:craft类机器判不可靠)。"""
+    from .gate import _safe_json
+    sys_p, usr_t = prompts.OPENING_IMMERSION
+    try:
+        raw = await cli.complete("pk_final", sys_p,
+                                 usr_t.format(text=opening_text[:8000], premise=premise or "非穿越/重生"),
+                                 json_mode=True, max_tokens=900, temperature=0.2)
+    except Exception as e:
+        return {"代入感分": None, "代入锚": None, "premise清晰": None, "issues": [f"(开篇代入审计跳过:{type(e).__name__})"]}
+    r = _safe_json(raw)
+    if not isinstance(r, dict):
+        return {"代入感分": None, "代入锚": None, "premise清晰": None, "issues": []}
+    return {"代入感分": r.get("代入感分"), "代入锚": r.get("代入锚"),
+            "premise清晰": r.get("premise清晰"), "issues": r.get("issues") or []}
+
+
 _CJK_SLASH = re.compile(r"[一-鿿]/[一-鿿]")
 
 

@@ -15,6 +15,22 @@ class _FakeCli:
         return self.reply
 
 
+def test_opening_immersion_audit_parses():
+    import hiki.audit as A
+    cli = _FakeCli('{"代入锚":"warn","premise清晰":"warn","代入感分":48,'
+                   '"issues":["代入锚:开篇用原主视角铺垫再写其死"]}')
+    out = asyncio.run(A.opening_immersion_audit(cli, "开篇正文…", "穿越"))
+    assert out["代入锚"] == "warn" and out["premise清晰"] == "warn"
+    assert out["代入感分"] == 48 and len(out["issues"]) == 1
+
+
+def test_opening_immersion_audit_robust_to_garbage():
+    import hiki.audit as A
+    cli = _FakeCli("不是JSON的乱码")                       # 解析失败 → 安全空壳,不崩
+    out = asyncio.run(A.opening_immersion_audit(cli, "正文", ""))
+    assert out["代入感分"] is None and out["issues"] == []
+
+
 def test_ending_guard_clean():
     cli = _FakeCli('{"ok": true}')                       # 结尾正常 → 无补拍/无跳空
     out = asyncio.run(_ending_guard(cli, ["第1章。", "结局圆满收束。"]))

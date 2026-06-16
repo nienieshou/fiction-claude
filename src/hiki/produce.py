@@ -402,7 +402,7 @@ def _open_premise(bible: dict, plan: dict) -> str:
     for kw in _TRANSMIGRATION_KW:
         if kw in hay:
             return kw
-    return "重生/穿越" if (p.get("aliases") or []) else ""        # 前世名/双名 = 弱信号
+    return ""        # 仅关键词触发;aliases-only(双名)误报(隐婚'顾知夏'=真千金本名非前世名,C实证)→不作信号
 
 
 def _control_plane(ci: int, si: int, plan: dict, settled: dict, prev_exit: str,
@@ -1129,7 +1129,8 @@ def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: 
 
 
 async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, final: str,
-                          deliverable: bool, ship_issues: list, report: dict) -> dict:
+                          deliverable: bool, ship_issues: list, report: dict,
+                          open_premise: str = "") -> dict:
     """阶段9 finalize(B1-2): gen_title + 输出《书名》.md + craft审计 + 落 report.json。
     report 主体在 run() 组装(引用各相位局部);此处补 title/output/craft 字段并落盘后返回。"""
     tmeta = await gen_title(cli, bible, ending=final)
@@ -1147,8 +1148,15 @@ async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, fi
         audit_craft = await audit.craft_audit(cli, final[:9000])
     except Exception as e:
         audit_craft = [f"(craft审计跳过:{type(e).__name__})"]
+    immersion = await audit.opening_immersion_audit(cli, final, open_premise)   # C: 开篇代入感(advisory)
+    imm_warn = (immersion.get("代入锚") == "warn" or immersion.get("premise清晰") == "warn"
+                or (isinstance(immersion.get("代入感分"), (int, float)) and immersion["代入感分"] < 60))
+    if imm_warn:
+        print(f"⚠ 开篇代入感审计: 代入锚={immersion.get('代入锚')} premise={immersion.get('premise清晰')} "
+              f"代入感分={immersion.get('代入感分')} | {'；'.join(immersion.get('issues') or [])[:120]}")
     report.update({"title": title, "tagline": tagline, "alt_titles": tmeta.get("alts", []),
-                   "output_file": out_name, "audit_人+故事性_craft(advisory)": audit_craft or ["无"]})
+                   "output_file": out_name, "audit_人+故事性_craft(advisory)": audit_craft or ["无"],
+                   "开篇代入感审计(advisory)": immersion})
     (out_dir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return report
 
@@ -1338,7 +1346,8 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "calls": cli.calls, "cost_cny": round(cli.cost_cny, 2), "seconds": round(time.time() - t0, 1),
     }
     # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
-    return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report)
+    return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report,
+                                 _open_premise(bible, plan))      # C: 开篇代入感审计用(标注穿越/重生)
 
 
 def _variety(beats: list[dict]) -> str:
