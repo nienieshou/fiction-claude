@@ -1,0 +1,693 @@
+
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<style>/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("50dfcf59-997d-480c-97a4-dee281244d6c") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("9c96c986-c1dc-4108-93c3-4feec73f7aec") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("918c0b17-c7c2-4602-8482-0802f2fd61e3") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("c93a257a-29cf-4af5-b864-25de87aba194") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("c55631b4-7051-4a79-8290-14dfccfa3efb") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("87b1641e-6216-4aef-8856-214c9a103ea8") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("50dfcf59-997d-480c-97a4-dee281244d6c") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("9c96c986-c1dc-4108-93c3-4feec73f7aec") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("918c0b17-c7c2-4602-8482-0802f2fd61e3") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("c93a257a-29cf-4af5-b864-25de87aba194") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("c55631b4-7051-4a79-8290-14dfccfa3efb") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("87b1641e-6216-4aef-8856-214c9a103ea8") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("50dfcf59-997d-480c-97a4-dee281244d6c") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("9c96c986-c1dc-4108-93c3-4feec73f7aec") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("918c0b17-c7c2-4602-8482-0802f2fd61e3") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("c93a257a-29cf-4af5-b864-25de87aba194") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("c55631b4-7051-4a79-8290-14dfccfa3efb") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("87b1641e-6216-4aef-8856-214c9a103ea8") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("50dfcf59-997d-480c-97a4-dee281244d6c") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("9c96c986-c1dc-4108-93c3-4feec73f7aec") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("918c0b17-c7c2-4602-8482-0802f2fd61e3") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("c93a257a-29cf-4af5-b864-25de87aba194") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("c55631b4-7051-4a79-8290-14dfccfa3efb") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("87b1641e-6216-4aef-8856-214c9a103ea8") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;}
+@keyframes hpulse{0%,100%{opacity:1}50%{opacity:.4}}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#283039;border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:#36404c}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div style="display:flex;height:100vh;width:100vw;overflow:hidden;background:#0d1117;color:#e6edf3;font-family:'JetBrains Mono','SFMono-Regular',Consolas,'PingFang SC','Microsoft YaHei',monospace;font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside style="width:312px;flex-shrink:0;height:100%;display:flex;flex-direction:column;background:#0b0f14;border-right:1px solid #1c232c;">
+    <div style="padding:18px 18px 14px;border-bottom:1px solid #1c232c;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:26px;height:26px;border-radius:7px;background:{{ accent }};color:#08120f;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;">H</div>
+        <div style="display:flex;flex-direction:column;line-height:1.25;">
+          <span style="font-weight:700;font-size:14px;letter-spacing:.5px;">HIKI<span style="color:#5c6672;font-weight:400;"> · fiction-rewrite</span></span>
+          <span style="color:#6e7681;font-size:11px;">产线监视台 · pilot</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- global stats -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1c232c;border-bottom:1px solid #1c232c;">
+      <div style="background:#0b0f14;padding:12px 14px;">
+        <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">认证</div>
+        <div style="font-size:18px;font-weight:600;color:#3fb950;">{{ g.certified }}<span style="color:#39414d;font-size:12px;font-weight:400;"> / {{ g.total }}</span></div>
+      </div>
+      <div style="background:#0b0f14;padding:12px 14px;">
+        <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">拒收率</div>
+        <div style="font-size:18px;font-weight:600;color:#d29922;">{{ g.rejectRate }}<span style="color:#39414d;font-size:12px;font-weight:400;"> ≤50%</span></div>
+      </div>
+      <div style="background:#0b0f14;padding:12px 14px;">
+        <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">均价</div>
+        <div style="font-size:18px;font-weight:600;color:#e6edf3;">¥{{ g.avgCost }}</div>
+      </div>
+    </div>
+
+    <div style="padding:13px 16px 7px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="color:#5c6672;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;">本批 · {{ g.total }} 本</span>
+      <div onclick="{{ openUpload }}" style="cursor:pointer;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:{{ accent }};padding:4px 10px;border-radius:7px;border:1px solid rgba(78,201,176,.28);background:rgba(78,201,176,.06);" style-hover="background:rgba(78,201,176,.13)">+ 批量上传</div>
+    </div>
+
+    <!-- book list -->
+    <div style="flex:1;overflow-y:auto;padding:0 10px 14px;">
+      <sc-for list="{{ books }}" as="b" hint-placeholder-count="8">
+        <div onclick="{{ b.onSelect }}" style="margin-bottom:7px;padding:11px 12px;border-radius:9px;cursor:pointer;border:1px solid {{ b.cardBorder }};background:{{ b.cardBg }};transition:background .12s,border-color .12s;">
+          <div style="display:flex;align-items:center;gap:9px;">
+            <div style="width:20px;height:20px;flex-shrink:0;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:{{ b.gradeBg }};color:{{ b.gradeColor }};border:1px solid {{ b.gradeColor }};">{{ b.grade }}</div>
+            <div style="flex:1;min-width:0;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ b.titleColor }};">{{ b.title }}</div>
+            <div style="font-size:11px;font-weight:600;color:{{ b.humanColor }};flex-shrink:0;">{{ b.humanLabel }}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;margin-top:9px;">
+            <div style="display:flex;gap:3px;flex:1;">
+              <sc-for list="{{ b.dots }}" as="d" hint-placeholder-count="6">
+                <div style="height:4px;flex:1;border-radius:2px;background:{{ d.c }};"></div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+            <span style="font-size:10.5px;color:#6e7681;">{{ b.genre }}</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:{{ b.statusColor }};"><span style="width:6px;height:6px;border-radius:50%;background:{{ b.statusColor }};"></span>{{ b.statusText }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main style="flex:1;min-width:0;height:100%;display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- topbar -->
+    <div style="padding:16px 26px 0;flex-shrink:0;">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
+        <div style="display:flex;align-items:center;gap:13px;min-width:0;">
+          <div style="width:30px;height:30px;flex-shrink:0;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;background:{{ sel.gradeBg }};color:{{ sel.gradeColor }};border:1px solid {{ sel.gradeColor }};">{{ sel.grade }}</div>
+          <div style="min-width:0;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:19px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ sel.title }}</span>
+              <span style="flex-shrink:0;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;color:{{ sel.statusColor }};background:{{ sel.statusBg }};border:1px solid {{ sel.statusColor }};">{{ sel.statusText }}</span>
+            </div>
+            <div style="color:#6e7681;font-size:11.5px;margin-top:3px;">{{ sel.subtitle }}</div>
+            <div style="font-size:10.5px;color:#46505b;margin-top:3px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">编号 {{ sel.slug }}</div>
+          </div>
+        </div>
+        <div style="flex-shrink:0;display:flex;align-items:center;gap:18px;">
+          <div onclick="{{ dl.toggle }}" style="cursor:{{ dl.cursor }};padding:9px 14px;border-radius:9px;font-size:12px;font-weight:600;color:{{ dl.btnColor }};background:{{ dl.btnBg }};border:1px solid {{ dl.btnBorder }};display:flex;align-items:center;gap:7px;white-space:nowrap;">
+            <span style="font-size:13px;">↓</span>{{ dl.btnLabel }}
+          </div>
+          <div style="text-align:right;">
+            <div style="color:#6e7681;font-size:10.5px;">人工成品分</div>
+            <div style="font-size:24px;font-weight:700;color:{{ sel.humanColor }};line-height:1.1;">{{ sel.humanBig }}<span style="font-size:12px;color:#39414d;font-weight:400;"> / 95</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- truth calibration banner -->
+      <div style="margin-top:14px;display:flex;align-items:center;gap:11px;padding:9px 14px;border-radius:9px;background:rgba(210,153,34,.07);border:1px solid rgba(210,153,34,.28);">
+        <span style="font-size:10px;font-weight:700;letter-spacing:.5px;color:#0d1117;background:#d29922;padding:2px 7px;border-radius:5px;">v5.1 真值校准</span>
+        <span style="font-size:11.5px;color:#c9a44a;">实测人工 <b style="color:#e6c25a;">54–76</b> · 出货线 75 · <b style="color:#e6c25a;">95 远未达</b> · 瓶颈 = 承重维(50) · 机器自评仅 advisory（承重±40 不可裁决）</span>
+      </div>
+    </div>
+
+    <!-- ============ PIPELINE FLOW ============ -->
+    <div style="padding:22px 26px 6px;flex-shrink:0;">
+      <div style="display:flex;align-items:flex-start;gap:0;">
+        <sc-for list="{{ flow }}" as="f" hint-placeholder-count="11">
+          <sc-if value="{{ f.isLink }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;height:2px;margin-top:18px;border-radius:2px;background:{{ f.color }};min-width:14px;"></div>
+          </sc-if>
+          <sc-if value="{{ f.isNode }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;align-items:center;width:96px;flex-shrink:0;text-align:center;">
+              <div style="width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;background:{{ f.badgeBg }};color:{{ f.badgeColor }};border:1.5px solid {{ f.badgeBorder }};animation:{{ f.anim }};">{{ f.mark }}</div>
+              <div style="margin-top:9px;font-size:12px;font-weight:600;color:{{ f.nameColor }};">{{ f.name }}</div>
+              <div style="font-size:10px;color:#5c6672;margin-top:2px;">{{ f.sub }}</div>
+              <div style="margin-top:6px;font-size:9.5px;font-weight:600;letter-spacing:.3px;padding:1.5px 6px;border-radius:5px;color:{{ f.modelColor }};background:{{ f.modelBg }};">{{ f.model }}</div>
+            </div>
+          </sc-if>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ============ TAB BAR ============ -->
+    <div style="padding:8px 26px 0;flex-shrink:0;border-bottom:1px solid #1c232c;display:flex;gap:3px;">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="7">
+        <div onclick="{{ t.onClick }}" style="padding:9px 15px 11px;cursor:pointer;font-size:12.5px;font-weight:{{ t.weight }};color:{{ t.color }};border-bottom:2px solid {{ t.underline }};white-space:nowrap;">{{ t.label }}<span style="margin-left:6px;font-size:10px;color:{{ t.badgeColor }};">{{ t.badge }}</span></div>
+      </sc-for>
+    </div>
+
+    <!-- ============ TAB CONTENT ============ -->
+    <div style="flex:1;overflow-y:auto;padding:22px 26px 40px;">
+
+      <!-- OVERVIEW -->
+      <sc-if value="{{ show.overview }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:13px;">
+          <div style="padding:15px 16px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+            <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">准入等级</div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-top:7px;"><span style="font-size:24px;font-weight:700;color:{{ sel.gradeColor }};">{{ sel.grade }}</span><span style="font-size:11px;color:#8b949e;">可压缩 {{ sel.comp }}</span></div>
+            <div style="font-size:10.5px;color:#5c6672;margin-top:6px;">Ingest 后 · 付费前定档</div>
+          </div>
+          <div style="padding:15px 16px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+            <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">质量环模式</div>
+            <div style="font-size:17px;font-weight:600;margin-top:9px;color:#e6edf3;">{{ sel.modeText }}</div>
+            <div style="font-size:10.5px;color:#5c6672;margin-top:6px;">{{ sel.modeNote }}</div>
+          </div>
+          <div style="padding:15px 16px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+            <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">单本成本</div>
+            <div style="display:flex;align-items:baseline;gap:4px;margin-top:7px;"><span style="font-size:24px;font-weight:700;color:#e6edf3;">¥{{ sel.cost }}</span><span style="font-size:11px;color:#5c6672;">/ ¥{{ budgetCap }}</span></div>
+            <div style="height:5px;border-radius:3px;background:#1c232c;margin-top:9px;overflow:hidden;"><div style="height:100%;border-radius:3px;width:{{ sel.capPct }};background:{{ sel.capColor }};"></div></div>
+          </div>
+          <div style="padding:15px 16px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+            <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">认证状态</div>
+            <div style="font-size:15px;font-weight:600;margin-top:9px;color:{{ sel.statusColor }};">{{ sel.statusText }}</div>
+            <div style="font-size:10.5px;color:#5c6672;margin-top:6px;">{{ sel.certNote }}</div>
+          </div>
+          <div style="padding:15px 16px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+            <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">当前阶段</div>
+            <div style="font-size:15px;font-weight:600;margin-top:9px;color:#e6edf3;">{{ sel.stageLabel }}</div>
+            <div style="font-size:10.5px;color:#5c6672;margin-top:6px;">{{ sel.stageNote }}</div>
+          </div>
+          <div style="padding:15px 16px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+            <div style="color:#6e7681;font-size:10.5px;letter-spacing:.4px;">Fact Spine</div>
+            <div style="font-size:15px;font-weight:600;margin-top:9px;color:{{ sel.spineColor }};">{{ sel.spineState }}</div>
+            <div style="font-size:10.5px;color:#5c6672;margin-top:6px;">HIKI_SPINE · 事前一致性</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- DNA -->
+      <sc-if value="{{ show.dna }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ det.hasDna }}" hint-placeholder-val="{{ true }}">
+          <div style="color:#5c6672;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;margin-bottom:13px;">Extract · dna/* · 提取的故事内核（缓存源 · 提分靠选不靠写）</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(244px,1fr));gap:11px;">
+            <sc-for list="{{ det.dnaItems }}" as="d" hint-placeholder-count="9">
+              <div style="padding:13px 15px;border-radius:10px;background:#11161d;border:1px solid #1c232c;">
+                <div style="font-size:11px;font-weight:600;color:#4ec9b0;letter-spacing:.3px;">{{ d.label }}</div>
+                <div style="font-size:13px;color:#e6edf3;margin-top:7px;line-height:1.5;">{{ d.v }}</div>
+                <sc-if value="{{ d.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:10.5px;color:#5c6672;margin-top:6px;">{{ d.note }}</div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ det.noDna }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:64px;text-align:center;color:#5c6672;font-size:13px;">{{ det.pendingNote }}</div>
+        </sc-if>
+      </sc-if>
+
+      <!-- SCENES -->
+      <sc-if value="{{ show.scenes }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ det.hasScenes }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px;flex-wrap:wrap;">
+            <div style="padding:11px 16px;border-radius:10px;background:#11161d;border:1px solid #1c232c;display:flex;align-items:baseline;gap:8px;">
+              <span style="font-size:20px;font-weight:700;">{{ det.scenes.drafted }}</span><span style="color:#5c6672;font-size:12px;">/ {{ det.scenes.total }} 场景已草稿</span>
+            </div>
+            <div style="flex:1;min-width:140px;height:8px;border-radius:4px;background:#1c232c;overflow:hidden;"><div style="height:100%;border-radius:4px;width:{{ det.scenes.draftPct }};background:#4ec9b0;"></div></div>
+            <div style="padding:11px 16px;border-radius:10px;background:rgba(240,136,62,.07);border:1px solid rgba(240,136,62,.28);">
+              <span style="color:#f0883e;font-size:11px;font-weight:600;">造峰 {{ det.scenes.peakCount }} 戏剧高点</span><span style="color:#9c7a5a;font-size:11px;margin-left:8px;">{{ det.scenes.peaks }}</span>
+            </div>
+          </div>
+          <div style="border-radius:11px;border:1px solid #1c232c;overflow:hidden;">
+            <div style="display:grid;grid-template-columns:64px 116px 1fr 84px 150px 76px;gap:0;padding:10px 16px;background:#0b0f14;color:#5c6672;font-size:10.5px;letter-spacing:.5px;border-bottom:1px solid #1c232c;">
+              <span>章</span><span>模式</span><span>BEAT</span><span>候选 N</span><span>对照 PK</span><span style="text-align:right;">状态</span>
+            </div>
+            <sc-for list="{{ det.scenes.list }}" as="s" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:64px 116px 1fr 84px 150px 76px;gap:0;align-items:center;padding:13px 16px;border-bottom:1px solid #161c24;font-size:12.5px;">
+                <span style="font-weight:700;color:#8b949e;">{{ s.n }}</span>
+                <span style="font-size:10px;font-weight:700;letter-spacing:.5px;color:{{ s.typeColor }};">{{ s.type }}</span>
+                <span style="color:#cdd5de;">{{ s.beat }}</span>
+                <span style="color:#8b949e;">×{{ s.cand }}</span>
+                <span style="color:#8b949e;font-size:11px;">{{ s.pk }}</span>
+                <span style="text-align:right;"><span style="font-size:10.5px;font-weight:600;color:{{ s.statusColor }};background:{{ s.statusBg }};padding:2px 9px;border-radius:20px;">{{ s.statusText }}</span></span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ det.noScenes }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:64px;text-align:center;color:#5c6672;font-size:13px;">{{ det.pendingNote }}</div>
+        </sc-if>
+      </sc-if>
+
+      <!-- GATE -->
+      <sc-if value="{{ show.gate }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ det.hasGate }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:15px;padding:9px 14px;border-radius:9px;background:rgba(188,140,255,.06);border:1px solid rgba(188,140,255,.22);">
+            <span style="font-size:10px;font-weight:700;color:#0d1117;background:#bc8cff;padding:2px 7px;border-radius:5px;">A5 破 Goodhart</span>
+            <span style="font-size:11.5px;color:#a888d6;">机械主导 · 永不用绝对自评当分 · 机器自评（承重/笔力）仅 advisory，不作交付裁决</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:14px;align-items:start;">
+            <!-- mechanical -->
+            <div style="border-radius:11px;border:1px solid #1c232c;overflow:hidden;">
+              <div style="padding:11px 16px;background:#0b0f14;border-bottom:1px solid #1c232c;display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:12px;font-weight:600;">① 机械层 <span style="color:#5c6672;font-weight:400;">· 0 LLM · 一票否决前置</span></span>
+              </div>
+              <sc-for list="{{ det.gate.mech }}" as="m" hint-placeholder-count="6">
+                <div style="display:grid;grid-template-columns:1fr auto 22px;gap:10px;align-items:center;padding:11px 16px;border-bottom:1px solid #161c24;">
+                  <div><div style="font-size:12.5px;color:#cdd5de;">{{ m.k }}</div><div style="font-size:10px;color:#5c6672;margin-top:2px;">{{ m.note }}</div></div>
+                  <div style="font-size:12px;font-weight:600;color:#e6edf3;font-variant-numeric:tabular-nums;">{{ m.v }}</div>
+                  <div style="font-size:14px;font-weight:700;color:{{ m.c }};text-align:center;">{{ m.i }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <!-- pk + book -->
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div style="border-radius:11px;border:1px solid #1c232c;overflow:hidden;">
+                <div style="padding:11px 16px;background:#0b0f14;border-bottom:1px solid #1c232c;font-size:12px;font-weight:600;">② 对照成对 PK <span style="color:#5c6672;font-weight:400;">· 上锚95 / 近锚90 / 下锚源</span></div>
+                <sc-for list="{{ det.gate.pk }}" as="p" hint-placeholder-count="3">
+                  <div style="display:grid;grid-template-columns:1fr auto 22px;gap:10px;align-items:center;padding:11px 16px;border-bottom:1px solid #161c24;">
+                    <div><div style="font-size:12px;color:#cdd5de;">{{ p.vs }}</div><div style="font-size:10.5px;color:#8b949e;margin-top:2px;">{{ p.verdict }} · {{ p.score }}</div></div>
+                    <div></div>
+                    <div style="font-size:14px;font-weight:700;color:{{ p.c }};text-align:center;">{{ p.i }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="border-radius:11px;border:1px solid #1c232c;overflow:hidden;">
+                <div style="padding:11px 16px;background:#0b0f14;border-bottom:1px solid #1c232c;font-size:12px;font-weight:600;">③ 整本级闸门 <span style="color:#5c6672;font-weight:400;">· 60 个 95 章 ≠ 一本 95 书</span></div>
+                <sc-for list="{{ det.gate.book }}" as="b" hint-placeholder-count="5">
+                  <div style="display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid #161c24;">
+                    <div style="font-size:13px;font-weight:700;color:{{ b.c }};text-align:center;">{{ b.i }}</div>
+                    <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12.5px;color:#cdd5de;">{{ b.k }}</span><sc-if value="{{ b.hasNote }}" hint-placeholder-val="{{ false }}"><span style="font-size:10.5px;color:#5c6672;">{{ b.note }}</span></sc-if></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ det.noGate }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:64px;text-align:center;color:#5c6672;font-size:13px;">{{ det.pendingNote }}</div>
+        </sc-if>
+      </sc-if>
+
+      <!-- COST -->
+      <sc-if value="{{ show.cost }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+          <div style="color:#5c6672;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;">成本账本 · cost_ledger · A7 成本随难度自适应</div>
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <span style="font-size:11px;color:#5c6672;">合计 {{ det.costTotalUsd }} ≈</span>
+            <span style="font-size:26px;font-weight:700;color:{{ det.costCapColor }};">¥{{ det.costTotalCny }}</span>
+            <span style="font-size:12px;color:#5c6672;">/ ¥{{ budgetCap }} 硬上限</span>
+          </div>
+        </div>
+        <div style="height:8px;border-radius:4px;background:#1c232c;overflow:hidden;margin-bottom:22px;"><div style="height:100%;border-radius:4px;width:{{ det.costCapPct }};background:{{ det.costCapColor }};"></div></div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <sc-for list="{{ det.costRows }}" as="c" hint-placeholder-count="5">
+            <div>
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+                <span style="font-size:12.5px;font-weight:600;color:{{ c.kColor }};">{{ c.k }}<span style="font-size:10.5px;color:#5c6672;font-weight:400;margin-left:9px;">{{ c.note }}</span></span>
+                <span style="font-size:12px;font-weight:600;color:#e6edf3;font-variant-numeric:tabular-nums;">{{ c.usd }}</span>
+              </div>
+              <div style="height:6px;border-radius:3px;background:#161c24;overflow:hidden;"><div style="height:100%;border-radius:3px;width:{{ c.pct }};background:{{ c.barColor }};"></div></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:22px;padding:13px 16px;border-radius:10px;background:#11161d;border:1px solid #1c232c;font-size:11.5px;color:#8b949e;line-height:1.6;">
+          <span style="color:#bc8cff;font-weight:600;">绑死成本的是评估，不是生成。</span> DeepSeek 极廉 + 1M 上下文 + 缓存近免费使生成便宜；<span style="color:#4ec9b0;">缓存源是命脉</span>（同源被 60 章 × 锦标赛 × 评估反复复用）。强源(90) 只需 +5、模式1 即可，成本落在下沿。
+        </div>
+      </sc-if>
+
+      <!-- HUMAN -->
+      <sc-if value="{{ show.human }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ det.hasHuman }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-bottom:18px;">
+            <!-- dimensions -->
+            <div style="padding:16px 18px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px;">
+                <span style="font-size:11px;color:#5c6672;letter-spacing:.5px;">维度分 · 网文读者 rubric</span>
+                <span style="font-size:11px;color:#5c6672;">{{ det.review.mode }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <sc-for list="{{ det.dims }}" as="d" hint-placeholder-count="6">
+                  <div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px;">
+                      <span style="font-size:12px;color:{{ d.color }};font-weight:{{ d.weight }};">{{ d.label }}</span>
+                      <span style="font-size:12px;font-weight:600;color:{{ d.color }};font-variant-numeric:tabular-nums;">{{ d.v }}</span>
+                    </div>
+                    <div style="height:6px;border-radius:3px;background:#161c24;overflow:hidden;"><div style="height:100%;border-radius:3px;width:{{ d.pct }};background:{{ d.color }};"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <!-- review -->
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div style="padding:16px 18px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:11px;">
+                  <span style="font-size:11px;color:#5c6672;letter-spacing:.5px;">人=老师 · 逐本长评</span>
+                  <span style="font-size:30px;font-weight:700;color:{{ sel.humanColor }};line-height:1;">{{ det.review.total }}</span>
+                </div>
+                <div style="font-size:12.5px;color:#cdd5de;line-height:1.7;font-family:'PingFang SC','Microsoft YaHei',sans-serif;">{{ det.review.text }}</div>
+                <div style="font-size:10.5px;color:#5c6672;margin-top:11px;">版本 {{ det.review.version }}</div>
+              </div>
+              <div style="padding:14px 18px;border-radius:11px;background:rgba(210,153,34,.05);border:1px solid rgba(210,153,34,.22);">
+                <div style="font-size:10.5px;color:#9c7a2a;letter-spacing:.5px;margin-bottom:9px;">当时自动信号快照 · 与人工对照</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <sc-for list="{{ det.review.snapshot }}" as="s" hint-placeholder-count="3">
+                    <div style="padding:6px 11px;border-radius:8px;background:#11161d;border:1px solid #232b36;"><span style="font-size:10.5px;color:#8b949e;">{{ s.k }}</span><div style="font-size:12px;font-weight:600;color:#d6c24a;margin-top:2px;">{{ s.v }}</div></div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ det.noHuman }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:40px;text-align:center;color:#5c6672;font-size:13px;margin-bottom:18px;">本书尚未进入人工评测 · {{ det.pendingNote }}</div>
+        </sc-if>
+
+        <!-- calibration scatter (global) -->
+        <div style="padding:18px 20px;border-radius:11px;background:#11161d;border:1px solid #1c232c;">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px;">
+            <span style="font-size:10px;font-weight:700;color:#0d1117;background:#f85149;padding:2px 7px;border-radius:5px;">校准 · A</span>
+            <span style="font-size:12.5px;font-weight:600;color:#e6edf3;">机器承重信号 ↔ 人工承重判分（全批 · 近零相关）</span>
+          </div>
+          <div style="font-size:11.5px;color:#8b949e;line-height:1.6;margin-bottom:18px;font-family:'PingFang SC','Microsoft YaHei',sans-serif;">{{ calib.note }}</div>
+          <div style="display:flex;gap:18px;align-items:stretch;">
+            <div style="display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;font-size:10px;color:#5c6672;padding:2px 0 22px;">
+              <span>100</span><span style="writing-mode:vertical-rl;transform:rotate(180deg);color:#7d8590;margin:8px 0;">人工承重判分 →</span><span>0</span>
+            </div>
+            <div style="flex:1;">
+              <div style="position:relative;height:280px;border-left:1px solid #2b333d;border-bottom:1px solid #2b333d;background:linear-gradient(#161c24 1px,transparent 1px),linear-gradient(90deg,#161c24 1px,transparent 1px);background-size:25% 25%,25% 25%;">
+                <sc-for list="{{ calib.points }}" as="p" hint-placeholder-count="5">
+                  <div style="position:absolute;left:{{ p.x }};bottom:{{ p.y }};transform:translate(-50%,50%);display:flex;flex-direction:column;align-items:center;">
+                    <div style="width:13px;height:13px;border-radius:50%;background:{{ p.c }};box-shadow:0 0 0 4px rgba(255,255,255,.04);"></div>
+                    <span style="font-size:10px;color:#8b949e;margin-top:4px;white-space:nowrap;font-family:'PingFang SC','Microsoft YaHei',sans-serif;">{{ p.label }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:#5c6672;margin-top:6px;"><span>0</span><span style="color:#7d8590;">机器承重信号（重演/spine/final）→</span><span>100</span></div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- SPINE -->
+      <sc-if value="{{ show.spine }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ det.hasSpine }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:15px;padding:9px 14px;border-radius:9px;background:rgba(78,201,176,.06);border:1px solid rgba(78,201,176,.22);">
+            <span style="font-size:10px;font-weight:700;color:#08120f;background:#4ec9b0;padding:2px 7px;border-radius:5px;">HIKI_SPINE = 1</span>
+            <span style="font-size:11.5px;color:#5fc7b0;">事前一致性架构 · 起草前冻结实体登记表 → 硬约束并发起草（替代「事后对账打地鼠」）</span>
+          </div>
+          <sc-if value="{{ det.hasConflicts }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-bottom:15px;padding:10px 15px;border-radius:9px;background:rgba(240,136,62,.08);border:1px solid rgba(240,136,62,.3);font-size:11.5px;color:#f0883e;">⚠ 检出 {{ det.spineConflicts }} 处实体/设定冲突 → 承重维崩盘的微观成因（跨章自相矛盾未冻结）</div>
+          </sc-if>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">
+            <sc-for list="{{ det.spineGroups }}" as="g" hint-placeholder-count="3">
+              <div style="border-radius:11px;border:1px solid #1c232c;overflow:hidden;">
+                <div style="padding:10px 16px;background:#0b0f14;border-bottom:1px solid #1c232c;display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font-size:12px;font-weight:600;">{{ g.group }}</span><span style="font-size:10.5px;color:#5c6672;">{{ g.count }} 项</span>
+                </div>
+                <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:11px;padding:12px 16px;border-bottom:1px solid #161c24;">
+                    <div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;color:#e6edf3;">{{ it.name }}</div><div style="font-size:11px;color:#8b949e;margin-top:2px;">{{ it.attr }}</div></div>
+                    <span style="flex-shrink:0;font-size:10px;font-weight:600;color:{{ it.lockColor }};background:{{ it.lockBg }};border:1px solid {{ it.lockBorder }};padding:2px 9px;border-radius:20px;">{{ it.lockText }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ det.noSpine }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:64px;text-align:center;color:#5c6672;font-size:13px;">{{ det.pendingNote }}</div>
+        </sc-if>
+      </sc-if>
+
+      <!-- TAB PANELS APPENDED BELOW -->
+
+    </div>
+  </main>
+
+  <!-- ============ DOWNLOAD POPOVER ============ -->
+  <sc-if value="{{ dl.open }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ dl.close }}" style="position:fixed;inset:0;z-index:40;"></div>
+    <div style="position:fixed;top:118px;right:26px;z-index:41;width:344px;background:#11161d;border:1px solid #2b333d;border-radius:13px;box-shadow:0 20px 56px rgba(0,0,0,.55);overflow:hidden;">
+      <div style="padding:12px 16px;border-bottom:1px solid #1c232c;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <span style="font-size:10.5px;color:#8b949e;font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ dl.title }}</span>
+        <span onclick="{{ dl.close }}" style="cursor:pointer;color:#5c6672;font-size:16px;line-height:1;flex-shrink:0;">×</span>
+      </div>
+      <sc-for list="{{ dl.items }}" as="it" hint-placeholder-count="3">
+        <div onclick="{{ it.onClick }}" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid #161c24;cursor:pointer;" style-hover="background:#161f2b">
+          <span style="font-size:9px;font-weight:700;color:{{ it.tagColor }};border:1px solid {{ it.tagColor }};border-radius:5px;padding:2px 6px;letter-spacing:.5px;flex-shrink:0;">{{ it.tag }}</span>
+          <div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;color:#e6edf3;">{{ it.name }}</div><div style="font-size:10.5px;color:#6e7681;margin-top:1px;">{{ it.desc }}</div></div>
+          <span style="color:#4ec9b0;font-size:15px;flex-shrink:0;">↓</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ dl.hasAll }}" hint-placeholder-val="{{ false }}">
+        <div onclick="{{ dl.onAll }}" style="padding:12px 16px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;color:#08120f;background:#4ec9b0;" style-hover="background:#5fd6bd">↓ 全部下载</div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <!-- ============ UPLOAD MODAL ============ -->
+  <sc-if value="{{ up.open }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ up.close }}" style="position:fixed;inset:0;z-index:50;background:rgba(5,8,12,.66);"></div>
+    <div style="position:fixed;z-index:51;top:50%;left:50%;transform:translate(-50%,-50%);width:584px;max-width:92vw;max-height:86vh;display:flex;flex-direction:column;background:#0e141b;border:1px solid #2b333d;border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1c232c;display:flex;align-items:center;justify-content:space-between;">
+        <div><div style="font-size:15px;font-weight:700;">批量上传源稿</div><div style="font-size:11px;color:#6e7681;margin-top:3px;">.txt 源文件 · 进入 Ingest 一等清洗管线 · 准入分级 S/A/B/C/D/Q</div></div>
+        <span onclick="{{ up.close }}" style="cursor:pointer;color:#6e7681;font-size:22px;line-height:1;">×</span>
+      </div>
+      <div style="padding:20px 22px;overflow-y:auto;">
+        <div onclick="{{ up.trigger }}" ondrop="{{ up.onDrop }}" ondragover="{{ up.onOver }}" style="border:1.5px dashed #2b3a44;border-radius:12px;padding:30px;text-align:center;cursor:pointer;background:rgba(78,201,176,.03);" style-hover="border-color:#4ec9b0;background:rgba(78,201,176,.06)">
+          <div style="font-size:26px;color:#4ec9b0;line-height:1;">⇪</div>
+          <div style="font-size:13px;color:#cdd5de;margin-top:10px;font-weight:600;">拖入 .txt 源文件 · 或点击选择</div>
+          <div style="font-size:11px;color:#5c6672;margin-top:5px;">支持多选 · 鱼龙混杂源由 Ingest 清洗（去防盗章/广告/拼接检测）</div>
+          <input id="hiki-upload-input" type="file" multiple="" accept=".txt,text/plain" onchange="{{ up.onFiles }}" style="display:none;">
+        </div>
+
+        <sc-if value="{{ up.hasFiles }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:18px;margin-bottom:4px;font-size:10.5px;color:#5c6672;letter-spacing:.5px;">待上传 · {{ up.count }} 本 · 命名 oldname_newname_date</div>
+          <sc-for list="{{ up.files }}" as="u" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #161c24;">
+              <span style="font-size:9px;font-weight:700;color:#8b949e;border:1px solid #2b333d;border-radius:5px;padding:3px 6px;flex-shrink:0;">TXT</span>
+              <div style="flex:1;min-width:0;">
+                <input value="{{ u.nw }}" oninput="{{ u.onName }}" placeholder="新书名 newname" style="width:100%;background:#0b0f14;border:1px solid #232b36;border-radius:7px;padding:7px 10px;color:#e6edf3;font-family:inherit;font-size:12.5px;outline:none;" style-focus="border-color:#4ec9b0">
+                <div style="font-size:10px;color:#46505b;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">源 {{ u.old }} · {{ u.kb }}KB <span style="color:#4ec9b0;margin-left:6px;">→ {{ u.slug }}</span></div>
+              </div>
+              <span onclick="{{ u.onRemove }}" style="cursor:pointer;color:#5c6672;font-size:15px;flex-shrink:0;" style-hover="color:#f85149">×</span>
+            </div>
+          </sc-for>
+        </sc-if>
+        <sc-if value="{{ up.empty }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top:18px;text-align:center;color:#46505b;font-size:11.5px;">尚未选择文件</div>
+        </sc-if>
+      </div>
+      <div style="padding:15px 22px;border-top:1px solid #1c232c;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <span style="font-size:10.5px;color:#5c6672;">命名规则 <span style="color:#8b949e;font-family:'JetBrains Mono',monospace;">oldname_newname_{{ up.today }}</span></span>
+        <div style="display:flex;gap:10px;">
+          <div onclick="{{ up.close }}" style="cursor:pointer;padding:8px 16px;border-radius:8px;font-size:12px;color:#8b949e;border:1px solid #232b36;" style-hover="border-color:#36404c">取消</div>
+          <div onclick="{{ up.commit }}" style="cursor:{{ up.commitCursor }};padding:8px 18px;border-radius:8px;font-size:12px;font-weight:700;color:{{ up.commitColor }};background:{{ up.commitBg }};">加入产线 · {{ up.count }} 本</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>

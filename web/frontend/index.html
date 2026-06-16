@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HIKI · 产线监视台</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#0f1620; --card:#161f2b; --line:#222b36; --line2:#2b333d;
+    --t1:#e6edf3; --t2:#cdd5de; --t3:#7d8590; --t4:#5c6672; --accent:#4ec9b0;
+    --green:#3fb950; --blue:#58a6ff; --red:#f85149; --amber:#d29922; --orange:#f0883e;
+    --gold:#ffd166; --purple:#bc8cff; --cyan:#39c5cf;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--t1);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+  .app{display:grid;grid-template-columns:300px 1fr;height:100vh;overflow:hidden}
+  /* sidebar */
+  .side{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .brand{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .logo{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#08120f;font-weight:800;display:flex;align-items:center;justify-content:center;font-family:monospace}
+  .brand b{font-size:15px}.brand span{font-size:11px;color:var(--t4);font-family:monospace}
+  .glob{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+  .glob>div{background:var(--bg);padding:9px 14px}
+  .glob .k{font-size:10px;color:var(--t4)}.glob .v{font-size:16px;font-weight:700;margin-top:2px}
+  .list{overflow:auto;flex:1;padding:8px}
+  .bcard{padding:10px 12px;border-radius:10px;border:1px solid transparent;cursor:pointer;margin-bottom:4px}
+  .bcard:hover{background:rgba(255,255,255,.02)}
+  .bcard .row1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .bcard .title{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grade{font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;font-family:monospace}
+  .bcard .row2{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+  .bcard .genre{font-size:11px;color:var(--t4)}
+  .dots{display:flex;gap:3px}.dot{width:7px;height:7px;border-radius:50%}
+  .hbadge{font-size:11px;font-family:monospace;font-weight:700}
+  .upbtn{margin:8px;padding:9px;border:1px dashed var(--line2);border-radius:10px;color:var(--t3);text-align:center;cursor:pointer;font-size:12px}
+  .upbtn:hover{border-color:var(--accent);color:var(--accent)}
+  /* main */
+  .main{overflow:auto;min-height:0;padding:18px 22px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .h-title{font-size:20px;font-weight:700}
+  .h-sub{color:var(--t3);font-size:12px;margin-top:4px}
+  .pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600}
+  .kpis{display:flex;gap:10px;flex-wrap:wrap}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:84px}
+  .kpi .k{font-size:10px;color:var(--t4)}.kpi .v{font-size:18px;font-weight:700;margin-top:2px;font-family:monospace}
+  /* flow */
+  .flow{display:flex;align-items:center;gap:0;margin:18px 0;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+  .node{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:74px}
+  .badge{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:monospace;border:1.5px solid}
+  .node .nm{font-size:12px;font-weight:600}.node .cn{font-size:10px;color:var(--t4)}
+  .mtag{font-size:9px;padding:1px 6px;border-radius:5px;font-family:monospace}
+  .link{height:2px;flex:1;min-width:18px;border-radius:2px;margin-top:-22px}
+  @keyframes hpulse{0%,100%{box-shadow:0 0 0 0 rgba(88,166,255,.5)}50%{box-shadow:0 0 0 5px rgba(88,166,255,0)}}
+  /* tabs */
+  .tabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .tab{padding:9px 2px;cursor:pointer;font-size:13px;color:var(--t3);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.on{color:#fff;font-weight:700;border-bottom-color:var(--accent)}
+  /* panels */
+  .grid{display:grid;gap:10px}
+  .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+  .item{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+  .item .lab{font-size:11px;color:var(--t4)}.item .val{font-size:13px;margin-top:3px}
+  .item .note{font-size:11px;color:var(--t4);margin-top:3px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:11px;color:var(--t4);font-weight:500}
+  .chip{font-size:11px;padding:1px 8px;border-radius:6px;font-weight:600}
+  .bar{height:7px;border-radius:4px;background:var(--line)}.bar>i{display:block;height:100%;border-radius:4px}
+  .dim{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .dim .dn{width:72px;font-size:12px}.dim .dv{width:38px;text-align:right;font-family:monospace;font-size:12px}
+  .review{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}
+  .scatter{position:relative;height:240px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:10px}
+  .pt{position:absolute;width:11px;height:11px;border-radius:50%;transform:translate(-50%,50%)}
+  .pt b{position:absolute;left:14px;top:-6px;font-size:10px;color:var(--t3);white-space:nowrap}
+  .muted{color:var(--t4);font-size:12px;padding:20px;text-align:center}
+  .spineg{margin-bottom:12px}.spineg .gh{font-size:12px;color:var(--t3);margin-bottom:6px}
+  /* download / upload */
+  .dlwrap{position:relative}
+  .dlbtn{font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;background:none}
+  .menu{position:absolute;right:0;top:38px;background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:6px;min-width:260px;z-index:30;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .mi{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer}
+  .mi:hover{background:rgba(255,255,255,.04)}
+  .mi .mt{font-size:12px;font-weight:600}.mi .md{font-size:10px;color:var(--t4)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50}
+  .sheet{background:var(--panel);border:1px solid var(--line2);border-radius:14px;width:min(560px,92vw);max-height:86vh;overflow:auto;padding:20px}
+  .drop{border:1px dashed var(--line2);border-radius:10px;padding:24px;text-align:center;color:var(--t3);cursor:pointer;margin:12px 0}
+  .upitem{display:flex;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px}
+  .upitem input{flex:1;background:var(--bg);border:1px solid var(--line2);color:var(--t1);border-radius:6px;padding:6px 8px;font-size:12px}
+  .btn{padding:9px 16px;border-radius:8px;border:none;font-weight:700;cursor:pointer;font-size:13px}
+  .x{cursor:pointer;color:var(--t4);font-size:16px;padding:0 6px}
+  .err{position:fixed;bottom:12px;left:12px;right:12px;font:12px/1.4 ui-monospace,monospace;background:#2a1215;color:#ff8a80;padding:10px 14px;border-radius:8px;border:1px solid #5c2b2e;z-index:99;white-space:pre-wrap;display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo">H</div><div><b>HIKI</b> <span>· 产线监视台</span><br><span>fiction-rewrite · pilot</span></div></div>
+    <div class="glob" id="glob"></div>
+    <div class="upbtn" id="upbtn">＋ 批量上传源（.txt）→ 触发改写</div>
+    <div class="list" id="list"></div>
+  </aside>
+  <main class="main" id="main"></main>
+</div>
+<div class="err" id="err"></div>
+
+<script>
+const API = location.origin.startsWith("http") ? "" : "http://127.0.0.1:8000";
+const S = { books:[], sel:null, tab:"overview", stats:{}, calib:{}, stages:[], detail:null, mode:{} };
+
+// ---- palette ----
+const gC = g => ({S:"#ffd166",A:"#3fb950",B:"#58a6ff",C:"#d29922",D:"#f0883e",Q:"#6e7681"}[g]||"#6e7681");
+const humanColor = h => h==null?"#5c6672": h>=75?"#3fb950": h>=68?"#d6c24a": h>=60?"#d29922":"#f0883e";
+const dimColor = v => v>=80?"#3fb950": v>=68?"#7fc94a": v>=55?"#d29922":"#f0883e";
+const dotColor = {done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"#262d36"};
+const modelStyle = {pro:{c:"#bc8cff",b:"rgba(188,140,255,.12)"},flash:{c:"#39c5cf",b:"rgba(57,197,207,.12)"},"pro·flash":{c:"#9aa6ff",b:"rgba(154,166,255,.1)"},"—":{c:"#5c6672",b:"rgba(255,255,255,.03)"}};
+const MODE = {0:"—",1:"模式1 · 保真压缩",2:"模式2 · 强化改写",3:"模式3 · 类型化重构",4:"模式4 · 概念级重启"};
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function statusInfo(b){
+  if(b.status==="certified") return {t:"认证出货",c:"#3fb950",bg:"rgba(63,185,80,.12)"};
+  if(b.status==="rejected")  return {t:"拒收",c:"#f85149",bg:"rgba(248,81,73,.12)"};
+  return {t:"进行中",c:"#58a6ff",bg:"rgba(88,166,255,.12)"};
+}
+function states(b){
+  const n=6,a=[];
+  for(let i=0;i<n;i++){
+    if(b.status==="certified") a.push("done");
+    else if(b.status==="running") a.push(i<b.stage?"done":(i===b.stage?"active":"pending"));
+    else a.push(i<b.stage?"done":(i===b.stage?"fail":"pending"));
+  }
+  return a;
+}
+
+// ---- fetch ----
+async function jget(p){ const r=await fetch(API+p); if(!r.ok) throw new Error(p+" → "+r.status); return r.json(); }
+function showErr(m){ const e=document.getElementById("err"); e.style.display="block"; e.textContent="[api] "+m; }
+
+async function boot(){
+  try{
+    const [stages,stats,books,calib] = await Promise.all([
+      jget("/api/stages"), jget("/api/stats"), jget("/api/books"), jget("/api/calibration")]);
+    S.stages=stages; S.stats=stats; S.books=books; S.calib=calib;
+    S.sel = books[0] ? books[0].id : null;
+    renderSide();
+    if(S.sel) await loadBook(S.sel); else renderMain();
+  }catch(e){ showErr(e.message+" — 后端是否已启动？ uvicorn web.backend.app:app"); }
+}
+async function loadBook(id){
+  S.sel=id;
+  try{ const d=await jget("/api/books/"+encodeURIComponent(id)); S.detail=d.detail; S.cur=d.sel; S.mode={text:d.modeText,note:d.modeNote}; }
+  catch(e){ showErr(e.message); S.detail=null; }
+  renderSide(); renderMain();
+}
+
+// ---- sidebar ----
+function renderSide(){
+  const g=S.stats;
+  document.getElementById("glob").innerHTML =
+    `<div><div class="k">总数</div><div class="v">${g.total??"—"}</div></div>
+     <div><div class="k">认证</div><div class="v" style="color:var(--green)">${g.certified??"—"}</div></div>
+     <div><div class="k">拒收率</div><div class="v" style="color:var(--orange)">${g.rejectRate??"—"}</div></div>
+     <div><div class="k">均成本</div><div class="v">¥${g.avgCost??"—"}</div></div>`;
+  document.getElementById("list").innerHTML = S.books.map(b=>{
+    const si=statusInfo(b), sel=b.id===S.sel;
+    const dots=states(b).map(s=>`<span class="dot" style="background:${dotColor[s]}"></span>`).join("");
+    return `<div class="bcard" style="background:${sel?'var(--card)':'transparent'};border-color:${sel?'#2b3a4d':'transparent'}" onclick="loadBook('${b.id}')">
+      <div class="row1"><div class="title" style="color:${sel?'#fff':'var(--t2)'}">${esc(b.title)}</div>
+        <span class="grade" style="color:${gC(b.grade)};background:rgba(255,255,255,.04)">${esc(b.grade)}</span></div>
+      <div class="row2"><span class="genre">${esc(b.genre)} · <span style="color:${si.c}">${si.t}</span></span>
+        <span class="hbadge" style="color:${humanColor(b.human)}">${b.human==null?"—":b.human}</span></div>
+      <div class="dots" style="margin-top:7px">${dots}</div></div>`;
+  }).join("");
+}
+
+// ---- main ----
+function renderMain(){
+  const b=S.cur||S.books.find(x=>x.id===S.sel);
+  const m=document.getElementById("main");
+  if(!b){ m.innerHTML=`<div class="muted">无书目。点击左侧「批量上传」开始。</div>`; return; }
+  const si=statusInfo(b), cap=S.stats.budgetCap||50, capPct=Math.min(100,Math.round((b.cost||0)/cap*100));
+  m.innerHTML = `
+    <div class="head">
+      <div>
+        <div class="h-title">${esc(b.title)} <span class="pill" style="color:${si.c};background:${si.bg}">${si.t}</span></div>
+        <div class="h-sub">${esc(b.genre)} · 源档 ${esc(b.grade)}（可压缩 ${esc(b.comp)}） · ${esc(S.mode.text||MODE[b.mode]||"—")} ${b.uploaded?'· 新上传':''}</div>
+        <div class="h-sub">源《${esc(b.src)}》 → 《${esc(b.title)}》 · ${esc(b.slug)}</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div class="kpis">
+          <div class="kpi"><div class="k">人工成品分</div><div class="v" style="color:${humanColor(b.human)}">${b.human==null?"—":b.human}</div></div>
+          <div class="kpi"><div class="k">成本 / cap</div><div class="v" style="color:${capPct>90?'var(--red)':capPct>70?'var(--amber)':'var(--green)'}">¥${b.cost||0}<span style="font-size:11px;color:var(--t4)"> /${cap}</span></div></div>
+        </div>
+        ${dlButton(b)}
+      </div>
+    </div>
+    ${flowHtml(b)}
+    <div class="tabs" id="tabs"></div>
+    <div id="panel"></div>`;
+  renderTabs(); renderPanel();
+  document.getElementById("upbtn").onclick=openUpload;
+}
+
+function flowHtml(b){
+  const st=states(b); let h=`<div class="flow">`;
+  S.stages.forEach((sd,i)=>{
+    const s=st[i], ms=modelStyle[sd.model]||modelStyle["—"];
+    const bg={done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"transparent"}[s];
+    const bc={done:"#08120f",active:"#08120f",fail:"#fff",pending:"#5c6672"}[s];
+    const bd={done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"#2b333d"}[s];
+    const mk = s==="done"?"✓": s==="fail"?"✕": String(i);
+    h+=`<div class="node"><div class="badge" style="background:${bg};color:${bc};border-color:${bd};${s==='active'?'animation:hpulse 1.4s ease-in-out infinite':''}">${mk}</div>
+      <div class="nm" style="color:${s==='pending'?'var(--t4)':'var(--t2)'}">${sd.name}</div><div class="cn">${sd.cn}</div>
+      <span class="mtag" style="color:${ms.c};background:${ms.b}">${sd.model}</span></div>`;
+    if(i<S.stages.length-1){ const nx=st[i+1];
+      h+=`<div class="link" style="background:${nx==='done'?'#3fb950':nx==='active'?'#3a5a86':'#1c232c'}"></div>`; }
+  });
+  return h+`</div>`;
+}
+
+const TABS=[["overview","概览"],["dna","DNA"],["scenes","场景"],["gate","闸门"],["cost","成本"],["human","人评"],["spine","Spine"]];
+function renderTabs(){
+  document.getElementById("tabs").innerHTML = TABS.map(([k,l])=>
+    `<div class="tab ${S.tab===k?'on':''}" onclick="setTab('${k}')">${l}</div>`).join("");
+}
+function setTab(k){ S.tab=k; renderTabs(); renderPanel(); }
+
+function pend(){ return `<div class="muted">⋯ 数据将在后续阶段产出 · 当前进行中</div>`; }
+
+function renderPanel(){
+  const d=S.detail||{}, p=document.getElementById("panel"); if(!p) return;
+  if(S.tab==="overview"){ p.innerHTML=ovHtml(); return; }
+  if(S.tab==="dna"){ p.innerHTML = d.dna&&d.dna.length ? `<div class="grid g3">`+d.dna.map(x=>
+    `<div class="item"><div class="lab">${esc(x.label)}</div><div class="val">${esc(x.v)}</div>${x.note?`<div class="note">${esc(x.note)}</div>`:""}</div>`).join("")+`</div>` : pend(); return; }
+  if(S.tab==="scenes"){ p.innerHTML = sceneHtml(d.scenes); return; }
+  if(S.tab==="gate"){ p.innerHTML = gateHtml(d.gate); return; }
+  if(S.tab==="cost"){ p.innerHTML = costHtml(d.cost); return; }
+  if(S.tab==="human"){ p.innerHTML = humanHtml(d); return; }
+  if(S.tab==="spine"){ p.innerHTML = spineHtml(d.spine); return; }
+}
+
+function ovHtml(){
+  const b=S.cur, d=S.detail||{};
+  const dims=d.dims||[];
+  return `<div class="grid g2">
+    <div class="item"><div class="lab">认证状态</div><div class="val" style="color:${statusInfo(b).c}">${statusInfo(b).t}</div><div class="note">${esc(certNote(b))}</div></div>
+    <div class="item"><div class="lab">当前阶段</div><div class="val">${S.stages[b.stage]?S.stages[b.stage].name+" · "+S.stages[b.stage].cn:"—"}</div></div>
+    <div class="item"><div class="lab">改写模式</div><div class="val">${esc(S.mode.text||MODE[b.mode]||"—")}</div><div class="note">${esc(S.mode.note||"")}</div></div>
+    <div class="item"><div class="lab">Spine</div><div class="val">${d.spine&&d.spine.length?"已冻结":"待建/未启用"}</div></div>
+  </div>${dims.length?`<div style="margin-top:14px">`+dims.map(x=>dimRow(x)).join("")+`</div>`:""}`;
+}
+function certNote(b){
+  if(b.status==="certified") return b.human>=75?"出货线 75 达成":"低空认证 · 承重待补";
+  if(b.status==="rejected") return b.grade==="Q"?"Q · 不可压缩":"承重瓶颈 · 最深仍不过";
+  return "质量环进行 · 未终裁";
+}
+function dimRow(x){ const lbl=x.k==="承重"?"承重 · 瓶颈":x.k;
+  return `<div class="dim"><div class="dn" style="${x.k==='承重'?'font-weight:700':''}">${esc(lbl)}</div>
+    <div class="bar" style="flex:1"><i style="width:${x.v}%;background:${dimColor(x.v)}"></i></div>
+    <div class="dv" style="color:${dimColor(x.v)}">${x.v}</div></div>`; }
+
+function sceneHtml(sc){
+  if(!sc) return pend();
+  const tcol=t=>t==="DRAMATIZE"?"#4ec9b0":t==="SUMMARIZE"?"#8b949e":"#5c6672";
+  const stx={pass:["通过","#3fb950","rgba(63,185,80,.1)"],fail:["未过","#f85149","rgba(248,81,73,.1)"],running:["评估中","#58a6ff","rgba(88,166,255,.1)"],pending:["排队","#5c6672","rgba(255,255,255,.03)"]};
+  const rows=(sc.list||[]).map(s=>{const k=stx[s.status]||stx.pending;
+    return `<tr><td style="font-family:monospace">${esc(s.n)}</td>
+      <td><span class="chip" style="color:${tcol(s.type)};background:rgba(255,255,255,.04)">${esc(s.type)}</span></td>
+      <td>${esc(s.beat)}</td><td style="font-family:monospace">${esc(s.cand)}</td><td>${esc(s.pk)}</td>
+      <td><span class="chip" style="color:${k[1]};background:${k[2]}">${k[0]}</span></td></tr>`;}).join("");
+  return `<div class="grid g3" style="margin-bottom:12px">
+    <div class="item"><div class="lab">草稿进度</div><div class="val">${sc.drafted}/${sc.total} · ${Math.round(sc.drafted/sc.total*100)}%</div></div>
+    <div class="item"><div class="lab">高点章</div><div class="val">${sc.peaks&&sc.peaks.length?"CH "+sc.peaks.join(" · "):"—"}</div></div>
+    <div class="item"><div class="lab">场景总数</div><div class="val">${sc.total}</div></div></div>
+    <table><thead><tr><th>章</th><th>类型</th><th>节拍</th><th>候选</th><th>PK</th><th>状态</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function passV(p){ return p===true?["通过","#3fb950","✓"]:p===false?["未过","#f85149","✕"]:["进行","#d29922","⋯"]; }
+function gateHtml(g){
+  if(!g) return pend();
+  const mech=(g.mech||[]).map(m=>{const v=passV(m.pass);
+    return `<tr><td>${esc(m.k)}</td><td style="font-family:monospace">${esc(m.v)}</td><td>${esc(m.note||"")}</td>
+      <td><span class="chip" style="color:${v[1]};background:rgba(255,255,255,.04)">${v[2]} ${v[0]}</span></td></tr>`;}).join("");
+  const pk=(g.pk||[]).map(p=>{const v=passV(p.pass);
+    return `<tr><td>${esc(p.vs)}</td><td>${esc(p.verdict)}</td><td style="font-family:monospace">${esc(p.score)}</td>
+      <td><span class="chip" style="color:${v[1]};background:rgba(255,255,255,.04)">${v[2]}</span></td></tr>`;}).join("");
+  const book=(g.book||[]).map(b=>{const v=passV(b.pass);
+    return `<div class="item" style="display:flex;justify-content:space-between;align-items:center">
+      <div><div class="val">${esc(b.k)}</div>${b.note?`<div class="note">${esc(b.note)}</div>`:""}</div>
+      <span class="chip" style="color:${v[1]};background:rgba(255,255,255,.04)">${v[2]} ${v[0]}</span></div>`;}).join("");
+  return `${mech?`<h4 style="margin:4px 0 8px;font-size:13px;color:var(--t3)">机械硬检</h4><table><tbody>${mech}</tbody></table>`:""}
+    ${pk?`<h4 style="margin:16px 0 8px;font-size:13px;color:var(--t3)">对照 PK（无真值处为 fixture）</h4><table><tbody>${pk}</tbody></table>`:""}
+    ${book?`<h4 style="margin:16px 0 8px;font-size:13px;color:var(--t3)">整本审计</h4><div class="grid g2">${book}</div>`:""}`;
+}
+
+function costHtml(rows){
+  if(!rows||!rows.length) return pend();
+  const max=Math.max(0.01,...rows.map(c=>c.usd||0));
+  const tot=rows.reduce((a,c)=>a+(c.usd||0),0), cap=S.stats.budgetCap||50, cny=Math.round(tot/0.14);
+  const body=rows.map(c=>{const gate=/闸门|PK/.test(c.k);
+    return `<tr><td style="color:${gate?'var(--purple)':'var(--t2)'}">${esc(c.k)}</td>
+      <td style="font-family:monospace">$${(c.usd||0).toFixed(2)}</td>
+      <td style="width:40%"><div class="bar"><i style="width:${Math.round((c.usd||0)/max*100)}%;background:${gate?'#bc8cff':'#4ec9b0'}"></i></div></td>
+      <td class="note">${esc(c.note||"")}</td></tr>`;}).join("");
+  return `<table><thead><tr><th>阶段</th><th>USD</th><th>占比</th><th>说明</th></tr></thead><tbody>${body}</tbody></table>
+    <div class="item" style="margin-top:12px;display:flex;justify-content:space-between">
+      <div><div class="lab">合计</div><div class="val">$${tot.toFixed(2)} ≈ ¥${cny}</div></div>
+      <div style="text-align:right"><div class="lab">预算 cap</div><div class="val" style="color:${cny/cap>.9?'var(--red)':cny/cap>.7?'var(--amber)':'var(--green)'}">${Math.min(100,Math.round(cny/cap*100))}% /¥${cap}</div></div></div>`;
+}
+
+function humanHtml(d){
+  if(!d.dims) return pend();
+  const dims=d.dims.map(dimRow).join("");
+  const r=d.review;
+  const rev=r?`<div class="review"><div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="val" style="font-size:15px">总分 <b style="color:${humanColor(r.total)}">${r.total}</b> <span class="note">${esc(r.mode)} · ${esc(r.version)}</span></div></div>
+      <p style="margin:10px 0;color:var(--t2)">${esc(r.text)}</p>
+      <div class="grid g3">${(r.snapshot||[]).map(s=>`<div class="item"><div class="lab">${esc(s.k)}</div><div class="val">${esc(s.v)}</div></div>`).join("")}</div></div>`:"";
+  return `<div>${dims}</div>${rev}${calibHtml()}`;
+}
+function calibHtml(){
+  const c=S.calib; if(!c||!c.points) return "";
+  const cur=(S.cur&&S.cur.title||"").split("·")[0];
+  const pts=c.points.map(p=>`<div class="pt" style="left:${p.auto}%;bottom:${p.human}%;background:${p.c};${p.label===cur?'box-shadow:0 0 0 4px rgba(255,255,255,.15)':''}"><b>${esc(p.label)} ${p.auto}/${p.human}</b></div>`).join("");
+  return `<h4 style="margin:18px 0 6px;font-size:13px;color:var(--t3)">校准 · 承重 auto(x) vs human(y)</h4>
+    <div class="note" style="margin-bottom:6px">${esc(c.note)}</div><div class="scatter">${pts}</div>`;
+}
+
+function spineHtml(groups){
+  if(!groups||!groups.length) return pend();
+  return groups.map(g=>`<div class="spineg"><div class="gh">${esc(g.group)} · ${g.items.length}</div>
+    <div class="grid g2">`+g.items.map(it=>`<div class="item" style="display:flex;justify-content:space-between;align-items:center">
+      <div><div class="val">${esc(it.name)}</div><div class="note">${esc(it.attr)}</div></div>
+      <span class="chip" style="color:${it.lock?'#4ec9b0':'#f0883e'};background:${it.lock?'rgba(78,201,176,.1)':'rgba(240,136,62,.12)'}">${it.lock?'冻结':'冲突'}</span></div>`).join("")+`</div></div>`).join("");
+}
+
+// ---- download ----
+function dlButton(b){
+  const cert=b.status==="certified", diag=b.status==="rejected"&&b.grade!=="Q";
+  const active=cert||diag;
+  const label=cert?"下载成品":diag?"下载诊断":(b.grade==="Q"?"Q · 无成品":"进行中");
+  const col=cert?"var(--green)":diag?"var(--orange)":"var(--t4)";
+  return `<div class="dlwrap"><button class="dlbtn" style="color:${col};border-color:${col}" ${active?`onclick="toggleMenu(event)"`:"disabled"}>${label} ▾</button>
+    <div class="menu" id="dlmenu" style="display:none">${dlItems(b,cert,diag)}</div></div>`;
+}
+function dlItems(b,cert,diag){
+  const base=`/api/books/${encodeURIComponent(b.id)}/artifacts/`;
+  const mk=(n,desc,tag,col)=>`<a class="mi" href="${API}${base}${n}" download style="text-decoration:none;color:inherit"><div><div class="mt">${n}</div><div class="md">${desc}</div></div><span class="chip" style="color:${col};background:rgba(255,255,255,.04)">${tag}</span></a>`;
+  if(cert) return mk("final.md","成品正文 · 60 章拼装","MD","#4ec9b0")+mk("acceptance.json","验收报告 · 认证/分数/闸门","JSON","#58a6ff")+mk("cost_ledger.json","成本账本","JSON","#58a6ff");
+  if(diag) return mk("diagnostic.json","拒收诊断 · 失败维度","JSON","#f0883e")+mk("cost_ledger.json","成本账本","JSON","#58a6ff");
+  return `<div class="md" style="padding:8px">无成品</div>`;
+}
+function toggleMenu(e){ e.stopPropagation(); const m=document.getElementById("dlmenu"); if(m) m.style.display=m.style.display==="none"?"block":"none"; }
+document.addEventListener("click",()=>{const m=document.getElementById("dlmenu"); if(m) m.style.display="none";});
+
+// ---- upload ----
+let UP=[];
+function openUpload(){ UP=[]; renderModal(); }
+function renderModal(){
+  let host=document.getElementById("modal");
+  if(!host){ host=document.createElement("div"); host.id="modal"; document.body.appendChild(host); }
+  host.innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:16px">批量上传源 → 后台改写</b><span class="x" onclick="closeModal()">✕</span></div>
+    <div class="note" style="margin-top:6px;color:var(--amber)">⚠ 提交即在后台跑 hiki run，真实消耗 DeepSeek（约 ¥0.4–5/本）。需后端配置 DEEPSEEK_API_KEY。</div>
+    <div class="drop" id="drop" onclick="document.getElementById('fin').click()">拖入或点击选择 .txt 源文件
+      <input id="fin" type="file" accept=".txt" multiple style="display:none"></div>
+    <div id="uplist"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+      <button class="btn" style="background:var(--line);color:var(--t2)" onclick="closeModal()">取消</button>
+      <button class="btn" style="background:${UP.length?'var(--accent)':'var(--line)'};color:${UP.length?'#08120f':'var(--t4)'}" onclick="commitUploads()" ${UP.length?'':'disabled'}>触发改写 (${UP.length})</button>
+    </div></div></div>`;
+  const fin=document.getElementById("fin"); fin.onchange=e=>onFiles(e.target.files);
+  const drop=document.getElementById("drop");
+  drop.ondragover=e=>e.preventDefault(); drop.ondrop=e=>{e.preventDefault();onFiles(e.dataTransfer.files);};
+  renderUplist();
+}
+function onFiles(fl){
+  [...fl].filter(f=>/\.txt$/i.test(f.name)).forEach((f,i)=>{
+    const old=f.name.replace(/\.[^.]+$/,"");
+    UP.push({uid:Date.now()+"_"+i, old, nw:old, file:f, kb:Math.max(1,Math.round(f.size/1024))});
+  });
+  renderModal();
+}
+function renderUplist(){
+  const el=document.getElementById("uplist"); if(!el) return;
+  el.innerHTML=UP.map(u=>`<div class="upitem"><span class="md">${u.kb}KB</span>
+    <input value="${esc(u.nw)}" oninput="UP.find(x=>x.uid==='${u.uid}').nw=this.value">
+    <span class="x" onclick="UP=UP.filter(x=>x.uid!=='${u.uid}');renderModal()">✕</span></div>`).join("")
+    || `<div class="muted">未选择文件</div>`;
+}
+function closeModal(){ const h=document.getElementById("modal"); if(h) h.remove(); }
+async function commitUploads(){
+  if(!UP.length) return;
+  const jobs=[];
+  for(const u of UP){
+    const fd=new FormData(); fd.append("file",u.file,u.old+".txt");
+    try{ const r=await fetch(API+"/api/uploads?new_name="+encodeURIComponent(u.nw||u.old),{method:"POST",body:fd});
+      if(r.ok){ const j=await r.json(); jobs.push(j.job_slug); } else showErr("upload "+r.status); }
+    catch(e){ showErr(e.message); }
+  }
+  closeModal();
+  const [stats,books]=await Promise.all([jget("/api/stats"),jget("/api/books")]);
+  S.stats=stats; S.books=books;
+  renderSide();
+  if(jobs.length) pollJobs(jobs);
+}
+async function pollJobs(slugs){
+  let active=[...slugs];
+  const tick=async()=>{
+    const next=[];
+    for(const s of active){
+      try{ const j=await jget("/api/jobs/"+encodeURIComponent(s));
+        if(j.status==="running"||j.status==="queued") next.push(s); }catch(e){}
+    }
+    try{ S.books=await jget("/api/books"); S.stats=await jget("/api/stats"); renderSide(); if(S.sel) renderMain(); }catch(e){}
+    active=next;
+    if(active.length) setTimeout(tick, 5000);
+  };
+  setTimeout(tick, 4000);
+}
+
+boot();
+</script>
+</body>
+</html>

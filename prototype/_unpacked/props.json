@@ -1,0 +1,1 @@
+{"$preview":{"width":1280,"height":820},"accent":{"editor":"color","default":"#4ec9b0","options":["#4ec9b0","#58a6ff","#bc8cff","#e0a458"]},"budgetCap":{"editor":"int","default":50,"min":30,"max":100,"step":5}}
