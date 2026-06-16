@@ -1,0 +1,9 @@
+# B 实证重跑:和谈/团宠(human-eval-5 穿越POV伤本)。保留 bible(同源),删 macro/plan/draft→
+# plan(铁律④)+draft(control_plane代入铁律)带 B 重生成。resume 跳 mining,隔离 B 效果。
+tasks:
+  - slug: guyan_aoshi
+    source: fictions_source/ZYGGY03052傲世狂妃太逆天.txt
+    out: output/eval5
+  - slug: niandai_liuling
+    source: fictions_source/ZYGXN01960六零饥荒年：我靠团购娇养冷面知青.txt
+    out: output/eval5

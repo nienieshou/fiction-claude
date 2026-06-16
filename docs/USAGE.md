@@ -46,10 +46,41 @@ $env:PYTHONPATH = "src"
 | 命令 | 用途 | 是否要 API Key | 典型耗时/成本 |
 |---|---|---|---|
 | `python -m hiki ingest <src>` | P0 清洗单本（切章/去垃圾/去重/编码修复） | 否 | 秒级 / ¥0 |
+| **`python -m hiki run <src.txt>`** | **单本复写成品** | 是 | ~6–7min / ¥0.4–5 |
+| **`python -m hiki run --tasks-file tasks.yaml`** | **批量复写**（任务驱动+续跑+失败隔离） | 是 | N 本×单本，外层并行 |
 | `python -m hiki.pregrade <源...>` | 只深挖+分级，不生产（建源池地图） | 是 | ~¥0.25–1/本 |
-| `python -m hiki.produce <src>` | 单本全流程生产成品 | 是 | ~6–7min / ¥0.4–5 |
-| `python -m hiki.batch <源...>` | 多本并行生产 | 是 | 4 本≈24min |
 | `python -m hiki.point_repair <out_dir>` | 对已生产成品做外科点修 | 是 | ~¥0.1–2/本 |
+
+### `run` —— 复写（单本 / 批量）
+
+```bash
+python -m hiki run fictions_source/某本.txt --out output/某本          # 单本
+python -m hiki run --tasks-file tasks.yaml --parallel 3 --spine        # 批量
+```
+
+`tasks.yaml`（**冒号后必须有空格**）：
+```yaml
+tasks:
+  - slug: novel_a              # 必填:任务标识 + 输出子目录名
+    source: fictions_source/小说A.txt
+    out: output/novel_new      # 实际落 output/novel_new/novel_a/
+  - slug: novel_b
+    source: fictions_source/小说B.txt
+    out: output/novel_new
+    candidates: 1              # 可选 per-task 覆盖:candidates/chapters/min_grade/force...
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `--tasks-file` | — | 批量任务 yaml；省略则跑单本 `src` |
+| `--out` | `output/<源名>_full`(单本) | 批量=父目录，落 `<out>/<slug>/` |
+| `-n/--candidates` | 3 | 每场景候选数（成本×质量） |
+| `--min-grade` | — | 源分级门槛，低于此档拒收（如 `A`） |
+| `--parallel` | 3 | 并行本数（账号限流内，≤5） |
+| `--spine` | 关 | 启用 Fact Spine 事前一致性 |
+| `--force` | 关 | 忽略已有阶段产物从头重跑（默认**续跑**：mine/plan/draft 产物在即跳过） |
+
+**续跑(B2)**：崩溃/中断后重跑同一命令，自动跳过已完成阶段（draft 逐章续画）。**失败隔离**：一本崩不拖累其余，traceback 落 `<out>/<slug>/_crash.txt`。汇总 `output/batch_summary.{json,md}`。
 
 ---
 

@@ -1,0 +1,10 @@
+[project]
+name = "hiki-fiction-rewrite"
+version = "0.1.0"
+description = "全自动中文网文复写/压缩引擎"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]      # 测试用 `from hiki import ...`,无需 sys.path hack
+addopts = "-q"

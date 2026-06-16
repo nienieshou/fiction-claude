@@ -16,6 +16,10 @@ from .client import Client
 
 _CH_SPLIT = re.compile(r"^# 第\d+章.*$", re.M)
 _CATS = {"生死", "体系", "时间轴", "身份", "数值"}
+# 语义可变量(随情节合法变化,跨章不同≠矛盾):钱包余额/不同合同/股价等。
+# 刻意排除 彩礼/年龄/婚龄/年限/走失年数 等应单值的设定不变量(不在此表)。
+# 局限:表面词denylist枚举不全(synonym漏/子串误伤),正解是 LLM 抽取时标 mutable 语义——见 §fact_spine ⑥ 残留。
+_MUTABLE = re.compile(r"余额|存款|现金|流水|身价|资产|合同|报价|成交|转账|欠款|借款|售价|股价|车程|路程")
 _PUNCT = re.compile(r"[\s,。！？!?、：:;；“”‘’…—\"'《》()（）]")
 
 
@@ -65,17 +69,45 @@ async def fact_audit(cli: Client, ch_texts: list[str]) -> dict:
 # 1M单pass"通读找矛盾"召回仅18%(深处不查)已证伪;局部抽取是模型强项,全局推理挪进代码。
 
 _NUM = re.compile(r"(\d+(?:\.\d+)?)")
-_CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+_CN_DIGIT = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+             "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
+
+
+def _cn_to_num(s: str) -> float | None:
+    """中文数字解析(治'四十'被读成4、'二十三'读成2的实测误报)。
+    支持 十/百/千/万/亿 复合(四十=40、一万八千=18000、三十万=300000)。"""
+    total = 0          # 已结算的高位段(万/亿以上)
+    section = 0        # 当前段累积
+    num = 0            # 待乘的个位数字
+    found = False
+    for c in s:
+        if c in _CN_DIGIT:
+            num = _CN_DIGIT[c]
+            found = True
+        elif c in _CN_UNIT:
+            found = True
+            unit = _CN_UNIT[c]
+            if unit >= 10000:                     # 万/亿: 结算整段
+                section = (section + num) * unit
+                total += section
+                section = 0
+            else:                                 # 十/百/千: 段内累加
+                section += (num or 1) * unit
+            num = 0
+    return float(total + section + num) if found else None
+
+
+_UNIT_MUL = {"万": 1e4, "亿": 1e8, "千": 1e3, "百": 1e2}
 
 
 def _num_of(s: str) -> float | None:
     m = _NUM.search(s)
     if m:
-        return float(m.group(1))
-    for c in s:                                   # 中文数字(婚龄'四年'类)
-        if c in _CN_NUM:
-            return float(_CN_NUM[c])
-    return None
+        v = float(m.group(1))
+        tail = s[m.end():m.end() + 1]              # 紧跟的量纲字:'30万'→30×1e4,与'三十万'(=300000)一致
+        return v * _UNIT_MUL.get(tail, 1.0)
+    return _cn_to_num(s)                           # 中文数字(婚龄'四年'/'四十分钟'类)
 
 
 async def extract_facts(cli: Client, ch_texts: list[str]) -> list[dict]:
@@ -150,26 +182,77 @@ def cross_check(facts: list[dict]) -> list[dict]:
                     if va in vb or vb in va:         # 互为子串=同义写法,不报
                         continue
                     if cat == "数值":
+                        if _MUTABLE.search(k):
+                            continue                  # 语义可变量(余额/合同额) → 不报
                         na, nb = _num_of(va), _num_of(vb)
                         if na is None or nb is None or na == nb:
                             continue                  # 数字相同/解析不出 → 不报
                     id_findings.append({"cat": cat, "who": k, "ch_a": ca, "ch_b": cb,
+                                        "va": va, "vb": vb,    # 结构化值(供身份真矛盾LLM裁决)
                                         "why": f"{k}: 第{ca}章「{va}」vs 第{cb}章「{vb}」",
                                         "conf": "低"})
-    per_entity: dict[str, int] = {}                  # 单实体封顶2条——温苒13条称谓刷屏吃光cap的实测教训
+    # 身份类放宽到4条/实体(让 LLM 真矛盾门去伪,不在此处用盲cap误杀真矛盾);数值类仍封2条
+    # cap 计数键含 cat: 否则同名实体的身份findings会吃光共享计数,误删其数值findings(独立cap本意)
+    cap = {"身份": 4, "数值": 2}
+    per_entity: dict[tuple[str, str], int] = {}
     for f in id_findings:
-        if per_entity.get(f["who"], 0) < 2:
+        key = (f["cat"], f["who"])
+        c = per_entity.get(key, 0)
+        if c < cap.get(f["cat"], 2):
             findings.append(f)
-            per_entity[f["who"]] = per_entity.get(f["who"], 0) + 1
+            per_entity[key] = c + 1
+    return findings
+
+
+def _ctx(ch_texts: list[str], ch, who: str, span: int = 45) -> str:
+    """取所指章内实体名首次出现处 ±span 字的上下文(供身份真矛盾裁决)。"""
+    if not (isinstance(ch, int) and 1 <= ch <= len(ch_texts)):
+        return ""
+    t = ch_texts[ch - 1]
+    i = t.find(who)
+    i = i if i >= 0 else 0
+    return t[max(0, i - span):i + span].replace("\n", " ")
+
+
+async def verify_identity(cli: Client, findings: list[dict], ch_texts: list[str]) -> list[dict]:
+    """M1.5 ①: 对身份类 findings 逐条 LLM 判真矛盾(并发),annotate f['real']。
+    身份语义代码判不了(M1 命门),交 LLM 去伪——只有同维互斥的真矛盾留 real=True。
+    非身份类(生死/数值)不动,real 默认 True(生死高置信、数值已确定性去噪)。"""
+    sys_p, usr_t = prompts.IDENTITY_VERIFY
+
+    async def _judge(f: dict) -> None:
+        va, vb = f.get("va", ""), f.get("vb", "")
+        if not (va and vb):
+            f["real"] = True
+            return
+        usr = usr_t.format(who=f["who"], ca=f["ch_a"], va=va, cb=f["ch_b"], vb=vb,
+                           ctx_a=_ctx(ch_texts, f["ch_a"], f["who"]),
+                           ctx_b=_ctx(ch_texts, f["ch_b"], f["who"]))
+        real = False                                  # 默认 false(存疑不报)
+        for k in range(2):
+            raw = await cli.complete("chunk_extract", sys_p, usr,
+                                     json_mode=True, max_tokens=200, temperature=0.0 + 0.1 * k)
+            r = _safe_json(raw)
+            if isinstance(r, dict) and "real" in r:
+                real = bool(r["real"])
+                f["reason"] = str(r.get("reason", ""))[:30]
+                break
+        f["real"] = real
+
+    await asyncio.gather(*[_judge(f) for f in findings if f.get("cat") == "身份"])
+    for f in findings:
+        f.setdefault("real", True)                    # 非身份类默认真
     return findings
 
 
 async def fact_table_audit(cli: Client, ch_texts: list[str]) -> dict:
-    """A2' 入口: 抽取→对比。返回 {findings, n_high(生死类数)}。advisory,不进门。"""
+    """A2' 入口: 抽取→对比。返回 {findings, n_high(生死类数), n_unaudited}。
+    A1: n_unaudited=抽取失败(空)的章数——区分"审计过=干净"与"没审到"(后者非0时 findings 不可当可信干净)。"""
     facts = await extract_facts(cli, ch_texts)
     findings = cross_check(facts)
     return {"findings": findings,
-            "n_high": sum(1 for f in findings if f.get("conf") == "高")}
+            "n_high": sum(1 for f in findings if f.get("conf") == "高"),
+            "n_unaudited": sum(1 for f in facts if not f)}    # 空 dict = 该章抽取重试后仍失败
 
 
 async def _main(out_dir: str) -> None:

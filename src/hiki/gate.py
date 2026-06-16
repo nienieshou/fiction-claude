@@ -116,8 +116,58 @@ async def continuity_check(cli: Client, text: str, bible: dict) -> dict:
     return {"consistent": None, "issues": ["(审计解析失败)"]}
 
 
+# 交付门阈值默认（人工 6+10 本校准;config/pipeline.yaml ship_gate 可覆盖,改动须回放验证)
+# 阈值经 human-eval-5(2026-06-15, docs/evidence/human_eval5_calibration.md)重标。
+# 真值表证伪了旧的承重微观硬门：5 本里机器信号与人类承重/可追**不单调可分**——
+# 最可追本(隐婚 总76)含 6 处重演(全场最多)、4 数值矛盾;不可追本(武神60.8)仅 2 处重演。
+# 故承重微观计数(重演/spine薄网/final_consistent/预告跳过)降为 advisory,硬门只留"灾难级+定类硬伤"。
+SHIP_GATE_DEFAULTS = {
+    "too_short_chapters": 3,         # 过短<70% 章数 ≥ → 拦(定类质量地板,非承重)
+    "dark_ratio_max": 0.25,          # 暗黑饱和比 > → 拦(定类)
+    "seam_residual_max": 8,          # 残缝 > → 拦(章缝;human-eval 未越线,保留)
+    "reenact_min": 7,                # 事件重演 ≥ → 拦。旧=1(误杀100%);human可追本含6处→只挡极端泛滥
+    "spine_net_min": 6,              # Spine薄网真矛盾(数值+身份) ≥ → 拦。旧=2;human可追本含4→留头寸
+    "block_on_climax_skip": False,   # 预告跳过 是否硬拦。旧=硬拦;仅命中可追本(星厨74.8"基本连得上")→降advisory
+    "block_on_final_inconsistent": False,  # final_consistent=否 是否硬拦。旧=硬拦;反相关(只命中隐婚/团宠两可追本)→降advisory
+    "intra_repeat_thr": 0.08,        # 章内12-gram双半重合 > → 判整章双版本(检测侧用,非门内)
+}
+
+
+def evaluate_ship_gate(sig: dict, thr: dict | None = None) -> list[str]:
+    """交付门策略（纯函数,可测,阈值来自 config）。signals dict → ship_issues 列表。
+    行为与旧内联门等价(D1 重构);阈值经人工校准,默认见 SHIP_GATE_DEFAULTS。signals 键见 produce.run() 组装处。"""
+    t = {**SHIP_GATE_DEFAULTS, **(thr or {})}
+    issues: list[str] = []
+    if sig.get("阵营串线", 0) > 0:
+        issues.append(f"阵营串线{sig['阵营串线']}条(canon级硬伤)")
+    if sig.get("过短章数", 0) >= t["too_short_chapters"]:
+        issues.append(f"{sig['过短章数']}章过短<70%(二次扩写后仍稀薄)")
+    if sig.get("暗黑比", 0) > t["dark_ratio_max"]:
+        issues.append(f"暗黑饱和(暗黑比{sig['暗黑比']}>{t['dark_ratio_max']})")
+    if sig.get("预告跳过") and t.get("block_on_climax_skip"):
+        issues.append(f"预告事件被跳过未演({sig['预告跳过']})")
+    if sig.get("plan维14复活", 0) > 0 and not sig.get("事实表跑过"):
+        issues.append(f"死人复活{sig['plan维14复活']}处(plan维14,事实表未跑兜底)")
+    if sig.get("事实表复活残留", 0) > 0:
+        issues.append(f"事实表死人复活{sig['事实表复活残留']}处(verify确认,修复未净)")
+    if sig.get("残缝", 0) > t["seam_residual_max"]:
+        issues.append(f"残缝{sig['残缝']}处(章缝修复采用不足)")
+    if not sig.get("final_consistent", True) and t.get("block_on_final_inconsistent"):
+        issues.append("final_consistent=false(连续性残留)")
+    if sig.get("事件重演", 0) >= t["reenact_min"]:
+        issues.append(f"事件重演{sig['事件重演']}处(控制面核对)")
+    if sig.get("章内双版本"):
+        issues.append(f"章内双版本{sig['章内双版本']}(整章重演)")
+    if sig.get("数值真矛盾", 0) + sig.get("身份真矛盾", 0) >= t["spine_net_min"]:
+        issues.append(f"Spine薄网真矛盾: 数值{sig.get('数值真矛盾', 0)}/身份{sig.get('身份真矛盾', 0)}"
+                      f"条(起草违反冻结事实,详见fact_table.json)")
+    if sig.get("承重审计崩溃"):
+        issues.append("承重事实审计非预期中断,结果不可信(不可判定一致性,需重跑)")
+    return issues
+
+
 def structural_lite(plan: dict, dna: dict) -> dict:
-    """轻量结构指标：场景/钩子/爽点覆盖（完整 5 指标见 metrics.py）。"""
+    """轻量结构指标：场景/钩子/爽点覆盖（plan/dna 派生，确定性）。"""
     scenes = [sc for ch in plan.get("chapters", []) for sc in ch["scenes"]]
     dscenes = dna.get("scenes", [])
     hooks = sum(1 for s in dscenes if s.get("hooks"))
@@ -125,29 +175,6 @@ def structural_lite(plan: dict, dna: dict) -> dict:
     n = len(dscenes) or 1
     return {"chapters": len(plan.get("chapters", [])), "scenes": len(scenes),
             "hook_coverage": round(hooks / n, 2), "payoff_coverage": round(payoffs / n, 2)}
-
-
-async def reconcile_bible(cli: Client, bible: dict, issues: list[str]) -> dict:
-    """闭环修复 step1：据审计问题校订圣经（补漏角色/纠错设定）。"""
-    sys_p, usr_t = prompts.RECONCILE
-    raw = await cli.complete("plan", sys_p, usr_t.format(
-        bible=json.dumps(bible, ensure_ascii=False), issues="；".join(issues)),
-        json_mode=True, max_tokens=3000, temperature=0.2)
-    try:
-        fixed = json.loads(raw)
-        return fixed if fixed.get("protagonist") else bible
-    except Exception:
-        return bible
-
-
-async def repair_chapter(cli: Client, text: str, bible: dict, issues: list[str]) -> str:
-    """闭环修复 step2：据圣经定向修复本章不一致，其余不动。"""
-    sys_p, usr_t = prompts.REPAIR
-    out = await cli.complete("draft", sys_p, usr_t.format(
-        bible=json.dumps(bible, ensure_ascii=False), issues="；".join(issues), text=text),
-        max_tokens=8000, temperature=0.3)
-    out = "\n".join(ln for ln in out.split("\n") if not _MARKER_RE.match(ln)).strip()
-    return out or text
 
 
 async def gold_pk(cli: Client, scene: str, gold: str) -> dict:

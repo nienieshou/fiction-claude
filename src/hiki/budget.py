@@ -29,10 +29,6 @@ def usd_to_cny(usd: float) -> float:
     return round(usd * CNY_PER_USD, 2)
 
 
-def within_cap(spent_usd: float) -> bool:
-    return usd_to_cny(spent_usd) <= _CAP
-
-
 if __name__ == "__main__":
     import sys
     try:
