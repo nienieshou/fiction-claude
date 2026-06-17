@@ -2,7 +2,13 @@
 (原 scripts/_test_r13_units.py 迁入 + B1-3 门 gather)"""
 from hiki import gate
 from hiki.produce import (_wave_bounds, _control_plane, _settle_facts, _run_ship_gate, _open_premise,
-                         _source_id, _book_filename, _started_at)
+                         _source_id, _book_filename, _started_at, _spine_alive_baseline)
+
+
+def test_spine_alive_baseline():
+    s = _spine_alive_baseline({"王建国": {}, "王亦初": {}})
+    assert "王建国" in s and "存活基线" in s and "已故" in s and "生前" in s
+    assert _spine_alive_baseline({}) == ""
 
 
 from hiki.event_audit import scan_contradictions, roster

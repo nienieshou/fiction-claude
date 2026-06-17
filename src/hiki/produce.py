@@ -369,6 +369,19 @@ def _spine_block(cur: dict, spine_map: dict) -> str:
         "(治同一角色多名/同名多身份漂移);上表没有的新角色才可命名。", cap=10)
 
 
+def _spine_alive_baseline(spine_map: dict) -> str:
+    """Fact Spine(§4 事前预防): 存活基线——主要人物默认全书健在,禁 draft 在未铺垫处顺带写其死亡。
+    M0 实证(plan_spine §4):DYBXN00061「父亲第1章被顺带写'生前'(暗示已故)却第3章在场」=plan 未跟踪的配角,
+    draft 无冻结存活状态时自由现编死亡。事前冻结基线 → 结构上不产生(同名/数值钉死思路)。"""
+    names = list(spine_map.keys())
+    if not names:
+        return ""
+    return _pin_block(
+        "存活基线(Fact Spine·事前,默认健在)", names,
+        "上列人物默认全书健在;**严禁在未正式铺写完整死亡情节的章节顺带提及其「已故/生前/去世/死去/遗像/坟前/遗物」等死亡暗示**"
+        "(治自由现编配角死亡:某角被顺带写「生前」却在后文在场);确需其死亡→必须在对应章正式铺写死亡情节后方可。", cap=16)
+
+
 def _spine_facts(bible: dict) -> str:
     """Fact Spine(M1.5 ②): bible.facts(归并单值设定数值)→「数值钉死」硬约束。
     M1 实证只钉名+身份不够(彩礼30/60/15万照漂);冻结单值注入每章,优先级>brief。"""
@@ -943,7 +956,8 @@ async def _stage_draft(cli: Client, bible: dict, scenes: list, p: dict, plan: di
     if p.get("name") and p.get("identity"):
         id_map[p["name"].strip()] = str(p["identity"])[:24]
     spine_map = _spine_map(bible)
-    spine_global = _spine_roster(spine_map) + _spine_facts(bible) + _spine_world(bible)   # 全书常量,算一次
+    spine_global = (_spine_roster(spine_map) + _spine_facts(bible) + _spine_world(bible)
+                    + _spine_alive_baseline(spine_map))   # 全书常量,算一次(§4:+存活基线事前预防)
     open_premise = _open_premise(bible, plan)            # B: 穿越/重生→第1章锁代入视角+原身一致+金手指不被点破
     if open_premise:
         print(f"穿越/重生开篇铁律: 检测到'{open_premise}'前提 → 第1章第1场注入代入视角/原身一致/金手指底牌铁律")
