@@ -13,7 +13,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config
+from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config, event_audit
 from .client import Client
 from .ingest import ingest
 from .slice_validate import (_process_scene, _fit_chapter, _truncate, _assemble,
@@ -1344,6 +1344,19 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     if len(advisory) < len(advisory_raw):
         print(f"灰区判读: advisory {len(advisory_raw)}→{len(advisory)} (滤掉龙套/延伸/口径差类)")
 
+    # A接线(1-3,advisory): 逐实体事件/状态账。**不进门**——实测低召回(漏隐式死亡)+互斥遭遇多非真矛盾,
+    # 仅记 report 供人工复核;死人复活已由 fact_table 生死门覆盖。behind HIKI_SPINE。
+    event_adv: list[str] = []
+    if os.environ.get("HIKI_SPINE") == "1":
+        try:
+            ev = await event_audit.event_state_audit(cli, ch_texts, bible)
+            event_adv = [f"{c['entity']}·{c['type']}({'真矛盾' if c.get('real') else '存疑'}): {c['detail']}"
+                         for c in ev["all_candidates"]]
+            if ev["n_real"]:
+                print(f"事件状态账(advisory): {ev['n_real']}真矛盾/{len(ev['all_candidates'])}候选/{ev['checked']}实体")
+        except Exception as e:                       # 失败隔离:不崩整本
+            print(f"事件状态账跳过(flaky): {type(e).__name__}: {e}")
+
     # 5+5.5) 37维审计 + 交付门(B1-3轻: 纯函数 _run_ship_gate,可测;阈值在 config)
     sig = {"dark_ratio": dark_rep["dark_ratio"], "climax_skipped": climax_skipped,
            "fact_table_ok": fact_table_ok, "ft_deaths_verified": ft_deaths_verified,
@@ -1381,6 +1394,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "修为钉回_plan": pw_fixed[:6] or ["无"],
         "prose_异名归一": prose_rep["prose_name_fixes"], "prose_死人复活修复": prose_rep["prose_revivals_fixed"],
         "内容过滤_暗黑净化": dark_rep["dark_fixed"], "暗黑比": dark_rep["dark_ratio"],
+        "事件状态账(advisory)": event_adv or ["无"],
         "values_reject(暗黑饱和应拒)": values_reject,
         "audit_承重_确定性硬检": audit_struct or {"全过": "✓"},
         "audit_维7伏笔序(advisory)": audit_fore or ["无"],

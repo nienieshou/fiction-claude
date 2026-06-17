@@ -5,6 +5,32 @@ from hiki.produce import (_wave_bounds, _control_plane, _settle_facts, _run_ship
                          _source_id, _book_filename, _started_at)
 
 
+from hiki.event_audit import scan_contradictions, roster
+
+
+def test_scan_death_then_present():
+    tl = {"父亲": [{"章": 1, "状态": "已故"}, {"章": 3, "状态": "受伤在场"}]}
+    c = scan_contradictions(tl)
+    assert any(x["type"] == "死后在场" for x in c)
+
+
+def test_scan_conflicting_incidents():
+    tl = {"父亲": [{"章": 2, "状态": "出车祸受伤需截肢"}, {"章": 3, "状态": "被绑架"}]}
+    c = scan_contradictions(tl)
+    assert any(x["type"] == "互斥重大遭遇" for x in c)
+
+
+def test_scan_clean_no_flag():
+    tl = {"主角": [{"章": 1, "状态": "健康"}, {"章": 5, "状态": "突破修为金丹"}]}
+    assert scan_contradictions(tl) == []
+
+
+def test_roster_from_bible():
+    b = {"protagonist": {"name": "王亦初"}, "characters": [{"name": "白芷莹"}, {"name": "刘金"}]}
+    r = roster(b)
+    assert r[0] == "王亦初" and "白芷莹" in r and "刘金" in r
+
+
 def test_started_at_persists_once(tmp_path):
     # 单一总历时:首次写入,续跑(再调)不覆盖
     d = tmp_path / "x_full"
