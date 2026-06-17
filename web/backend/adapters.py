@@ -115,6 +115,7 @@ def dir_to_book(d: Path, hidx: dict[str, float], active: frozenset[str] = frozen
         "mode": mode, "human": human,
         "cost": round((report or {}).get("cost_cny") or 0),
         "real": True, "reject_reason": reject_reason,
+        "seconds": (report or {}).get("seconds"), "calls": (report or {}).get("calls"),
     }
 
 
@@ -125,13 +126,20 @@ def list_books(job_books: list[dict] | None = None,
     active = 活跃任务 slug 集合（区分真在跑 vs 仅 ingest 的闲置目录）。"""
     active = active or frozenset()
     hidx = human_index()
-    books = [dir_to_book(d, hidx, active) for d in paths.output_dirs()]   # 无真实产物 → 空(不再回退 demo)
+    dirs = sorted(paths.output_dirs(), key=_mtime, reverse=True)          # 最新活动在最上
+    books = [dir_to_book(d, hidx, active) for d in dirs]                  # 无真实产物 → 空(不再回退 demo)
     if job_books:
         have = {b["id"] for b in books}
-        for jb in job_books:
-            if jb["id"] not in have:
-                books.append(jb)
+        stubs = [jb for jb in job_books if jb["id"] not in have]
+        books = stubs + books                                            # 刚上传(尚无目录)的任务置顶
     return books
+
+
+def _mtime(d: Path) -> float:
+    try:
+        return d.stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 def _bible_to_dna(d: Path) -> list[dict] | None:

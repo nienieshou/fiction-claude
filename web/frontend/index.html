@@ -122,6 +122,7 @@ const dotColor = {done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"#262d3
 const modelStyle = {pro:{c:"#bc8cff",b:"rgba(188,140,255,.12)"},flash:{c:"#39c5cf",b:"rgba(57,197,207,.12)"},"pro·flash":{c:"#9aa6ff",b:"rgba(154,166,255,.1)"},"—":{c:"#5c6672",b:"rgba(255,255,255,.03)"}};
 const MODE = {0:"—",1:"模式1 · 保真压缩",2:"模式2 · 强化改写",3:"模式3 · 类型化重构",4:"模式4 · 概念级重启"};
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtDur = s => { if(s==null) return "—"; s=Math.round(s); const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60; return h?`${h}h ${m}m`:`${m}m ${x}s`; };
 
 function statusInfo(b){
   if(b.status==="certified") return {t:"认证出货",c:"#3fb950",bg:"rgba(63,185,80,.12)"};
@@ -353,10 +354,13 @@ function costHtml(rows){
       <td style="font-family:monospace">$${(c.usd||0).toFixed(2)}</td>
       <td style="width:40%"><div class="bar"><i style="width:${Math.round((c.usd||0)/max*100)}%;background:${gate?'#bc8cff':'#4ec9b0'}"></i></div></td>
       <td class="note">${esc(c.note||"")}</td></tr>`;}).join("");
+  const b=S.cur||{};
   return `<table><thead><tr><th>阶段</th><th>USD</th><th>占比</th><th>说明</th></tr></thead><tbody>${body}</tbody></table>
-    <div class="item" style="margin-top:12px;display:flex;justify-content:space-between">
-      <div><div class="lab">合计</div><div class="val">$${tot.toFixed(2)} ≈ ¥${cny}</div></div>
-      <div style="text-align:right"><div class="lab">预算 cap</div><div class="val" style="color:${cny/cap>.9?'var(--red)':cny/cap>.7?'var(--amber)':'var(--green)'}">${Math.min(100,Math.round(cny/cap*100))}% /¥${cap}</div></div></div>`;
+    <div class="grid g3" style="margin-top:12px">
+      <div class="item"><div class="lab">合计成本</div><div class="val">$${tot.toFixed(2)} ≈ ¥${cny}</div></div>
+      <div class="item"><div class="lab">复写耗时</div><div class="val">${fmtDur(b.seconds)}</div><div class="note">${b.calls!=null?'API '+b.calls+' 次':(b.status==='running'?'进行中':'—')}</div></div>
+      <div class="item"><div class="lab">预算 cap</div><div class="val" style="color:${cny/cap>.9?'var(--red)':cny/cap>.7?'var(--amber)':'var(--green)'}">${Math.min(100,Math.round(cny/cap*100))}% /¥${cap}</div></div>
+    </div>`;
 }
 
 function humanHtml(d){

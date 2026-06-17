@@ -8,8 +8,10 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,7 +30,30 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from . import adapters, fixtures, paths, runner
 from .contract import Book, Stats
 
-app = FastAPI(title="HIKI 产线监视台", version="0.1")
+async def _auto_resume_stalled() -> None:
+    """启动时自动续跑被中断(stalled)的任务，避免重启把在跑的改写永久搁浅。
+    仅 stalled(已开产无活跃任务)；idle(仅清洗)不自动起，免意外烧钱。HIKI_WEB_AUTORESUME=0 关闭。"""
+    if os.environ.get("HIKI_WEB_AUTORESUME", "1") == "0":
+        return
+    try:
+        stalled = [b for b in _books() if b.get("status") == "stalled" and b.get("real")]
+    except Exception:
+        return
+    for b in stalled:
+        try:
+            await runner.resume(b["slug"])
+            print(f"[autoresume] 续跑 {b['slug']}")
+        except Exception as e:
+            print(f"[autoresume] 跳过 {b.get('slug')}: {type(e).__name__}: {e}")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await _auto_resume_stalled()
+    yield
+
+
+app = FastAPI(title="HIKI 产线监视台", version="0.1", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend"

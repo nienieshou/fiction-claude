@@ -44,6 +44,10 @@ $env:PYTHONPATH = "src"          # runner 触发改写时要 import hiki
 侧栏「＋ 批量上传」选 `.txt` → 落 `fictions_source/` → 后台 `hiki run`（**真实花钱** ~¥0.4–5/本）。
 任务状态内存轮询（`GET /api/jobs/{slug}`），后端重启即丢。缺 `DEEPSEEK_API_KEY` → 任务 failed，不崩后端。
 
+**中断与续跑**：重启后端会打断在跑的改写 → 任务显示 `中断·可续跑(stalled)`。两种续跑：
+手动点「▶ 续跑」，或**启动时自动续跑**所有 stalled（默认开，`HIKI_WEB_AUTORESUME=0` 关闭）。
+续跑从已有产物 B2 继续（省钱）。列表按最新活动倒序，最新任务置顶。
+
 ## 5. API
 
 | 方法 | 路径 | 说明 |

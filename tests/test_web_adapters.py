@@ -30,6 +30,27 @@ def test_empty_output_returns_empty(fake_output):
     assert adapters.list_books() == []
 
 
+def test_list_books_newest_first(fake_output):
+    import os
+    for name in ("a_full", "b_full", "c_full"):
+        _write(fake_output / name, "bible.json", {"protagonist": {"name": "x"}})
+    base = 1_000_000.0
+    os.utime(fake_output / "a_full", (base, base))            # 最旧
+    os.utime(fake_output / "b_full", (base + 10, base + 10))
+    os.utime(fake_output / "c_full", (base + 20, base + 20))  # 最新
+    ids = [b["id"] for b in adapters.list_books()]
+    assert ids == ["c_full", "b_full", "a_full"]
+
+
+def test_list_books_uploads_pinned_top(fake_output):
+    _write(fake_output / "old_full", "bible.json", {"protagonist": {"name": "x"}})
+    stub = {"id": "new_full", "title": "新上传", "slug": "new", "uploaded": True,
+            "src": "x", "genre": "—", "grade": "—", "comp": "—", "stage": 0,
+            "status": "running", "mode": 0, "human": None, "cost": 0}
+    ids = [b["id"] for b in adapters.list_books(job_books=[stub])]
+    assert ids[0] == "new_full"     # 刚上传置顶
+
+
 def test_unknown_detail_is_empty_skeleton(fake_output):
     d = adapters.book_detail("does-not-exist")
     assert d["dna"] is None and d["gate"] is None and d["cost"] == []
@@ -43,12 +64,14 @@ def test_fixture_detail_served_by_id(fake_output):
 # ---------- 真实产物映射 ----------
 def test_real_certified_dir(fake_output):
     d = fake_output / "mybook_full"
-    _write(d, "report.json", {"deliverable": True, "cost_cny": 30, "source": "原书.txt"})
+    _write(d, "report.json", {"deliverable": True, "cost_cny": 30, "source": "原书.txt",
+                              "seconds": 1254.3, "calls": 704})
     _write(d, "grade.json", {"grade": "A", "mode": 1, "genre": "现代言情"})
     b = adapters.dir_to_book(d, {})
     assert b["status"] == "certified" and b["stage"] == 5
     assert b["grade"] == "A" and b["cost"] == 30 and b["slug"] == "mybook"
     assert b["real"] is True
+    assert b["seconds"] == 1254.3 and b["calls"] == 704
 
 
 def test_real_mode_string_maps_to_int(fake_output):

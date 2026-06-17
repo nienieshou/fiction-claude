@@ -20,6 +20,8 @@ class Book(BaseModel):
     uploaded: bool = False
     real: bool = False
     reject_reason: str | None = None
+    seconds: float | None = None
+    calls: int | None = None
 
 
 class Stats(BaseModel):
