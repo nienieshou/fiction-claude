@@ -358,7 +358,7 @@ function costHtml(rows){
   return `<table><thead><tr><th>阶段</th><th>USD</th><th>占比</th><th>说明</th></tr></thead><tbody>${body}</tbody></table>
     <div class="grid g3" style="margin-top:12px">
       <div class="item"><div class="lab">合计成本</div><div class="val">$${tot.toFixed(2)} ≈ ¥${cny}</div></div>
-      <div class="item"><div class="lab">复写耗时</div><div class="val">${fmtDur(b.seconds)}</div><div class="note">${b.calls!=null?'API '+b.calls+' 次':(b.status==='running'?'进行中':'—')}</div></div>
+      <div class="item"><div class="lab">总历时</div><div class="val">${fmtDur(b.seconds)}</div><div class="note">${b.calls!=null?'API '+b.calls+' 次':(b.status==='running'?'进行中':'—')}</div></div>
       <div class="item"><div class="lab">预算 cap</div><div class="val" style="color:${cny/cap>.9?'var(--red)':cny/cap>.7?'var(--amber)':'var(--green)'}">${Math.min(100,Math.round(cny/cap*100))}% /¥${cap}</div></div>
     </div>`;
 }

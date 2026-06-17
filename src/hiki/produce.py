@@ -76,6 +76,24 @@ def _book_filename(source_ref: str, grade: str, date: str, safe_title: str, deli
     return f"{_source_id(source_ref)}_{grade or 'X'}_{date}_《{safe_title}》{suffix}.md"
 
 
+def _started_at(out_dir: Path, now: float) -> float:
+    """单一总历时:首次 Ingest 开始时间戳,持久化一次(out_dir/_timing.json),续跑不覆盖。
+    seconds = 终点(停哪算哪:通过→Assemble/门拒→Evaluate/早拒→判定点) − 此 started_at。"""
+    f = out_dir / "_timing.json"
+    try:
+        v = json.loads(f.read_text(encoding="utf-8")).get("started_at")
+        if isinstance(v, (int, float)):
+            return float(v)
+    except Exception:
+        pass
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"started_at": now}), encoding="utf-8")
+    except Exception:
+        pass
+    return now
+
+
 async def _decliche_chapters(cli: Client, ch_texts: list[str], cap: int = 22,
                              over_book_min: int = 8, per_chapter_min: int = 2):
     """Tier2 套话硬重写门：按**全书累积疲劳**定位过度复读的套话类别,重写它们聚集的章(治读者累积腻)。
@@ -1174,6 +1192,8 @@ async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, fi
     report.update({"title": title, "tagline": tagline, "alt_titles": tmeta.get("alts", []),
                    "output_file": out_name, "audit_人+故事性_craft(advisory)": audit_craft or ["无"],
                    "开篇代入感审计(advisory)": immersion})
+    if deliverable:                                    # 通过:总历时终点延到 Assemble 结束(含命名/审计)
+        report["seconds"] = round(time.time() - _started_at(out_dir, time.time()), 1)
     (out_dir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return report
 
@@ -1186,11 +1206,15 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     _out_cfg, prod = _cfg.get("output") or {}, _cfg.get("production") or {}
     target_chars = int(_out_cfg.get("chars_per_chapter", 3500))
     out_dir = out_dir or (Path("output") / (src.stem + "_full"))   # M3: best-of-K 并行跑用独立目录
+    started = _started_at(out_dir, t0)                              # 单一总历时:首次 ingest 持久化,续跑不覆盖
     cli = Client()
     # 1) mine + 2) plan(B1 拆为纯阶段,各自 resume;B2)
     mine = await _stage_mine(cli, src, out_dir, n_ch, n_chunks, min_grade, prod, force)
-    if mine.get("rejected"):
-        return mine["report"]
+    if mine.get("rejected"):                                        # 早拒:停在 mine 判定点
+        rep = mine["report"]
+        rep.setdefault("seconds", round(time.time() - started, 1))
+        (out_dir / "report.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
+        return rep
     bible, scenes, grade = mine["bible"], mine["scenes"], mine["grade"]
     meta, clean = mine["meta"], mine["clean"]
     all_scene_count, chunks = mine["all_scene_count"], mine["chunks"]
@@ -1363,7 +1387,8 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "audit_笔力_机械": audit_mech or {"全过": "✓"},
         "advisory_issues": advisory or ["无"],
         "final_consistent": final_consistent,
-        "calls": cli.calls, "cost_cny": round(cli.cost_cny, 2), "seconds": round(time.time() - t0, 1),
+        "calls": cli.calls, "cost_cny": round(cli.cost_cny, 2),
+        "seconds": round(time.time() - started, 1),    # 此处=门拒终点(Evaluate);通过则 finalize 重算到 Assemble
     }
     # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
     return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report,

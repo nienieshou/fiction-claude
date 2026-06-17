@@ -2,7 +2,16 @@
 (原 scripts/_test_r13_units.py 迁入 + B1-3 门 gather)"""
 from hiki import gate
 from hiki.produce import (_wave_bounds, _control_plane, _settle_facts, _run_ship_gate, _open_premise,
-                         _source_id, _book_filename)
+                         _source_id, _book_filename, _started_at)
+
+
+def test_started_at_persists_once(tmp_path):
+    # 单一总历时:首次写入,续跑(再调)不覆盖
+    d = tmp_path / "x_full"
+    first = _started_at(d, 100.0)
+    again = _started_at(d, 999.0)     # 第二次传不同 now,但应读旧值
+    assert first == 100.0 and again == 100.0
+    assert (d / "_timing.json").exists()
 
 
 def test_source_id_extracts_library_code():
