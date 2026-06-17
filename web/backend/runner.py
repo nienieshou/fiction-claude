@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import re
 import sys
@@ -13,6 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import paths
+
+# 上传暂存区：新源落这里(gitignored)，绝不污染已跟踪的 fictions_source/ 库
+UPLOAD_DIR = paths.SOURCES / "_uploads"
 
 # src/ 上 sys.path，才能 import hiki
 _SRC = str(paths.ROOT / "src")
@@ -45,6 +49,34 @@ def make_slug(old: str, new: str) -> str:
 
 def _safe_name(name: str) -> str:
     return re.sub(r"[^\w一-鿿.\-]+", "_", name).strip("_") or "upload"
+
+
+def _find_existing_source(content: bytes) -> Path | None:
+    """内容命中已跟踪库内源(顶层 .txt) → 返回其路径(去重,复用原文件)。大小先筛再 hash。"""
+    n = len(content)
+    h = None
+    for p in paths.SOURCES.glob("*.txt"):          # 非递归:不含 _uploads/ 子目录
+        try:
+            if p.stat().st_size != n:
+                continue
+            if h is None:
+                h = hashlib.sha256(content).hexdigest()
+            if hashlib.sha256(p.read_bytes()).hexdigest() == h:
+                return p
+        except OSError:
+            continue
+    return None
+
+
+def _resolve_src(orig_name: str, new_name: str, content: bytes) -> Path:
+    """去重优先:命中库内源→复用;否则落 gitignored 暂存区(绝不写/覆盖已跟踪库)。"""
+    existing = _find_existing_source(content)
+    if existing is not None:
+        return existing
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    p = UPLOAD_DIR / f"{_safe_name(new_name or orig_name)}.txt"
+    p.write_bytes(content)
+    return p
 
 
 def job_books() -> list[dict]:
@@ -121,11 +153,10 @@ async def _run_job(slug: str, src_path: Path) -> None:
 
 
 async def enqueue(orig_name: str, new_name: str, content: bytes) -> dict:
-    """落 fictions_source/，建 job + stub，后台跑 produce.run。返回 stub。"""
+    """去重落盘(命中库内源则复用,否则落暂存区)，建 job + stub，后台跑 produce.run。返回 stub。"""
     paths.SOURCES.mkdir(parents=True, exist_ok=True)
     slug = make_slug(orig_name, new_name or orig_name)
-    src_path = paths.SOURCES / f"{_safe_name(new_name or orig_name)}.txt"
-    src_path.write_bytes(content)
+    src_path = _resolve_src(orig_name, new_name, content)
 
     JOBS[slug] = {"status": "queued", "stage": 0, "log": [], "error": None,
                   "src_path": str(src_path)}

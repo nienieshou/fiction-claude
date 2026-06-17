@@ -148,12 +148,10 @@ def delete_book(book_id: str) -> dict:
         shutil.rmtree(out, ignore_errors=True)
         output_removed = not out.exists()
 
-    # 删源文件：优先 job 记录，否则按精确文件名兜底匹配（仅限 fictions_source/ 内）
-    if src is None:
-        cand = paths.SOURCES / f"{sel.get('src') or slug}.txt"
-        src = cand if cand.exists() else None
+    # 删源文件：仅限上传暂存区 _uploads/（绝不删已跟踪库内源；去重复用的原文件不动）
     source_removed = None
-    if src and src.exists() and src.resolve().parent == paths.SOURCES.resolve():
+    upload_dir = runner.UPLOAD_DIR.resolve()
+    if src and src.exists() and upload_dir in src.resolve().parents:
         try:
             src.unlink()
             source_removed = src.name

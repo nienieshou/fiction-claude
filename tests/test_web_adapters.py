@@ -217,8 +217,8 @@ def test_human_index_real_file():
     assert idx.get("xingji_dalao") == 74.8
 
 
-# ---------- runner slug ----------
-def test_delete_book_removes_output_and_source(fake_output, monkeypatch, tmp_path):
+# ---------- delete: 删产出目录但绝不删已跟踪库内源 ----------
+def test_delete_book_removes_output_keeps_library_source(fake_output, monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
     from web.backend import app as appmod
 
@@ -229,8 +229,8 @@ def test_delete_book_removes_output_and_source(fake_output, monkeypatch, tmp_pat
     d = fake_output / "delme_full"
     (d / "source").mkdir(parents=True)
     (d / "source" / "clean.txt").write_text("x", encoding="utf-8")
-    srcfile = srcdir / "delme.txt"          # 兜底名匹配 sel.src=slug=delme
-    srcfile.write_text("y", encoding="utf-8")
+    libfile = srcdir / "delme.txt"          # 库内源(非 _uploads)
+    libfile.write_text("y", encoding="utf-8")
 
     client = TestClient(appmod.app)
     assert "delme_full" in [b["id"] for b in client.get("/api/books").json()]
@@ -238,8 +238,9 @@ def test_delete_book_removes_output_and_source(fake_output, monkeypatch, tmp_pat
     r = client.delete("/api/books/delme_full")
     assert r.status_code == 200
     body = r.json()
-    assert body["output_removed"] is True and body["source_removed"] == "delme.txt"
-    assert not d.exists() and not srcfile.exists()
+    assert body["output_removed"] is True
+    assert body["source_removed"] is None       # 不删已跟踪库内源
+    assert not d.exists() and libfile.exists()   # 库内源保留
     assert "delme_full" not in [b["id"] for b in client.get("/api/books").json()]
 
 
@@ -248,6 +249,27 @@ def test_delete_unknown_book_404(fake_output):
     from web.backend import app as appmod
     r = TestClient(appmod.app).delete("/api/books/does-not-exist")
     assert r.status_code == 404
+
+
+def test_upload_dedupes_against_library(monkeypatch, tmp_path):
+    lib = tmp_path / "fictions_source"
+    lib.mkdir()
+    monkeypatch.setattr(paths, "SOURCES", lib)
+    monkeypatch.setattr(runner, "UPLOAD_DIR", lib / "_uploads")
+    (lib / "原书.txt").write_bytes(b"hello world content")
+    p = runner._resolve_src("原书", "新名", b"hello world content")   # 同内容
+    assert p == lib / "原书.txt"                                      # 复用库内源
+    assert not (lib / "_uploads").exists()                           # 未写副本
+
+
+def test_upload_new_content_goes_to_staging(monkeypatch, tmp_path):
+    lib = tmp_path / "fictions_source"
+    lib.mkdir()
+    monkeypatch.setattr(paths, "SOURCES", lib)
+    monkeypatch.setattr(runner, "UPLOAD_DIR", lib / "_uploads")
+    p = runner._resolve_src("新书", "新书", b"brand new content")
+    assert (lib / "_uploads") in p.parents and p.exists()            # 落暂存区
+    assert list(lib.glob("*.txt")) == []                             # 库根未被污染
 
 
 def test_make_slug_strips_punct():
