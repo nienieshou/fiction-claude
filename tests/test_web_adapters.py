@@ -25,10 +25,9 @@ def _write(d, name, obj):
 
 
 # ---------- fixture 兜底 ----------
-def test_empty_output_falls_back_to_fixtures(fake_output):
-    books = adapters.list_books()
-    assert len(books) == len(fixtures.BOOKS)
-    assert {b["id"] for b in books} == {b["id"] for b in fixtures.BOOKS}
+def test_empty_output_returns_empty(fake_output):
+    # 无真实产物 → 空列表（不再回退 demo）
+    assert adapters.list_books() == []
 
 
 def test_unknown_detail_is_empty_skeleton(fake_output):
@@ -52,6 +51,16 @@ def test_real_certified_dir(fake_output):
     assert b["real"] is True
 
 
+def test_real_mode_string_maps_to_int(fake_output):
+    # grade.json.mode 是中文串(mining._GRADE_MODE) → 须映射到原型 mode int
+    d = fake_output / "md_full"
+    _write(d, "report.json", {"deliverable": True, "cost_cny": 10})
+    _write(d, "grade.json", {"grade": "B", "mode": "强化改写"})
+    assert adapters.dir_to_book(d, {})["mode"] == 2
+    _write(d, "grade.json", {"grade": "A", "mode": "保真压缩"})
+    assert adapters.dir_to_book(d, {})["mode"] == 1
+
+
 def test_real_rejected_dir(fake_output):
     d = fake_output / "bad_full"
     _write(d, "report.json", {"rejected": True, "reject_why": "Q", "cost_cny": 1})
@@ -60,11 +69,57 @@ def test_real_rejected_dir(fake_output):
     assert b["status"] == "rejected"
 
 
+def test_rejected_book_exposes_reject_reason(fake_output):
+    d = fake_output / "rej_full"
+    _write(d, "report.json", {"deliverable": False, "交付门": ["事实表死人复活1处(verify确认)"], "cost_cny": 2})
+    b = adapters.dir_to_book(d, {})
+    assert b["status"] == "rejected"
+    assert "死人复活" in (b.get("reject_reason") or "")
+
+
+def test_q_rejected_uses_reject_why(fake_output):
+    d = fake_output / "q_full"
+    _write(d, "report.json", {"rejected": True, "reject_why": "暗黑比≥0.4→Q拒收", "cost_cny": 1})
+    b = adapters.dir_to_book(d, {})
+    assert b["status"] == "rejected" and "Q拒收" in (b.get("reject_reason") or "")
+
+
 def test_deliverable_false_is_rejected(fake_output):
     d = fake_output / "ng_full"
     _write(d, "report.json", {"deliverable": False, "交付门": ["维14死人复活"], "cost_cny": 8})
     b = adapters.dir_to_book(d, {})
     assert b["status"] == "rejected"
+
+
+def test_source_only_dir_is_idle_not_running(fake_output):
+    # 只有 source/ 的目录 = ingest 已完成且无活跃任务 → idle(待产)，不是 running(进行中)
+    d = fake_output / "stale_full"
+    (d / "source").mkdir(parents=True)
+    b = adapters.dir_to_book(d, {}, active=frozenset())
+    assert b["status"] == "idle"
+
+
+def test_source_only_with_live_job_is_running(fake_output):
+    # 有活跃后台任务 → running
+    d = fake_output / "live_full"
+    (d / "source").mkdir(parents=True)
+    b = adapters.dir_to_book(d, {}, active=frozenset({"live"}))
+    assert b["status"] == "running"
+
+
+def test_production_started_no_job_is_stalled(fake_output):
+    # 已产出 bible 但无 report 且无活跃任务 → stalled(中断,被打断)
+    d = fake_output / "mid_full"
+    _write(d, "bible.json", {"protagonist": {"name": "x"}})
+    (d / "source").mkdir(parents=True)
+    assert adapters.dir_to_book(d, {}, active=frozenset())["status"] == "stalled"
+
+
+def test_production_started_with_job_is_running(fake_output):
+    # 已产出 bible 且有活跃任务 → running
+    d = fake_output / "mid2_full"
+    _write(d, "bible.json", {"protagonist": {"name": "x"}})
+    assert adapters.dir_to_book(d, {}, active=frozenset({"mid2"}))["status"] == "running"
 
 
 def test_stage_inference(fake_output):
@@ -79,6 +134,36 @@ def test_stage_inference(fake_output):
     planned = fake_output / "c_full"
     _write(planned, "plan.json", {"chapters": []})
     assert adapters._stage_from_artifacts(planned, None) == 3
+
+
+def test_real_scenes_from_plan(fake_output):
+    d = fake_output / "sc_full"
+    _write(d, "plan.json", {"chapters": [
+        {"index": 1, "title": "开场", "scenes": [{"mode": "DRAMATIZE"}]},
+        {"index": 2, "title": "过渡", "scenes": [{"mode": "SUMMARIZE"}]}]})
+    _write(d, "macro.json", {"chapters": [
+        {"i": 1, "act": "开篇", "beat": "主角登场打脸"},
+        {"i": 2, "act": "发展", "beat": "三月后过渡"}]})
+    detail = adapters.book_detail("sc_full")
+    assert detail["scenes"] is not None
+    assert detail["scenes"]["total"] == 2
+    assert detail["scenes"]["list"][0]["type"] == "DRAMATIZE"
+    assert "打脸" in detail["scenes"]["list"][0]["beat"]
+
+
+def test_real_spine_from_bible(fake_output):
+    d = fake_output / "sp_full"
+    _write(d, "bible.json", {
+        "protagonist": {"name": "王亦初", "identity": "村医"},
+        "characters": [{"name": "白芷莹", "role": "女主播"}],
+        "places": [{"name": "大王村", "aliases": []}],
+        "power_system": "练气→筑基→金丹"})
+    detail = adapters.book_detail("sp_full")
+    assert detail["spine"] is not None
+    groups = {g["group"]: g for g in detail["spine"]}
+    assert "人物登记" in groups
+    names = [it["name"] for it in groups["人物登记"]["items"]]
+    assert "王亦初" in names and "白芷莹" in names
 
 
 def test_real_detail_overlay_dna_from_bible(fake_output):
@@ -110,7 +195,52 @@ def test_human_index_real_file():
 
 
 # ---------- runner slug ----------
+def test_delete_book_removes_output_and_source(fake_output, monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from web.backend import app as appmod
+
+    srcdir = tmp_path / "fictions_source"
+    srcdir.mkdir()
+    monkeypatch.setattr(paths, "SOURCES", srcdir)
+
+    d = fake_output / "delme_full"
+    (d / "source").mkdir(parents=True)
+    (d / "source" / "clean.txt").write_text("x", encoding="utf-8")
+    srcfile = srcdir / "delme.txt"          # 兜底名匹配 sel.src=slug=delme
+    srcfile.write_text("y", encoding="utf-8")
+
+    client = TestClient(appmod.app)
+    assert "delme_full" in [b["id"] for b in client.get("/api/books").json()]
+
+    r = client.delete("/api/books/delme_full")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["output_removed"] is True and body["source_removed"] == "delme.txt"
+    assert not d.exists() and not srcfile.exists()
+    assert "delme_full" not in [b["id"] for b in client.get("/api/books").json()]
+
+
+def test_delete_unknown_book_404(fake_output):
+    from fastapi.testclient import TestClient
+    from web.backend import app as appmod
+    r = TestClient(appmod.app).delete("/api/books/does-not-exist")
+    assert r.status_code == 404
+
+
 def test_make_slug_strips_punct():
     s = runner.make_slug("霸总隐婚之偏偏宠我", "隐婚·偏偏宠我")
     assert s.startswith("霸总隐婚之偏偏宠我_隐婚偏偏宠我_")
     assert "·" not in s and " " not in s
+
+
+def test_quality_config_is_quality_first():
+    # 行之有效·质量优先：Spine 开 + 精修 3 轮 + 候选 3（见 fact_spine.md M2）
+    assert runner.QUALITY == {"spine": True, "refine_rounds": 3, "n_cand": 3}
+
+
+def test_make_slug_collapses_when_not_renamed():
+    # 未改名（新==源）→ 源名_date，不再 名_名_date
+    same = runner.make_slug("极品全能小村医", "极品全能小村医")
+    assert same.startswith("极品全能小村医_") and same.count("极品全能小村医") == 1
+    empty = runner.make_slug("某本", "")
+    assert empty.startswith("某本_") and empty.count("某本") == 1

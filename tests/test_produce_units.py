@@ -1,7 +1,22 @@
 """produce.py 纯函数:_wave_bounds 护栏/退化、_control_plane 编译、_settle_facts、_run_ship_gate。零 API。
 (原 scripts/_test_r13_units.py 迁入 + B1-3 门 gather)"""
 from hiki import gate
-from hiki.produce import _wave_bounds, _control_plane, _settle_facts, _run_ship_gate, _open_premise
+from hiki.produce import (_wave_bounds, _control_plane, _settle_facts, _run_ship_gate, _open_premise,
+                         _source_id, _book_filename)
+
+
+def test_source_id_extracts_library_code():
+    assert _source_id("CPBGX00192灵气复苏_开局无限合成_full") == "CPBGX00192"
+    assert _source_id("ZTGXY01837退婚后，她被娇养了") == "ZTGXY01837"
+    assert _source_id("重生之首富归来")  # 无码→兜底非空
+
+
+def test_book_filename_scientific_scheme():
+    # 源ID_档_日期_《书名》[.不可交付].md
+    nm = _book_filename("CPBGX00192灵气复苏_开局无限合成_full", "A", "20260617", "武神斩神", True)
+    assert nm == "CPBGX00192_A_20260617_《武神斩神》.md"
+    rej = _book_filename("CPBXN00188冰川探墓_full", "B", "20260617", "盗墓主播", False)
+    assert rej == "CPBXN00188_B_20260617_《盗墓主播》.不可交付.md"
 
 
 def _clean_sig():

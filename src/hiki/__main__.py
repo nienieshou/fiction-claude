@@ -18,18 +18,18 @@ def _add_run_opts(p: argparse.ArgumentParser) -> None:
     p.add_argument("--chapters", type=int, default=60, help="目标章数")
     p.add_argument("--chunks", type=int, default=12, help="深挖窗口数")
     p.add_argument("-n", "--candidates", type=int, default=3, help="每场景候选数(成本×质量)")
-    p.add_argument("--refine-rounds", type=int, default=5, help="金标精修轮(高潮章)")
+    p.add_argument("--refine-rounds", type=int, default=3, help="金标精修轮(高潮章;实证2-3轮即够,多轮震荡)")
     p.add_argument("--min-grade", default=None, choices=["S", "A", "B", "C", "D"],
                    help="源分级门槛:低于此档拒收")
     p.add_argument("--parallel", type=int, default=3, help="并行本数(账号限流内,建议≤5)")
-    p.add_argument("--spine", action="store_true", help="启用 Fact Spine 事前一致性(HIKI_SPINE=1)")
+    p.add_argument("--spine", action=argparse.BooleanOptionalAction, default=True,
+                   help="Fact Spine 事前一致性(质量默认开,HIKI_SPINE=1;--no-spine 关闭)")
     p.add_argument("--force", action="store_true", help="忽略已有阶段产物,从头重跑(默认续跑)")
 
 
 def _cmd_run(a: argparse.Namespace) -> None:
     from . import batch
-    if a.spine:
-        os.environ["HIKI_SPINE"] = "1"             # 复写前置,produce 各阶段读 env
+    os.environ["HIKI_SPINE"] = "1" if a.spine else "0"   # 复写前置,produce 各阶段读 env(质量默认开)
     defaults = {"out": a.out, "chapters": a.chapters, "chunks": a.chunks,
                 "candidates": a.candidates, "refine_rounds": a.refine_rounds,
                 "min_grade": a.min_grade, "force": a.force}
@@ -44,7 +44,8 @@ def _cmd_run(a: argparse.Namespace) -> None:
         print("用法: hiki run <src.txt> | hiki run --tasks-file tasks.yaml")
         sys.exit(2)
     print(f"批量: {len(tasks)} 任务，并行 {a.parallel}"
-          f"{'，Fact Spine 开' if a.spine else ''}{'，--force 重跑' if a.force else '，续跑'} ...")
+          f"{'，Fact Spine 开' if a.spine else '，Spine 关'}，精修{a.refine_rounds}轮"
+          f"{'，--force 重跑' if a.force else '，续跑'} ...")
     t0 = time.time()
     results = asyncio.run(batch.run_tasks(tasks, a.parallel))
     s = batch.write_summary(results, round(time.time() - t0, 1))
@@ -54,8 +55,7 @@ def _cmd_run(a: argparse.Namespace) -> None:
 
 def _cmd_funnel(a: argparse.Namespace) -> None:
     from . import funnel, pregrade
-    if a.spine:
-        os.environ["HIKI_SPINE"] = "1"
+    os.environ["HIKI_SPINE"] = "1" if a.spine else "0"   # 质量默认开
     srcs = pregrade._collect(a.sources)
     if not srcs:
         print("未找到 .txt 源（传源目录或多个 .txt）"); sys.exit(2)
@@ -64,7 +64,7 @@ def _cmd_funnel(a: argparse.Namespace) -> None:
                 "refine_rounds": a.refine_rounds, "force": a.force}
     print(f"漏斗: 入池 {len(srcs)} 本 → pregrade(并行{a.pregrade_parallel}) → 保留[{','.join(sorted(keep))}]"
           f"{f' → 改写前{a.max}本' if a.max else ''}{' [DRY-RUN]' if a.dry_run else f' → 改写(并行{a.parallel})'}"
-          f"{'，Spine 开' if a.spine else ''} ...")
+          f"{'，Spine 开' if a.spine else '，Spine 关'} ...")
     s = asyncio.run(funnel.run_funnel(srcs, Path(a.out), keep, a.pregrade_parallel,
                                       a.parallel, a.max, run_opts, a.dry_run))
     print(f"\n=== 漏斗汇总 === 入池{s['入池']} → pregrade成功{s['pregrade成功']} "

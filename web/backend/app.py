@@ -8,8 +8,18 @@
 from __future__ import annotations
 
 import json
+import shutil
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Windows 下服务进程默认 GBK stdout，produce.py finalize 会 print emoji(⛔⚠)→UnicodeEncodeError 崩溃。
+# 与 CLI 入口一致改 UTF-8，避免改写任务在 finalize 崩。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +34,11 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
 
 
+def _books() -> list[dict]:
+    """书目列表：真实产物 + 任务 stub + 活跃任务集（区分 running vs idle）。"""
+    return adapters.list_books(runner.job_books(), runner.active_slugs())
+
+
 # ---------- 数据端点 ----------
 @app.get("/api/stages", response_model=list[dict])
 def get_stages() -> list[dict]:
@@ -32,17 +47,17 @@ def get_stages() -> list[dict]:
 
 @app.get("/api/stats", response_model=Stats)
 def get_stats() -> dict:
-    return adapters.stats(adapters.list_books(runner.job_books()))
+    return adapters.stats(_books())
 
 
 @app.get("/api/books", response_model=list[Book])
 def get_books() -> list[dict]:
-    return adapters.list_books(runner.job_books())
+    return _books()
 
 
 @app.get("/api/books/{book_id}")
 def get_book(book_id: str) -> dict:
-    books = adapters.list_books(runner.job_books())
+    books = _books()
     sel = next((b for b in books if b["id"] == book_id), None)
     if sel is None:
         raise HTTPException(404, f"unknown book: {book_id}")
@@ -72,6 +87,56 @@ def get_job(slug: str) -> dict:
     if st is None:
         raise HTTPException(404, f"unknown job: {slug}")
     return st
+
+
+@app.post("/api/books/{book_id}/resume")
+async def resume_book(book_id: str) -> dict:
+    """续跑被中断/待产的任务（从已有产物继续，真实花钱）。"""
+    sel = next((b for b in _books() if b["id"] == book_id), None)
+    if sel is None:
+        raise HTTPException(404, f"unknown book: {book_id}")
+    slug = sel["slug"]
+    if slug in runner.active_slugs():
+        return {"job_slug": slug, "already_running": True}
+    if sel["status"] not in ("stalled", "idle"):
+        raise HTTPException(400, f"仅可续跑 stalled/idle 任务，当前：{sel['status']}")
+    try:
+        return await runner.resume(slug)
+    except FileNotFoundError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.delete("/api/books/{book_id}")
+def delete_book(book_id: str) -> dict:
+    """删除任务：取消后台改写(若在跑) + 删 output/<id>/ + 删上传源 .txt。"""
+    sel = next((b for b in _books() if b["id"] == book_id), None)
+    if sel is None:
+        raise HTTPException(404, f"unknown book: {book_id}")
+    slug = sel["slug"]
+    src = runner.job_src_path(slug)                 # 上传源(若由本应用上传,先取再清表)
+    job_cancelled = runner.cancel_and_forget(slug)
+
+    # 删产出目录（防越权：必须直属 output/）
+    out = (paths.OUTPUT / book_id).resolve()
+    output_removed = False
+    if out.is_dir() and paths.OUTPUT.resolve() in out.parents:
+        shutil.rmtree(out, ignore_errors=True)
+        output_removed = not out.exists()
+
+    # 删源文件：优先 job 记录，否则按精确文件名兜底匹配（仅限 fictions_source/ 内）
+    if src is None:
+        cand = paths.SOURCES / f"{sel.get('src') or slug}.txt"
+        src = cand if cand.exists() else None
+    source_removed = None
+    if src and src.exists() and src.resolve().parent == paths.SOURCES.resolve():
+        try:
+            src.unlink()
+            source_removed = src.name
+        except OSError:
+            pass
+
+    return {"id": book_id, "output_removed": output_removed,
+            "source_removed": source_removed, "job_cancelled": job_cancelled}
 
 
 # ---------- 产物下载 ----------
@@ -127,7 +192,7 @@ _GEN = {"acceptance.json": (_gen_acceptance, "application/json"),
 
 @app.get("/api/books/{book_id}/artifacts/{name}")
 def download_artifact(book_id: str, name: str) -> Response:
-    books = adapters.list_books(runner.job_books())
+    books = _books()
     sel = next((b for b in books if b["id"] == book_id), None)
     if sel is None:
         raise HTTPException(404, f"unknown book: {book_id}")
@@ -148,9 +213,12 @@ def download_artifact(book_id: str, name: str) -> Response:
 # ---------- 前端静态 ----------
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(FRONTEND / "index.html")
+    # no-cache：避免浏览器缓存旧前端（历史上 stale JS 导致按钮无响应）
+    return FileResponse(FRONTEND / "index.html",
+                        headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "output_dirs": len(paths.output_dirs())}
+    return {"ok": True, "output_dirs": len(paths.output_dirs()),
+            "stdout_encoding": (sys.stdout.encoding or "").lower()}

@@ -63,6 +63,19 @@ def _safe_filename(name: str, fallback: str = "成品") -> str:
     return name[:40] or fallback
 
 
+def _source_id(ref: str) -> str:
+    """从源名/输出目录名取库内源 ID（前缀字母+数字码，如 CPBGX00192）；无码则取净化前缀兜底。"""
+    ref = _re.sub(r"_full$", "", ref or "")
+    m = _re.match(r"[A-Za-z]+\d+", ref)
+    return m.group(0) if m else (_safe_filename(ref)[:12] or "源")
+
+
+def _book_filename(source_ref: str, grade: str, date: str, safe_title: str, deliverable: bool) -> str:
+    """成书科学命名：<源ID>_<档>_<YYYYMMDD>_《书名》[.不可交付].md —— 可追溯/可排序/状态显式。"""
+    suffix = "" if deliverable else ".不可交付"
+    return f"{_source_id(source_ref)}_{grade or 'X'}_{date}_《{safe_title}》{suffix}.md"
+
+
 async def _decliche_chapters(cli: Client, ch_texts: list[str], cap: int = 22,
                              over_book_min: int = 8, per_chapter_min: int = 2):
     """Tier2 套话硬重写门：按**全书累积疲劳**定位过度复读的套话类别,重写它们聚集的章(治读者累积腻)。
@@ -1141,10 +1154,11 @@ async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, fi
     safe = _safe_filename(title, fallback=_safe_filename(src.stem))
     book = f"# 《{title}》\n\n> {tagline}\n\n---\n\n{final}" if title else final
     (out_dir / "final.md").write_text(final, encoding="utf-8")
-    out_name = f"《{safe}》.md" if deliverable else f"《{safe}》.不可交付.md"
+    grade_letter = (report.get("grade") or {}).get("grade") or "X"   # 成书科学命名:源ID_档_日期_《书名》
+    out_name = _book_filename(out_dir.name, grade_letter, time.strftime("%Y%m%d"), safe, deliverable)
     (out_dir / out_name).write_text(book, encoding="utf-8")
     if deliverable:
-        print(f"成品命名：《{title}》 —— {tagline}")
+        print(f"成品命名：{out_name} —— {tagline}")
     else:
         print(f"⛔ 交付门拦截：{'；'.join(ship_issues)} → {out_name}（重跑或拒收，绝不流向编辑）")
     try:                                          # craft 仅 advisory，绝不为它丢成品/报告
@@ -1376,10 +1390,13 @@ def main() -> None:
     ap.add_argument("--chapters", type=int, default=60)
     ap.add_argument("--chunks", type=int, default=12)
     ap.add_argument("-n", "--candidates", type=int, default=3)
-    ap.add_argument("--refine-rounds", type=int, default=5)
+    ap.add_argument("--refine-rounds", type=int, default=3, help="实证2-3轮即够,多轮震荡")
     ap.add_argument("--min-grade", default=None, choices=["S", "A", "B", "C", "D"],
                     help="源分级门槛:低于此档拒收(如 A=只产S/A好源)")
+    ap.add_argument("--spine", action=argparse.BooleanOptionalAction, default=True,
+                    help="Fact Spine 事前一致性(质量默认开;--no-spine 关闭)")
     a = ap.parse_args()
+    os.environ["HIKI_SPINE"] = "1" if a.spine else "0"
     rep = asyncio.run(run(Path(a.src), a.chapters, a.chunks, a.candidates, a.refine_rounds,
                           min_grade=a.min_grade))
     print("\n=== 全书报告 ===")

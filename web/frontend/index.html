@@ -34,6 +34,13 @@
   .hbadge{font-size:11px;font-family:monospace;font-weight:700}
   .upbtn{margin:8px;padding:9px;border:1px dashed var(--line2);border-radius:10px;color:var(--t3);text-align:center;cursor:pointer;font-size:12px}
   .upbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .gw{display:flex;gap:6px;align-items:center;flex-shrink:0}
+  .del{color:var(--t4);font-size:12px;line-height:1;cursor:pointer;padding:2px 4px;border-radius:5px}
+  .del:hover{color:var(--red);background:rgba(248,81,73,.12)}
+  .demo{font-size:10px;color:var(--t4);border:1px solid var(--line2);border-radius:5px;padding:0 5px;line-height:1.6}
+  .demohint{font-size:11px;color:var(--t4);background:rgba(255,255,255,.02);border:1px dashed var(--line2);border-radius:8px;padding:7px 10px;margin:4px 4px 8px}
+  .rejbox{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.4);border-radius:10px;padding:11px 14px;margin-bottom:12px;color:#ffb4ae;font-size:13px}
+  .rejbox b{color:#f85149}
   /* main */
   .main{overflow:auto;min-height:0;padding:18px 22px}
   .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
@@ -111,7 +118,7 @@ const S = { books:[], sel:null, tab:"overview", stats:{}, calib:{}, stages:[], d
 const gC = g => ({S:"#ffd166",A:"#3fb950",B:"#58a6ff",C:"#d29922",D:"#f0883e",Q:"#6e7681"}[g]||"#6e7681");
 const humanColor = h => h==null?"#5c6672": h>=75?"#3fb950": h>=68?"#d6c24a": h>=60?"#d29922":"#f0883e";
 const dimColor = v => v>=80?"#3fb950": v>=68?"#7fc94a": v>=55?"#d29922":"#f0883e";
-const dotColor = {done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"#262d36"};
+const dotColor = {done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"#262d36",stall:"#f0883e"};
 const modelStyle = {pro:{c:"#bc8cff",b:"rgba(188,140,255,.12)"},flash:{c:"#39c5cf",b:"rgba(57,197,207,.12)"},"pro·flash":{c:"#9aa6ff",b:"rgba(154,166,255,.1)"},"—":{c:"#5c6672",b:"rgba(255,255,255,.03)"}};
 const MODE = {0:"—",1:"模式1 · 保真压缩",2:"模式2 · 强化改写",3:"模式3 · 类型化重构",4:"模式4 · 概念级重启"};
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -119,12 +126,16 @@ const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&l
 function statusInfo(b){
   if(b.status==="certified") return {t:"认证出货",c:"#3fb950",bg:"rgba(63,185,80,.12)"};
   if(b.status==="rejected")  return {t:"拒收",c:"#f85149",bg:"rgba(248,81,73,.12)"};
+  if(b.status==="idle")      return {t:"待产·已清洗",c:"#8b949e",bg:"rgba(139,148,158,.12)"};
+  if(b.status==="stalled")   return {t:"中断·可续跑",c:"#f0883e",bg:"rgba(240,136,62,.12)"};
   return {t:"进行中",c:"#58a6ff",bg:"rgba(88,166,255,.12)"};
 }
 function states(b){
   const n=6,a=[];
   for(let i=0;i<n;i++){
     if(b.status==="certified") a.push("done");
+    else if(b.status==="idle") a.push(i===0?"done":"pending");   // ingest 已完成,无活跃阶段
+    else if(b.status==="stalled") a.push(i<b.stage?"done":(i===b.stage?"stall":"pending")); // 停在此阶段
     else if(b.status==="running") a.push(i<b.stage?"done":(i===b.stage?"active":"pending"));
     else a.push(i<b.stage?"done":(i===b.stage?"fail":"pending"));
   }
@@ -145,6 +156,36 @@ async function boot(){
     if(S.sel) await loadBook(S.sel); else renderMain();
   }catch(e){ showErr(e.message+" — 后端是否已启动？ uvicorn web.backend.app:app"); }
 }
+async function delBook(e, id){
+  e.stopPropagation();
+  const b=S.books.find(x=>x.id===id)||{};
+  if(!confirm(`删除任务「${b.title||id}」？\n将移除产出目录及上传源文件，不可恢复。`)) return;
+  try{
+    const r=await fetch(API+"/api/books/"+encodeURIComponent(id),{method:"DELETE"});
+    if(!r.ok){ showErr("删除失败 "+r.status); return; }
+    const res=await r.json();
+    if(!res.output_removed && !res.source_removed && !res.job_cancelled){
+      showErr("未删除任何内容（可能是演示数据或目录已不存在）"); return;
+    }
+  }catch(err){ showErr(err.message); return; }
+  const [stats,books]=await Promise.all([jget("/api/stats"),jget("/api/books")]);
+  S.stats=stats; S.books=books;
+  if(S.sel===id) S.sel = books[0] ? books[0].id : null;
+  renderSide();
+  if(S.sel) await loadBook(S.sel); else { S.cur=null; S.detail=null; renderMain(); }
+}
+async function resumeBook(id){
+  const b=S.books.find(x=>x.id===id)||{};
+  if(!confirm(`续跑「${b.title||id}」？\n从已有产物继续改写（真实消耗 DeepSeek，质量优先 Spine 开）。`)) return;
+  try{
+    const r=await fetch(API+"/api/books/"+encodeURIComponent(id)+"/resume",{method:"POST"});
+    if(!r.ok){ showErr("续跑失败 "+r.status); return; }
+    const res=await r.json();
+    const [stats,books]=await Promise.all([jget("/api/stats"),jget("/api/books")]);
+    S.stats=stats; S.books=books; renderSide(); if(S.sel) await loadBook(S.sel);
+    if(res.job_slug) pollJobs([res.job_slug]);
+  }catch(err){ showErr(err.message); }
+}
 async function loadBook(id){
   S.sel=id;
   try{ const d=await jget("/api/books/"+encodeURIComponent(id)); S.detail=d.detail; S.cur=d.sel; S.mode={text:d.modeText,note:d.modeNote}; }
@@ -160,12 +201,16 @@ function renderSide(){
      <div><div class="k">认证</div><div class="v" style="color:var(--green)">${g.certified??"—"}</div></div>
      <div><div class="k">拒收率</div><div class="v" style="color:var(--orange)">${g.rejectRate??"—"}</div></div>
      <div><div class="k">均成本</div><div class="v">¥${g.avgCost??"—"}</div></div>`;
-  document.getElementById("list").innerHTML = S.books.map(b=>{
+  const hint = S.books.length===0 ? `<div class="demohint">暂无任务 · 上传源（.txt）即开始改写。</div>` : "";
+  document.getElementById("list").innerHTML = hint + S.books.map(b=>{
     const si=statusInfo(b), sel=b.id===S.sel;
     const dots=states(b).map(s=>`<span class="dot" style="background:${dotColor[s]}"></span>`).join("");
     return `<div class="bcard" style="background:${sel?'var(--card)':'transparent'};border-color:${sel?'#2b3a4d':'transparent'}" onclick="loadBook('${b.id}')">
       <div class="row1"><div class="title" style="color:${sel?'#fff':'var(--t2)'}">${esc(b.title)}</div>
-        <span class="grade" style="color:${gC(b.grade)};background:rgba(255,255,255,.04)">${esc(b.grade)}</span></div>
+        <span class="gw"><span class="grade" style="color:${gC(b.grade)};background:rgba(255,255,255,.04)">${esc(b.grade)}</span>
+          ${(b.real||b.uploaded)
+            ? `<span class="del" title="删除任务" onclick="delBook(event,'${b.id}')">✕</span>`
+            : `<span class="demo" title="演示样例 · 非真实任务,不可删除">演示</span>`}</span></div>
       <div class="row2"><span class="genre">${esc(b.genre)} · <span style="color:${si.c}">${si.t}</span></span>
         <span class="hbadge" style="color:${humanColor(b.human)}">${b.human==null?"—":b.human}</span></div>
       <div class="dots" style="margin-top:7px">${dots}</div></div>`;
@@ -176,7 +221,8 @@ function renderSide(){
 function renderMain(){
   const b=S.cur||S.books.find(x=>x.id===S.sel);
   const m=document.getElementById("main");
-  if(!b){ m.innerHTML=`<div class="muted">无书目。点击左侧「批量上传」开始。</div>`; return; }
+  if(!b){ m.innerHTML=`<div class="muted" style="padding:60px 20px">暂无任务<br><br>点击左侧「＋ 批量上传源」上传 .txt，即开始改写任务。</div>`;
+    const u=document.getElementById("upbtn"); if(u) u.onclick=openUpload; return; }
   const si=statusInfo(b), cap=S.stats.budgetCap||50, capPct=Math.min(100,Math.round((b.cost||0)/cap*100));
   m.innerHTML = `
     <div class="head">
@@ -190,6 +236,8 @@ function renderMain(){
           <div class="kpi"><div class="k">人工成品分</div><div class="v" style="color:${humanColor(b.human)}">${b.human==null?"—":b.human}</div></div>
           <div class="kpi"><div class="k">成本 / cap</div><div class="v" style="color:${capPct>90?'var(--red)':capPct>70?'var(--amber)':'var(--green)'}">¥${b.cost||0}<span style="font-size:11px;color:var(--t4)"> /${cap}</span></div></div>
         </div>
+        ${(b.status==="stalled"||b.status==="idle")
+          ? `<button class="dlbtn" style="color:var(--accent);border-color:var(--accent)" onclick="resumeBook('${b.id}')">▶ 续跑</button>` : ""}
         ${dlButton(b)}
       </div>
     </div>
@@ -204,10 +252,10 @@ function flowHtml(b){
   const st=states(b); let h=`<div class="flow">`;
   S.stages.forEach((sd,i)=>{
     const s=st[i], ms=modelStyle[sd.model]||modelStyle["—"];
-    const bg={done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"transparent"}[s];
-    const bc={done:"#08120f",active:"#08120f",fail:"#fff",pending:"#5c6672"}[s];
-    const bd={done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"#2b333d"}[s];
-    const mk = s==="done"?"✓": s==="fail"?"✕": String(i);
+    const bg={done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"transparent",stall:"rgba(240,136,62,.15)"}[s];
+    const bc={done:"#08120f",active:"#08120f",fail:"#fff",pending:"#5c6672",stall:"#f0883e"}[s];
+    const bd={done:"#3fb950",active:"#58a6ff",fail:"#f85149",pending:"#2b333d",stall:"#f0883e"}[s];
+    const mk = s==="done"?"✓": s==="fail"?"✕": s==="stall"?"⊘": String(i);
     h+=`<div class="node"><div class="badge" style="background:${bg};color:${bc};border-color:${bd};${s==='active'?'animation:hpulse 1.4s ease-in-out infinite':''}">${mk}</div>
       <div class="nm" style="color:${s==='pending'?'var(--t4)':'var(--t2)'}">${sd.name}</div><div class="cn">${sd.cn}</div>
       <span class="mtag" style="color:${ms.c};background:${ms.b}">${sd.model}</span></div>`;
@@ -241,7 +289,9 @@ function renderPanel(){
 function ovHtml(){
   const b=S.cur, d=S.detail||{};
   const dims=d.dims||[];
-  return `<div class="grid g2">
+  const rej=(b.status==="rejected"&&b.reject_reason)
+    ? `<div class="rejbox"><b>⛔ 拒收原因</b> · ${esc(b.reject_reason)}<br><span style="color:var(--t4);font-size:11px">交付门拦截，绝不流向编辑；可下载诊断或弃源/点修。</span></div>` : "";
+  return rej + `<div class="grid g2">
     <div class="item"><div class="lab">认证状态</div><div class="val" style="color:${statusInfo(b).c}">${statusInfo(b).t}</div><div class="note">${esc(certNote(b))}</div></div>
     <div class="item"><div class="lab">当前阶段</div><div class="val">${S.stages[b.stage]?S.stages[b.stage].name+" · "+S.stages[b.stage].cn:"—"}</div></div>
     <div class="item"><div class="lab">改写模式</div><div class="val">${esc(S.mode.text||MODE[b.mode]||"—")}</div><div class="note">${esc(S.mode.note||"")}</div></div>
@@ -251,6 +301,8 @@ function ovHtml(){
 function certNote(b){
   if(b.status==="certified") return b.human>=75?"出货线 75 达成":"低空认证 · 承重待补";
   if(b.status==="rejected") return b.grade==="Q"?"Q · 不可压缩":"承重瓶颈 · 最深仍不过";
+  if(b.status==="idle") return "已清洗 · 待开始改写（无活跃任务）";
+  if(b.status==="stalled") return "改写被中断 · 点「续跑」从已有产物继续";
   return "质量环进行 · 未终裁";
 }
 function dimRow(x){ const lbl=x.k==="承重"?"承重 · 瓶颈":x.k;
@@ -337,7 +389,7 @@ function spineHtml(groups){
 function dlButton(b){
   const cert=b.status==="certified", diag=b.status==="rejected"&&b.grade!=="Q";
   const active=cert||diag;
-  const label=cert?"下载成品":diag?"下载诊断":(b.grade==="Q"?"Q · 无成品":"进行中");
+  const label=cert?"下载成品":diag?"下载诊断":(b.grade==="Q"?"Q · 无成品":b.status==="idle"?"待产 · 无成品":b.status==="stalled"?"中断 · 无成品":"进行中");
   const col=cert?"var(--green)":diag?"var(--orange)":"var(--t4)";
   return `<div class="dlwrap"><button class="dlbtn" style="color:${col};border-color:${col}" ${active?`onclick="toggleMenu(event)"`:"disabled"}>${label} ▾</button>
     <div class="menu" id="dlmenu" style="display:none">${dlItems(b,cert,diag)}</div></div>`;

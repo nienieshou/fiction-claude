@@ -77,7 +77,7 @@ tasks:
 | `-n/--candidates` | 3 | 每场景候选数（成本×质量） |
 | `--min-grade` | — | 源分级门槛，低于此档拒收（如 `A`） |
 | `--parallel` | 3 | 并行本数（账号限流内，≤5） |
-| `--spine` | 关 | 启用 Fact Spine 事前一致性 |
+| `--spine / --no-spine` | **开（质量默认）** | Fact Spine 事前一致性（承重 +18.8 实证）；`--no-spine` 关闭 |
 | `--force` | 关 | 忽略已有阶段产物从头重跑（默认**续跑**：mine/plan/draft 产物在即跳过） |
 
 **续跑(B2)**：崩溃/中断后重跑同一命令，自动跳过已完成阶段（draft 逐章续画）。**失败隔离**：一本崩不拖累其余，traceback 落 `<out>/<slug>/_crash.txt`。汇总 `output/batch_summary.{json,md}`。
@@ -129,7 +129,7 @@ $env:PYTHONPATH="src"; python -m hiki.produce fictions_source\某本.txt --min-g
 | `--chapters` | 60 | 目标章数 |
 | `--chunks` | 12 | 全书深挖分窗数 |
 | `-n / --candidates` | 3 | 每场景候选数（BoN） |
-| `--refine-rounds` | 5 | 精修轮数（实证 2–3 轮即够，多轮震荡） |
+| `--refine-rounds` | 3 | 精修轮数（实证 2–3 轮即够，多轮震荡；故质量默认 3 而非更高） |
 | `--min-grade` | 无 | 源档门槛，低于此档拒收。`A`=只产 S/A 好源 |
 
 **流程**：清洗 → 全书 map-reduce 深挖（厚 bible + 全局场景池打分筛选 + 源分级）→ Q/低于门槛短路拒收 → 两层规划（60 章节拍图 → 并发分章）→ 场景 BoN 起草 → 控字/人名归一/章缝缝合/套话门/暗黑净化/事实表对账 → 确定性承重审计 → **交付门** → 命名出书。

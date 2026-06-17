@@ -19,6 +19,7 @@ class Book(BaseModel):
     cost: float = 0
     uploaded: bool = False
     real: bool = False
+    reject_reason: str | None = None
 
 
 class Stats(BaseModel):

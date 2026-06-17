@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import sys
 import traceback
@@ -18,6 +19,11 @@ _SRC = str(paths.ROOT / "src")
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
+# 行之有效·质量优先配置（讨论沉淀, 见 docs/design/web_console.md §9 / fact_spine.md M2）：
+# Fact Spine 全套(+18.8 承重)、精修 3 轮(2-3 即够,多轮震荡)、每场景候选 3、交付门+可拒收。
+# 不含 best-of-3(3× 成本,本期未启)。质量 > 成本。
+QUALITY = {"spine": True, "refine_rounds": 3, "n_cand": 3}
+
 # 内存任务表：slug -> {status, stage, log[], error, report}
 JOBS: dict[str, dict] = {}
 # 任务对应的书目 stub（并入 /api/books）
@@ -29,8 +35,12 @@ def _slugify(s: str) -> str:
 
 
 def make_slug(old: str, new: str) -> str:
+    """命名 源名_新名_date；未改名（新==源或空）则收敛为 源名_date，不重复。"""
     date = datetime.now(timezone.utc).strftime("%Y%m%d")
-    return f"{_slugify(old)}_{_slugify(new)}_{date}"
+    so, sn = _slugify(old), _slugify(new)
+    if not sn or sn == so:
+        return f"{so}_{date}"
+    return f"{so}_{sn}_{date}"
 
 
 def _safe_name(name: str) -> str:
@@ -39,6 +49,30 @@ def _safe_name(name: str) -> str:
 
 def job_books() -> list[dict]:
     return list(JOB_BOOKS.values())
+
+
+def active_slugs() -> frozenset[str]:
+    """正在排队/运行的任务 slug（用于区分真在跑 vs 仅 ingest 的闲置目录）。"""
+    return frozenset(s for s, j in JOBS.items() if j.get("status") in ("queued", "running"))
+
+
+def job_src_path(slug: str) -> Path | None:
+    """该任务上传时落盘的源 .txt（用于删除时一并清理）。"""
+    sp = JOBS.get(slug, {}).get("src_path")
+    return Path(sp) if sp else None
+
+
+def cancel_and_forget(slug: str) -> bool:
+    """取消该 slug 的后台改写任务（若在跑）并从内存表移除。返回是否真取消了运行中的任务。"""
+    j = JOBS.pop(slug, None)
+    cancelled = False
+    if j:
+        t = j.get("task")
+        if t is not None and not t.done():
+            t.cancel()
+            cancelled = True
+    JOB_BOOKS.pop(f"{slug}_full", None)
+    return cancelled
 
 
 def job_status(slug: str) -> dict | None:
@@ -52,11 +86,14 @@ def job_status(slug: str) -> dict | None:
 async def _run_job(slug: str, src_path: Path) -> None:
     job = JOBS[slug]
     job["status"] = "running"
-    job["log"].append(f"start · {src_path.name}")
+    job["log"].append(f"start · {src_path.name} · 质量优先(Spine开,精修{QUALITY['refine_rounds']}轮,候选{QUALITY['n_cand']})")
     out_dir = paths.OUTPUT / f"{slug}_full"
     try:
+        if QUALITY["spine"]:
+            os.environ["HIKI_SPINE"] = "1"          # 质量优先:Fact Spine 事前一致性
         import hiki.produce as produce  # 延迟导入：缺依赖/key 在此暴露
-        report = await produce.run(src_path, out_dir=out_dir)
+        report = await produce.run(src_path, out_dir=out_dir,
+                                   n_cand=QUALITY["n_cand"], refine_rounds=QUALITY["refine_rounds"])
         job["report"] = report
         if report.get("rejected") or report.get("deliverable") is False:
             job["status"] = "rejected"
@@ -90,11 +127,27 @@ async def enqueue(orig_name: str, new_name: str, content: bytes) -> dict:
     src_path = paths.SOURCES / f"{_safe_name(new_name or orig_name)}.txt"
     src_path.write_bytes(content)
 
-    JOBS[slug] = {"status": "queued", "stage": 0, "log": [], "error": None}
+    JOBS[slug] = {"status": "queued", "stage": 0, "log": [], "error": None,
+                  "src_path": str(src_path)}
     stub = {"id": f"{slug}_full", "title": new_name or orig_name, "src": orig_name,
             "slug": slug, "genre": "待识别", "grade": "—", "comp": "—", "stage": 0,
             "status": "running", "mode": 0, "human": None, "cost": 0, "uploaded": True}
     JOB_BOOKS[stub["id"]] = stub
 
-    asyncio.create_task(_run_job(slug, src_path))
+    JOBS[slug]["task"] = asyncio.create_task(_run_job(slug, src_path))
     return {"book": stub, "job_slug": slug}
+
+
+async def resume(slug: str) -> dict:
+    """续跑被中断的任务：用 out_dir 已有的 clean 源重跑 produce(B2 续跑,跳过已完成阶段)。"""
+    out_dir = paths.OUTPUT / f"{slug}_full"
+    src = out_dir / "source" / "clean.txt"
+    if not src.exists():
+        cand = sorted((out_dir / "source").glob("*.txt")) if (out_dir / "source").is_dir() else []
+        src = cand[0] if cand else None
+    if src is None:
+        raise FileNotFoundError(f"无可续跑的源(缺 source/clean.txt): {slug}")
+    JOBS[slug] = {"status": "queued", "stage": 0, "log": [f"resume · {src.name}"],
+                  "error": None, "src_path": str(src)}
+    JOBS[slug]["task"] = asyncio.create_task(_run_job(slug, src))
+    return {"job_slug": slug, "resumed": True}

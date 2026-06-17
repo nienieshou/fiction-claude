@@ -12,6 +12,8 @@ from pathlib import Path
 from . import fixtures, paths
 
 _GRADE_SET = {"S", "A", "B", "C", "D", "Q"}
+# 真实 grade.json.mode 是中文串(mining._GRADE_MODE) → 原型 mode int(fixtures.MODE)
+_MODE_STR_TO_INT = {"保真压缩": 1, "强化改写": 2, "类型化重构": 3, "概念级重启": 4}
 
 
 # ---------- human-eval 索引（assets/hfl.jsonl）----------
@@ -55,9 +57,7 @@ def _stage_from_artifacts(d: Path, report: dict | None) -> int:
     return 1
 
 
-def _status_from_report(report: dict | None) -> str:
-    if report is None:
-        return "running"
+def _status_from_report(report: dict) -> str:
     if report.get("rejected") or report.get("deliverable") is False:
         return "rejected"
     if report.get("deliverable") is True:
@@ -65,22 +65,45 @@ def _status_from_report(report: dict | None) -> str:
     return "running"
 
 
+# produce 阶段产物（source/ 之外）= 已进入 Extract 及以后，生产真的开始过
+_PRODUCE_ARTIFACTS = ("bible.json", "grade.json", "plan.json", "macro.json", "final.md")
+
+
+def _produce_started(d: Path) -> bool:
+    return any((d / f).exists() for f in _PRODUCE_ARTIFACTS)
+
+
 def _grade_obj(d: Path) -> dict:
     g = paths.load_json(d / "grade.json")
     return g if isinstance(g, dict) else {}
 
 
-def dir_to_book(d: Path, hidx: dict[str, float]) -> dict:
+def dir_to_book(d: Path, hidx: dict[str, float], active: frozenset[str] = frozenset()) -> dict:
     report = paths.load_json(d / "report.json")
     report = report if isinstance(report, dict) else None
     grade = _grade_obj(d)
     bid = d.name
     slug = bid[:-5] if bid.endswith("_full") else bid
+    # 状态：有 report→认证/拒收；活跃任务→running；已开产但无活跃任务无报告→stalled(中断,可续跑)；仅 source/→idle
+    if report is not None:
+        status = _status_from_report(report)
+    elif slug in active:
+        status = "running"
+    elif _produce_started(d):
+        status = "stalled"
+    else:
+        status = "idle"
+    reject_reason = None
+    if status == "rejected" and report:
+        gate = report.get("交付门")
+        if isinstance(gate, list) and gate and gate != ["通过"]:
+            reject_reason = "；".join(str(x) for x in gate)
+        reject_reason = reject_reason or report.get("reject_why")
     title = (report or {}).get("title") or (report or {}).get("书名") or slug
     g = grade.get("grade") if grade.get("grade") in _GRADE_SET else \
         ((report or {}).get("grade", {}) or {}).get("grade")
     mode_raw = grade.get("mode")
-    mode = mode_raw if isinstance(mode_raw, int) else 0
+    mode = mode_raw if isinstance(mode_raw, int) else _MODE_STR_TO_INT.get(mode_raw, 0)
     human = hidx.get(slug) or hidx.get((report or {}).get("source", "").rsplit(".", 1)[0]) \
         or hidx.get(Path((report or {}).get("source", "")).stem)
     return {
@@ -88,22 +111,21 @@ def dir_to_book(d: Path, hidx: dict[str, float]) -> dict:
         "slug": slug, "genre": grade.get("genre") or (report or {}).get("central_conflict", "") or "待识别",
         "grade": g or "—", "comp": grade.get("compressible") or grade.get("comp") or "—",
         "stage": _stage_from_artifacts(d, report),
-        "status": _status_from_report(report),
+        "status": status,
         "mode": mode, "human": human,
         "cost": round((report or {}).get("cost_cny") or 0),
-        "real": True,
+        "real": True, "reject_reason": reject_reason,
     }
 
 
 # ---------- 列表 / 详情 / 统计 ----------
-def list_books(job_books: list[dict] | None = None) -> list[dict]:
-    """真实 output 子目录 → 摘要；无则回退原型 8 本。并入后台任务 stub。"""
-    dirs = paths.output_dirs()
-    if dirs:
-        hidx = human_index()
-        books = [dir_to_book(d, hidx) for d in dirs]
-    else:
-        books = [copy.deepcopy(b) for b in fixtures.BOOKS]
+def list_books(job_books: list[dict] | None = None,
+               active: frozenset[str] | None = None) -> list[dict]:
+    """真实 output 子目录 → 摘要（无真实产物则返回空，不再回退 demo）。并入后台任务 stub。
+    active = 活跃任务 slug 集合（区分真在跑 vs 仅 ingest 的闲置目录）。"""
+    active = active or frozenset()
+    hidx = human_index()
+    books = [dir_to_book(d, hidx, active) for d in paths.output_dirs()]   # 无真实产物 → 空(不再回退 demo)
     if job_books:
         have = {b["id"] for b in books}
         for jb in job_books:
@@ -132,26 +154,101 @@ def _bible_to_dna(d: Path) -> list[dict] | None:
     return dna or None
 
 
-def _factspine(d: Path) -> list[dict] | None:
-    ft = paths.load_json(d / "fact_table.json")
-    if not isinstance(ft, dict):
+def _bible_to_spine(d: Path) -> list[dict] | None:
+    """Fact Spine 冻结罗斯特来自 bible.json（人物/地点/势力/世界观体系），
+    冲突来自 fact_table.json.findings(高置信)。"""
+    bib = paths.load_json(d / "bible.json")
+    if not isinstance(bib, dict):
         return None
-    groups = []
-    chars = ft.get("characters") or ft.get("人物")
-    if isinstance(chars, list) and chars:
-        items = [{"name": str(c.get("name") or c.get("名") or c), "attr": str(c.get("attr") or c.get("状态") or ""),
-                  "lock": True} for c in chars[:8]]
-        groups.append({"group": "人物登记", "items": items})
+    groups: list[dict] = []
+    chars = []
+    prot = bib.get("protagonist") or {}
+    if prot.get("name"):
+        chars.append({"name": prot["name"],
+                      "attr": str(prot.get("identity") or prot.get("goal") or "主角")[:48], "lock": True})
+    for c in (bib.get("characters") or [])[:12]:
+        if isinstance(c, dict) and c.get("name"):
+            chars.append({"name": c["name"],
+                          "attr": str(c.get("role") or c.get("identity") or c.get("relation_arc") or "")[:48],
+                          "lock": True})
+    if chars:
+        groups.append({"group": "人物登记", "items": chars})
+
+    places = bib.get("places")
+    if isinstance(places, list) and places:
+        items = []
+        for p in places[:8]:
+            nm = p.get("name") if isinstance(p, dict) else str(p)
+            al = "、".join(p.get("aliases") or []) if isinstance(p, dict) else ""
+            if nm:
+                items.append({"name": nm, "attr": al or "地点", "lock": True})
+        if items:
+            groups.append({"group": "地点登记", "items": items})
+
+    ps = bib.get("power_system")
+    factions = bib.get("factions")
+    world = []
+    if ps:
+        world.append({"name": "战力体系", "attr": str(ps)[:80], "lock": True})
+    if isinstance(factions, list):
+        for f in factions[:4]:
+            nm = f.get("name") if isinstance(f, dict) else str(f)
+            if nm:
+                world.append({"name": nm, "attr": "势力", "lock": True})
+    if world:
+        groups.append({"group": "世界观设定", "items": world})
+
+    # 薄网检出的高置信冲突
+    ft = paths.load_json(d / "fact_table.json")
+    if isinstance(ft, dict):
+        hi = [f for f in (ft.get("findings") or [])
+              if isinstance(f, dict) and f.get("conf") == "高"][:6]
+        if hi:
+            groups.append({"group": "Spine 薄网·检出冲突", "items": [
+                {"name": f"{f.get('who', '?')} · {f.get('cat', '')}", "attr": str(f.get("why") or "")[:60],
+                 "lock": False} for f in hi]})
     return groups or None
+
+
+def _plan_to_scenes(d: Path) -> dict | None:
+    """场景 = plan.json.chapters(逐章 + 场景 mode) ⋈ macro.json.chapters(节拍/幕)。"""
+    plan = paths.load_json(d / "plan.json")
+    chs = plan.get("chapters") if isinstance(plan, dict) else None
+    if not isinstance(chs, list) or not chs:
+        return None
+    macro = paths.load_json(d / "macro.json")
+    mbeats = {m.get("i"): m for m in (macro.get("chapters") if isinstance(macro, dict) else [])
+              if isinstance(m, dict)}
+    drafted_all = (d / "final.md").exists()
+    lst = []
+    for ch in chs:
+        if not isinstance(ch, dict):
+            continue
+        i = ch.get("index")
+        scenes = ch.get("scenes") or []
+        has_dram = any(isinstance(s, dict) and s.get("mode") == "DRAMATIZE" for s in scenes)
+        typ = "DRAMATIZE" if has_dram else ("SUMMARIZE" if scenes else "—")
+        m = mbeats.get(i, {})
+        lst.append({"n": i, "type": typ,
+                    "beat": str(m.get("beat") or ch.get("title") or "")[:60],
+                    "status": "pass" if drafted_all else "pending",
+                    "cand": "", "pk": m.get("act") or ""})
+    # 无可靠的单章"高点"信号(高潮幕跨多章) → 不臆造 peaks，UI 显示"—"
+    return {"total": len(chs), "drafted": len(chs) if drafted_all else 0,
+            "peaks": [], "list": lst}
 
 
 def _report_to_gate(report: dict) -> dict | None:
     """真实 report 的确定性硬检 → gate.book/mech（PK 无真值，留给 fixture）。"""
     book = []
+    # 交付门拦截项（拒收主因）置顶为失败条目
+    gate = report.get("交付门")
+    if report.get("deliverable") is False and isinstance(gate, list) and gate and gate != ["通过"]:
+        for issue in gate:
+            book.append({"k": "交付门拦截", "pass": False, "note": str(issue)})
     fc = report.get("final_consistent")
     if fc is not None:
-        book.append({"k": "全书连续性审计", "pass": bool(fc),
-                     "note": "；".join(report.get("交付门") or []) if not fc else "✓"})
+        book.append({"k": "全书连续性审计", "pass": bool(fc), "note": "✓" if fc else "不一致"})
     audit = report.get("audit_承重_确定性硬检")
     if isinstance(audit, dict):
         book.append({"k": "承重确定性硬检", "pass": "全过" in audit, "note": str(list(audit)[:3])})
@@ -180,9 +277,22 @@ def book_detail(book_id: str, job_books: list[dict] | None = None) -> dict:
         dna = _bible_to_dna(d)
         if dna:
             base["dna"] = dna
-        spine = _factspine(d)
+        spine = _bible_to_spine(d)
         if spine:
             base["spine"] = spine
+        scenes = _plan_to_scenes(d)
+        if scenes:
+            base["scenes"] = scenes
+        # gate：有 report 用确定性硬检；否则用 fact_table 薄网兜底（真矛盾计数）
+        if not report:
+            ft = paths.load_json(d / "fact_table.json")
+            sn = ft.get("spine_net") if isinstance(ft, dict) else None
+            if isinstance(sn, dict):
+                base["gate"] = {"mech": [], "pk": (base.get("gate") or {}).get("pk") or [], "book": [
+                    {"k": "Spine 薄网·数值真矛盾", "pass": (sn.get("数值真矛盾", 0) == 0),
+                     "note": f"{sn.get('数值真矛盾', 0)} 条"},
+                    {"k": "Spine 薄网·身份真矛盾", "pass": (sn.get("身份真矛盾", 0) == 0),
+                     "note": f"{sn.get('身份真矛盾', 0)} 条"}]}
         if report:
             gate = _report_to_gate(report)
             if gate:
