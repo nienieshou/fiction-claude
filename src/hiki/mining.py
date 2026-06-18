@@ -59,8 +59,10 @@ async def _extract_life_one(cli: Client, chunk: str) -> dict:
     sys_p, usr_t = prompts.LIFE_EVENTS
     raw = await cli.complete("chunk_extract", sys_p, usr_t.format(chunk=chunk[:60000]),
                              json_mode=True, max_tokens=1500, temperature=0.2)
-    r = gate._safe_json(raw) or {}
-    return {"life_events": r.get("life_events") or []}
+    r = gate._safe_json(raw)
+    # flaky LLM 偶尔直接吐裸数组 [...] 而非 {"life_events":[...]} → 容忍两种,绝不崩整本
+    events = r if isinstance(r, list) else (r.get("life_events") or [] if isinstance(r, dict) else [])
+    return {"life_events": [e for e in events if isinstance(e, dict)]}
 
 
 async def extract_life_events_pass(cli: Client, chunks: list[str]) -> list[dict]:
