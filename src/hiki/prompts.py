@@ -247,6 +247,7 @@ PLAN_CHAPTER = ("你是网文分章规划师。在全书节拍约束下，把本
   "scenes":[{{"mode":"DRAMATIZE|SUMMARIZE","brief":"本场景要写什么(含钩子/爽点;并写明主角本场景要**主动**做的、推进其目标的一件事)",
     "source_scene_index":<取用的全局场景序号,无则-1>,
     "event_id":"核心事件唯一短标签(全书不重复)",
+    "location":"本场景发生地点(**只用下方冻结地点表中的规范地名**,禁中途改地名换城;跨地点须在brief写明过渡;无地点表或现实题材可写实际场所如'公司/医院')",
     "first_appearances":["本场景首次登场人物(全书每人只一次)"],
     "relationships_formed":[["甲","乙"]],
     "time_marker":"时间点(单调推进)",

@@ -418,7 +418,7 @@ def _spine_world(bible: dict) -> str:
     """M2 失效类: 世界观体系登记表(地点/势力/战力体系钉死),治地名横跳+战力体系乱序。"""
     out = ""
     places = [p.get("name", "").strip() for p in (bible.get("places") or [])
-              if isinstance(p, dict) and p.get("name")][:12]
+              if isinstance(p, dict) and p.get("name")][:20]   # 容纳 enrich_places 自愈回灌的新地名
     facs = [f.get("name", "").strip() for f in (bible.get("factions") or [])
             if isinstance(f, dict) and f.get("name")][:8]
     sysdef = (bible.get("power_system") or "").strip()
@@ -840,6 +840,10 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
                               if isinstance(f, dict) and f.get("item") and f.get("value"))[:1500]
         if facts_line:
             bible_brief += ("\n【冻结设定数值(全书单值,节拍涉及时只用这些值)】\n" + facts_line)
+        places_line = "、".join(p.get("name", "").strip() for p in (bible.get("places") or [])
+                               if isinstance(p, dict) and p.get("name"))[:1200]
+        if places_line:                                  # Plan-地点槽:场景 location 只从冻结地名取(治地名横跳+承重锚定)
+            bible_brief += ("\n【冻结地点表(全书规范地名,场景 location 只用这些,跨地写明过渡)】\n" + places_line)
     def _beat_brief(b: dict) -> str:
         return (b.get("beat") or "")[:60] or "（无）"
     plan_chs = await asyncio.gather(*[
@@ -877,6 +881,13 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
     pw_fixed = audit.fix_power_monotonic(bible, ordered)  # 维5 shift-left:修为只升不降钉进plan
     if pw_fixed:
         print(f"确定性修复: {len(pw_fixed)} 个修为回退钉回当前最高(治正文修为乱序): {pw_fixed[:4]}")
+    added_places = audit.enrich_places(bible, ordered)   # (b)地名表自愈:plan复现的物理新地名回灌bible→喂draft+降漂移
+    if added_places:
+        print(f"地点表自愈: 回灌 {len(added_places)} 个复现新地名→bible.places(治抽取召回缺口): {added_places[:6]}")
+    place_drift = audit.check_places(bible, ordered)     # Plan-地点槽 advisory:场景location漂移(enrich后,新维不进门)
+    n_loc = sum(1 for s in ordered if (s.get("location") or "").strip())
+    if place_drift or n_loc:
+        print(f"地点槽: {n_loc}/{len(ordered)} 场景有location | 漂移(advisory){len(place_drift)}: {place_drift[:4]}")
     for ch in plan["chapters"]:                          # 章尾钩纪律(治'每章结尾钩子弱')
         hk = (ch.get("end_hook") or "").strip()
         if hk and ch["scenes"]:
@@ -915,7 +926,8 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
     print(f"规划:{len(plan['chapters'])}章/{n_scenes}场景 | 承重硬检残留={sum(len(v) for v in det_struct.values())} → 起草...")
     return {"plan": plan, "beats": beats, "ordered": ordered, "n_scenes": n_scenes, "macro": macro,
             "stats": {"dropped": dropped, "hs_found": hs_found, "hs_fixed": hs_fixed,
-                      "ev_fixed": ev_fixed, "plan_dups": plan_dups, "pw_fixed": pw_fixed}}
+                      "ev_fixed": ev_fixed, "plan_dups": plan_dups, "pw_fixed": pw_fixed,
+                      "place_drift": place_drift, "loc_coverage": [n_loc, len(ordered)]}}
 
 
 async def _stage_draft(cli: Client, bible: dict, scenes: list, p: dict, plan: dict, ordered: list,

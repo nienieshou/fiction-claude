@@ -99,6 +99,68 @@ def _str_pair(pair):
     return None
 
 
+def _places_of(bible: dict) -> tuple[list, dict]:
+    """canon 地名表 + 别名→canon。供 Plan-地点槽漂移检测。"""
+    canon, alias = [], {}
+    for p in bible.get("places") or []:
+        if not isinstance(p, dict):
+            continue
+        nm = (p.get("name") or "").strip()
+        if not nm:
+            continue
+        canon.append(nm)
+        for a in p.get("aliases") or []:
+            if a.strip() and a.strip() != nm:
+                alias[a.strip()] = nm
+    return canon, alias
+
+
+# (a) 非物理场所白名单:梦境/回忆/幻境类不进地名表,本不该判漂移(plan-only 实测 15%漂移里这类占一截)
+_NONPHYS_LOC = ("梦境", "梦中", "梦里", "回忆", "幻境", "幻象", "幻觉", "想象", "脑海", "心象", "识海", "往事", "记忆")
+
+
+def check_places(bible: dict, scenes: list[dict]) -> list[str]:
+    """维(地点) advisory:场景 location 漂移检测——非空但既非任一 canon 地名子串、也非别名、也非非物理场所→记一条。
+    宽松判(子串匹配),避免'大王村村口'这类合法描述误报;缺失 location 不算漂移(另由覆盖率看)。
+    新维先 advisory 不进交付门(event_audit 先例);bible 无 places(现言/无明确地理)→空,免整类误杀。"""
+    canon, alias = _places_of(bible)
+    if not canon:
+        return []
+    out = []
+    for i, sc in enumerate(scenes):
+        if not isinstance(sc, dict):
+            continue
+        loc = (sc.get("location") or "").strip()
+        if loc and loc not in alias and not any(c in loc for c in canon) \
+                and not any(w in loc for w in _NONPHYS_LOC):
+            out.append(f"场景{i}:{loc}(非canon地点)")
+    return out
+
+
+def enrich_places(bible: dict, scenes: list[dict], min_count: int = 2) -> list[str]:
+    """(b) 地名表自愈:plan 发现的、复现≥min_count 的物理新地名(非canon/非别名/非梦境类/非过渡串)
+    回灌 bible.places → 喂给 draft 的 _spine_world,并降低后续漂移误报。
+    治 bible 地点抽取召回缺口(mine 截断/漏抽);无 canon 地理体系书不强行造地点。原地改 bible,返回新增名。"""
+    canon, alias = _places_of(bible)
+    if not canon:
+        return []
+    from collections import Counter
+    cnt: Counter = Counter()
+    for sc in scenes:
+        if not isinstance(sc, dict):
+            continue
+        loc = (sc.get("location") or "").strip()
+        if not loc or loc in alias or any(c in loc for c in canon):
+            continue
+        if any(w in loc for w in _NONPHYS_LOC) or "→" in loc or "、" in loc:   # 非物理/过渡串/多地不收
+            continue
+        cnt[loc] += 1
+    added = [p for p, c in cnt.most_common() if c >= min_count][:12]   # 复现才收,封顶12防失控
+    if added:
+        bible.setdefault("places", []).extend({"name": p} for p in added)
+    return added
+
+
 def _known_factions(bible: dict) -> set:
     """全书已登记的 canon 阵营名集合（防 entourage 自由文本'队友/己方'被误判串线）。"""
     s = set()
