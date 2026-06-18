@@ -251,6 +251,34 @@ def test_delete_unknown_book_404(fake_output):
     assert r.status_code == 404
 
 
+# ---------- 产物下载: 中文 slug 不得让 Content-Disposition 头 latin-1 编码崩(500) ----------
+def test_download_generated_artifact_with_cjk_slug(fake_output):
+    # 拒收本只生成 diagnostic.json/cost_ledger.json(无真实文件)→ 走手搓 Response 头路径。
+    # slug 含中文时,旧代码把原始中文塞进 Content-Disposition → starlette latin-1 编码 500。
+    from fastapi.testclient import TestClient
+    from web.backend import app as appmod
+
+    bid = "ZTGGX02751听说我死后成了反派白月光_20260617_full"
+    d = fake_output / bid
+    _write(d, "report.json", {"deliverable": False, "交付门": ["维14死人复活"], "cost_cny": 2})
+    _write(d, "grade.json", {"grade": "A"})
+
+    client = TestClient(appmod.app)
+    for name in ("diagnostic.json", "cost_ledger.json"):
+        r = client.get(f"/api/books/{bid}/artifacts/{name}")
+        assert r.status_code == 200, f"{name}: {r.status_code}"
+        cd = r.headers["content-disposition"]
+        cd.encode("latin-1")                       # 头必须 latin-1 可编码,否则 ASGI 崩
+        assert "filename*=utf-8''" in cd.lower()    # RFC 5987 带中文文件名
+
+
+def test_content_disposition_is_latin1_safe():
+    from web.backend import app as appmod
+    cd = appmod._content_disposition("反派白月光_20260617.diagnostic.json")
+    cd.encode("latin-1")                            # 不抛 UnicodeEncodeError
+    assert "filename*=utf-8''" in cd.lower()
+
+
 def test_upload_dedupes_against_library(monkeypatch, tmp_path):
     lib = tmp_path / "fictions_source"
     lib.mkdir()

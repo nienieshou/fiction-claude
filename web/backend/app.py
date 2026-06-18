@@ -14,6 +14,7 @@ import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 # Windows 下服务进程默认 GBK stdout，produce.py finalize 会 print emoji(⛔⚠)→UnicodeEncodeError 崩溃。
 # 与 CLI 入口一致改 UTF-8，避免改写任务在 finalize 崩。
@@ -163,6 +164,15 @@ def delete_book(book_id: str) -> dict:
 
 
 # ---------- 产物下载 ----------
+def _content_disposition(filename: str) -> str:
+    """RFC 6266 attachment 头，容忍中文 slug。
+    HTTP 头只能 latin-1；中文文件名直接塞进 filename= 会让 starlette latin-1 编码崩(500，
+    见 download_artifact 手搓 Response 头路径)。给 ASCII 回退 + RFC 5987 filename*=utf-8''<百分号编码>，
+    与 starlette FileResponse 对非 ASCII 名的处理一致。"""
+    ascii_fb = filename.encode("ascii", "ignore").decode("ascii") or "download"
+    return f"attachment; filename=\"{ascii_fb}\"; filename*=utf-8''{quote(filename)}"
+
+
 def _today() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d")
 
@@ -230,7 +240,7 @@ def download_artifact(book_id: str, name: str) -> Response:
     fn, mime = gen
     text = fn(sel, adapters.book_detail(book_id, runner.job_books()))
     return Response(content=text, media_type=mime,
-                    headers={"Content-Disposition": f'attachment; filename="{sel.get("slug")}.{name}"'})
+                    headers={"Content-Disposition": _content_disposition(f"{sel.get('slug')}.{name}")})
 
 
 # ---------- 前端静态 ----------

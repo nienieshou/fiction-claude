@@ -418,7 +418,7 @@ def _spine_world(bible: dict) -> str:
     """M2 失效类: 世界观体系登记表(地点/势力/战力体系钉死),治地名横跳+战力体系乱序。"""
     out = ""
     places = [p.get("name", "").strip() for p in (bible.get("places") or [])
-              if isinstance(p, dict) and p.get("name")][:12]
+              if isinstance(p, dict) and p.get("name")][:20]   # 容纳 enrich_places 自愈回灌的新地名
     facs = [f.get("name", "").strip() for f in (bible.get("factions") or [])
             if isinstance(f, dict) and f.get("name")][:8]
     sysdef = (bible.get("power_system") or "").strip()
@@ -840,6 +840,10 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
                               if isinstance(f, dict) and f.get("item") and f.get("value"))[:1500]
         if facts_line:
             bible_brief += ("\n【冻结设定数值(全书单值,节拍涉及时只用这些值)】\n" + facts_line)
+        places_line = "、".join(p.get("name", "").strip() for p in (bible.get("places") or [])
+                               if isinstance(p, dict) and p.get("name"))[:1200]
+        if places_line:                                  # Plan-地点槽:场景 location 只从冻结地名取(治地名横跳+承重锚定)
+            bible_brief += ("\n【冻结地点表(全书规范地名,场景 location 只用这些,跨地写明过渡)】\n" + places_line)
     def _beat_brief(b: dict) -> str:
         return (b.get("beat") or "")[:60] or "（无）"
     plan_chs = await asyncio.gather(*[
@@ -877,6 +881,13 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
     pw_fixed = audit.fix_power_monotonic(bible, ordered)  # 维5 shift-left:修为只升不降钉进plan
     if pw_fixed:
         print(f"确定性修复: {len(pw_fixed)} 个修为回退钉回当前最高(治正文修为乱序): {pw_fixed[:4]}")
+    added_places = audit.enrich_places(bible, ordered)   # (b)地名表自愈:plan复现的物理新地名回灌bible→喂draft+降漂移
+    if added_places:
+        print(f"地点表自愈: 回灌 {len(added_places)} 个复现新地名→bible.places(治抽取召回缺口): {added_places[:6]}")
+    place_drift = audit.check_places(bible, ordered)     # Plan-地点槽 advisory:场景location漂移(enrich后,新维不进门)
+    n_loc = sum(1 for s in ordered if (s.get("location") or "").strip())
+    if place_drift or n_loc:
+        print(f"地点槽: {n_loc}/{len(ordered)} 场景有location | 漂移(advisory){len(place_drift)}: {place_drift[:4]}")
     for ch in plan["chapters"]:                          # 章尾钩纪律(治'每章结尾钩子弱')
         hk = (ch.get("end_hook") or "").strip()
         if hk and ch["scenes"]:
@@ -915,7 +926,8 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
     print(f"规划:{len(plan['chapters'])}章/{n_scenes}场景 | 承重硬检残留={sum(len(v) for v in det_struct.values())} → 起草...")
     return {"plan": plan, "beats": beats, "ordered": ordered, "n_scenes": n_scenes, "macro": macro,
             "stats": {"dropped": dropped, "hs_found": hs_found, "hs_fixed": hs_fixed,
-                      "ev_fixed": ev_fixed, "plan_dups": plan_dups, "pw_fixed": pw_fixed}}
+                      "ev_fixed": ev_fixed, "plan_dups": plan_dups, "pw_fixed": pw_fixed,
+                      "place_drift": place_drift, "loc_coverage": [n_loc, len(ordered)]}}
 
 
 async def _stage_draft(cli: Client, bible: dict, scenes: list, p: dict, plan: dict, ordered: list,
@@ -1039,10 +1051,12 @@ async def _ending_guard(cli: Client, ch_texts: list[str]) -> dict:
     return {"ch_texts": ch_texts, "ending_fixed": ending_fixed, "climax_skipped": climax_skipped}
 
 
-async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path) -> dict:
+async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path,
+                             life_arcs: dict | None = None) -> dict:
     """4i 事实表对账 + 生死/修为定向修复 + §3.6 Spine薄网。原地修 ch_texts、落 fact_table.json。
     → {ch_texts,fact_table_ok,fact_audit_crashed,spine_net_num,spine_net_id,ft_deaths_verified,fact_adv}。
     (A1/A2 硬化:抽取覆盖不足/非预期崩溃→fact_audit_crashed 计入门;B1-5 独立 scope。)"""
+    life_arcs = life_arcs or {}
     ft_deaths_verified: list[dict] = []
     fact_table_ok = False
     fact_audit_crashed = False
@@ -1063,8 +1077,15 @@ async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path) ->
         if ft_deaths_verified:                        # R9b: 拦不如修——verify过的复活直喂修复器
             ch_texts = await prose_continuity.repair_revivals_smart(cli, ch_texts, ft_deaths_verified)
             residual = await prose_continuity.verify_revivals(cli, ch_texts, ft_deaths_verified)
-            print(f"事实表生死: {len(ft_deaths_verified)} 处verify确认 → 定向修复 → 残留{len(residual)}")
-            ft_deaths_verified = residual
+            # 和解感知:源书确有死而复生(dies_returns)→降advisory不进门(治桑念类误杀);源永久死却被写活→仍进门(逮袁麟类真矛盾)
+            gate_rev = [r for r in residual if audit.reconcile_revival(life_arcs, r.get("who")) == "gate"]
+            adv_rev = [r for r in residual if r not in gate_rev]
+            print(f"事实表生死: {len(ft_deaths_verified)}处verify → 修复 → 残留{len(residual)}"
+                  f"(进门{len(gate_rev)}/源弧和解降级{len(adv_rev)})")
+            if adv_rev:
+                fact_adv += [f"{r.get('who')}源书死而复生/假死归来(源弧和解),复写复活beat或欠铺垫(建议补,非死人复活硬伤)"
+                             for r in adv_rev]
+            ft_deaths_verified = gate_rev
         ft["生死_verify后"] = [f"{r['who']}(第{r['revive_ch'] + 1}章)" for r in ft_deaths_verified]
         pw_cand = [f for f in ft["findings"] if f.get("cat") == "数值" and f.get("conf") == "中"
                    and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= len(ch_texts)]
@@ -1329,7 +1350,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     # 4h) 章尾句界强制(残句裁掉,治'断在逗号上')
     ch_texts = [_trim_tail(t) for t in ch_texts]
     # 4i) 事实表对账+生死/修为修复+薄网(B1-5 → _fact_audit_repair)
-    fa = await _fact_audit_repair(cli, ch_texts, out_dir)
+    fa = await _fact_audit_repair(cli, ch_texts, out_dir, bible.get("life_arcs"))
     ch_texts = fa["ch_texts"]
     fact_table_ok, fact_audit_crashed = fa["fact_table_ok"], fa["fact_audit_crashed"]
     spine_net_num, spine_net_id = fa["spine_net_num"], fa["spine_net_id"]

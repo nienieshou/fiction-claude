@@ -189,6 +189,14 @@ output/<源名>_full/
 
 > 设计公理：A4 源是脊柱、提分靠选不靠写；A5 对照评估破 Goodhart；A7 成本自适应、救不动则拒；A8 人是老师不是操作员。详见 `src/hiki/__init__.py` 与架构 spec。
 
+> **生死门和解（R16）**：死人复活门现按 `bible.life_arcs`（mine 全文窗读抽的源书生死弧，`mining.collect_life_events`）和解——
+> 源书确有死而复生/假死归来（`dies_returns`/`fake_death`）的角色，复写让其"死后又活"**不进门**（降 advisory，治忠实复活误杀，如桑念）；
+> 源书永久死（`dies_final`）却被复写写活、或无弧/抽取失败的，**仍进门**（保守拦真矛盾，如袁麟）。
+> **现状与局限（诚实标注）**：判定逻辑正确且保守安全（缺弧→仍拦，绝不误放）；但生死弧抽取**搭在多任务 `EXTRACT_CHUNK` 上、召回不足**——
+> 集成探针实测 `dies_final` 案例（袁麟/卢炳元）命中、但 `dies_returns` 难例（桑念）漏抽（无弧→仍按现行拦截）。
+> 即"和解门已就位且不会误放，但'救忠实复活'尚未稳定生效"，需后续给生死弧做**专用抽取 pass 或更细窗**提召回（见 `docs/superpowers/plans/` forward-injection / recall 后续）。
+> 另：当前只据源弧 `fate` 判 gate/advisory，未校验复写是否真渲染了复活 beat（"漏复活情节"类暂随 advisory）。
+
 ---
 
 ## 6. 配置文件

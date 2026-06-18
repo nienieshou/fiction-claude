@@ -115,6 +115,36 @@ def collect_places(chunk_results: list[dict]) -> str:
     return "、".join(f"{p}(×{n})" for p, n in c.most_common(40)) if c else "(无)"
 
 
+def collect_life_events(chunk_results: list[dict]) -> dict:
+    """跨窗归并人物生死事件 → 生死弧。chunk_results 按窗序(=时间序)排列。
+    有死亡且其后(含同窗)有复活 → dies_returns;只死 → dies_final;只复活无死亡 → 不建弧(噪声)。
+    供 mine 冻进 bible['life_arcs'],喂和解感知生死门(audit.reconcile_revival)。"""
+    ev: dict = {}
+    for wi, r in enumerate(chunk_results):
+        if not isinstance(r, dict):
+            continue
+        for e in (r.get("life_events") or []):
+            who = (e.get("who") or "").strip()
+            t = e.get("type")
+            if not who or t not in ("死亡", "复活"):
+                continue
+            d = ev.setdefault(who, {"deaths": [], "returns": [], "death_q": "", "return_q": ""})
+            if t == "死亡":
+                d["deaths"].append(wi)
+                d["death_q"] = d["death_q"] or (e.get("quote") or "")[:30]
+            else:
+                d["returns"].append(wi)
+                d["return_q"] = d["return_q"] or (e.get("quote") or "")[:30]
+    arcs = {}
+    for who, d in ev.items():
+        if not d["deaths"]:
+            continue
+        fate = "dies_returns" if (d["returns"] and max(d["returns"]) >= min(d["deaths"])) else "dies_final"
+        arcs[who] = {"fate": fate, "death_q": d["death_q"], "return_q": d["return_q"],
+                     "deaths": sorted(d["deaths"]), "returns": sorted(d["returns"])}
+    return arcs
+
+
 def scene_stats(scenes: list[dict]) -> str:
     c = Counter(sc.get("scene_type", "其它") for sc in scenes)
     return "、".join(f"{k}×{v}" for k, v in c.most_common())
@@ -263,5 +293,6 @@ async def mine_book(cli: Client, clean: str, n_chunks: int, keep_scenes: int) ->
     bible = await reduce_bible(cli, results, all_scenes)
     kept = await score_scenes(cli, all_scenes, keep_scenes)
     grade = await grade_source(cli, bible, dark=dark)
+    bible["life_arcs"] = collect_life_events(results)   # 生死弧冻进 bible,喂和解感知生死门
     return {"bible": bible, "scenes": kept, "all_scene_count": len(all_scenes),
             "chunks": len(chunks), "grade": grade}
