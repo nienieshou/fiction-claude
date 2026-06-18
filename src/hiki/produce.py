@@ -1083,7 +1083,7 @@ async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path,
             print(f"事实表生死: {len(ft_deaths_verified)}处verify → 修复 → 残留{len(residual)}"
                   f"(进门{len(gate_rev)}/源弧和解降级{len(adv_rev)})")
             if adv_rev:
-                fact_adv += [f"{r.get('who')}源书死而复生(dies_returns),复写复活beat或欠铺垫(建议补,非死人复活硬伤)"
+                fact_adv += [f"{r.get('who')}源书死而复生/假死归来(源弧和解),复写复活beat或欠铺垫(建议补,非死人复活硬伤)"
                              for r in adv_rev]
             ft_deaths_verified = gate_rev
         ft["生死_verify后"] = [f"{r['who']}(第{r['revive_ch'] + 1}章)" for r in ft_deaths_verified]
