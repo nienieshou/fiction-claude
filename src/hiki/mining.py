@@ -55,6 +55,21 @@ async def map_extract(cli: Client, chunks: list[str]) -> list[dict]:
     return await asyncio.gather(*[_extract_one(cli, c, i) for i, c in enumerate(chunks)])
 
 
+async def _extract_life_one(cli: Client, chunk: str) -> dict:
+    sys_p, usr_t = prompts.LIFE_EVENTS
+    raw = await cli.complete("chunk_extract", sys_p, usr_t.format(chunk=chunk[:60000]),
+                             json_mode=True, max_tokens=1500, temperature=0.2)
+    r = gate._safe_json(raw) or {}
+    return {"life_events": r.get("life_events") or []}
+
+
+async def extract_life_events_pass(cli: Client, chunks: list[str]) -> list[dict]:
+    """方案B:专用轻 prompt 只抽生死事件,与主 map_extract 并发跑**同一批 chunks**
+    (prefix 缓存命中→输入近零)。返回按窗序的 [{"life_events":[...]}],喂 collect_life_events。
+    实测召回 > 多任务 EXTRACT_CHUNK(后者已撤回 life_events)。"""
+    return await asyncio.gather(*[_extract_life_one(cli, c) for c in chunks])
+
+
 # ============ ③ REDUCE 准备：确定性归并 ============
 
 def merge_scenes(chunk_results: list[dict]) -> list[dict]:
@@ -288,11 +303,12 @@ async def grade_source(cli: Client, bible: dict, dark: dict | None = None) -> di
 async def mine_book(cli: Client, clean: str, n_chunks: int, keep_scenes: int) -> dict:
     """clean全本 → {bible(厚), scenes(全局池,已打分筛选), grade}。暗黑预扫与 map 抽取并发。"""
     chunks = chunk_by_chapters(clean, n_chunks=n_chunks)
-    results, dark = await asyncio.gather(map_extract(cli, chunks), dark_prescan(cli, clean))
+    results, dark, life_results = await asyncio.gather(
+        map_extract(cli, chunks), dark_prescan(cli, clean), extract_life_events_pass(cli, chunks))
     all_scenes = merge_scenes(results)
     bible = await reduce_bible(cli, results, all_scenes)
     kept = await score_scenes(cli, all_scenes, keep_scenes)
     grade = await grade_source(cli, bible, dark=dark)
-    bible["life_arcs"] = collect_life_events(results)   # 生死弧冻进 bible,喂和解感知生死门
+    bible["life_arcs"] = collect_life_events(life_results)   # 方案B:专用pass(同窗,缓存近零),召回优于主MAP
     return {"bible": bible, "scenes": kept, "all_scene_count": len(all_scenes),
             "chunks": len(chunks), "grade": grade}
