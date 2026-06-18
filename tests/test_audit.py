@@ -1,6 +1,6 @@
 """audit.py 纯函数:broken_prose 合成用例 + _power_rank/power_order_from_bible。零 API。
 (原 scripts/_test_broken_prose.py + _test_r13_units #6 迁入;file-dependent 部分略去保持可移植)"""
-from hiki.audit import broken_prose, _power_rank, power_order_from_bible, check_places, enrich_places
+from hiki.audit import broken_prose, _power_rank, power_order_from_bible, check_places, enrich_places, reconcile_revival
 
 
 # ---------- 地点漂移 advisory(Plan-地点槽) ----------
@@ -71,3 +71,13 @@ def test_power_rank_paren_not_hijacked():
 def test_power_order_from_bible():
     assert power_order_from_bible({"escalation_ladder": "练气→筑基→金丹，赌注…"}) == ["练气", "筑基", "金丹"]
     assert power_order_from_bible({"escalation_ladder": "瞎写的"}) is None   # 解析不出→退默认梯
+
+
+def test_reconcile_revival():
+    la = {"桑念": {"fate": "dies_returns"}, "袁麟": {"fate": "dies_final"},
+          "甲": {"fate": "fake_death"}}
+    assert reconcile_revival(la, "桑念") == "advisory"   # 源书确有复活 → 放行(门误杀那类)
+    assert reconcile_revival(la, "甲") == "advisory"     # 假死归来 → 放行
+    assert reconcile_revival(la, "袁麟") == "gate"        # 源书永久死却被写活 → 仍拦(真矛盾)
+    assert reconcile_revival(la, "无名") == "gate"        # 无弧 → 保守拦(沿用现行,绝不放过未知)
+    assert reconcile_revival({}, "谁") == "gate"          # 无 life_arcs(老书/抽取失败)→ 保守拦

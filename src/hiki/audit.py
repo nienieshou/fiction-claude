@@ -161,6 +161,14 @@ def enrich_places(bible: dict, scenes: list[dict], min_count: int = 2) -> list[s
     return added
 
 
+def reconcile_revival(life_arcs: dict, who: str) -> str:
+    """和解感知生死门:据源书生死弧判一处"死后又活"该 gate 还是 advisory。
+    源书确有死而复生/假死归来(dies_returns/fake_death)→ advisory(复写忠实复活,不进门,误杀那类);
+    其余(dies_final/never_dies/无弧/无 life_arcs)→ gate(源永久死却被写活=真矛盾,或未知→保守拦)。"""
+    arc = (life_arcs or {}).get(who) or {}
+    return "advisory" if arc.get("fate") in ("dies_returns", "fake_death") else "gate"
+
+
 def _known_factions(bible: dict) -> set:
     """全书已登记的 canon 阵营名集合（防 entourage 自由文本'队友/己方'被误判串线）。"""
     s = set()
