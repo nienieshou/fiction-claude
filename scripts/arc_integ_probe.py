@@ -10,7 +10,7 @@ from hiki import mining, audit
 
 CASES = [("output/ZTGGX02751听说我死后成了反派白月光_20260617_full", {"桑念": "dies_returns"}),
          ("output/_rerun_ZYGGX02148", {"袁麟": "dies_final", "卢炳元": "dies_final"})]
-N_CHUNKS = 12
+N_CHUNKS = int(sys.argv[1]) if len(sys.argv) > 1 else 12   # 方案A:提窗数(12/20/24)看是否够救回难例
 
 async def main():
     cli = Client()
