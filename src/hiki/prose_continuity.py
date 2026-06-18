@@ -218,6 +218,31 @@ async def verify_revivals(cli: Client, ch_texts: list[str], revivals: list[dict]
     return out
 
 
+async def verify_revival_beats(cli: Client, ch_texts: list[str], revivals: list[dict]) -> list[dict]:
+    """项1:逐条核查复写是否**清楚交代了归来机制**——③忠实复活(树精重生/借尸还魂等,内部自洽,可放)
+    vs ②漏复活(死后突兀出场无说明=真矛盾,进门)。窗口=死亡章→再现章。给每条加 beat_rendered(True/False/None)。
+    实证(_revalidate):桑念=True(树精)、上官尔蓝=True(借尸还魂)、纳珈=False(突兀出场)——精确区分,优于源弧/维14。"""
+    sys_p, usr_t = prompts.LIFE_BEAT
+    segs = []
+    for r in revivals:
+        rch = r["revive_ch"]
+        dch = r.get("death_ch")
+        lo = dch if (isinstance(dch, int) and 0 <= dch <= rch) else max(0, rch - 2)
+        segs.append((r, lo, "\n\n".join(ch_texts[lo:rch + 1])[:24000]))
+    checks = await asyncio.gather(*[
+        cli.complete("fact_audit", sys_p,
+                     usr_t.format(who=r["who"], ca=lo + 1, cb=r["revive_ch"] + 1, text=seg),
+                     json_mode=True, max_tokens=900, temperature=0.2) for r, lo, seg in segs])
+    out = []
+    for (r, lo, seg), c in zip(segs, checks):
+        v = _safe_json(c)
+        r2 = dict(r)
+        r2["beat_rendered"] = (v.get("beat_rendered") if isinstance(v, dict) and "beat_rendered" in v else None)
+        r2["beat_mech"] = (v.get("mechanism") if isinstance(v, dict) else None)
+        out.append(r2)
+    return out
+
+
 async def repair_revivals(cli: Client, ch_texts: list[str], revivals: list[dict], cap: int = 6) -> list[str]:
     """定向重写复活章(只改死人出场处,其余不动)。按章分组(同章多死人一次改),限 cap。"""
     sys_p, usr_t = prompts.PROSE_REVIVAL_FIX

@@ -189,13 +189,13 @@ output/<源名>_full/
 
 > 设计公理：A4 源是脊柱、提分靠选不靠写；A5 对照评估破 Goodhart；A7 成本自适应、救不动则拒；A8 人是老师不是操作员。详见 `src/hiki/__init__.py` 与架构 spec。
 
-> **生死门和解（R16）**：死人复活门按 `bible.life_arcs`（源书生死弧，`mining.collect_life_events`）和解——
-> 源书确有死而复生/假死归来（`dies_returns`/`fake_death`）的角色，复写让其"死后又活"**不进门**（降 advisory，治忠实复活误杀，如桑念）；
-> 源书永久死（`dies_final`）却被复写写活、或无弧/抽取失败的，**仍进门**（保守拦真矛盾，如袁麟）。
-> **生死弧抽取 = 专用轻 prompt 细窗 pass**（`mining.extract_life_events_pass`，`LIFE_EVENTS`）：与主 MAP 并发、独立细分到 `n_life≥20`（~30k 字/窗，封顶 48），实证召回优于搭多任务 `EXTRACT_CHUNK`。
-> 集成探针（`scripts/arc_integ_probe.py`）实测 production 路径：桑念 `dies_returns`→advisory（救回）、袁麟/卢炳元 `dies_final`→gate（仍拦），三例全中。
-> **安全不变量**：缺弧/抽取失败 → 默认仍 gate，召回波动只影响"能不能救"，绝不误放真矛盾。
-> **余下局限**：当前只据源弧 `fate` 判 gate/advisory，未校验复写是否真渲染了复活 beat（"漏复活情节"类暂随 advisory）；前向预防（喂 plan/draft 遵从源弧）见 `docs/superpowers/plans/` forward-injection 后续。
+> **生死门和解（R16）**：死人复活门残留按**文本复活 beat 检测**（`prose_continuity.verify_revival_beats`，`LIFE_BEAT`）判——
+> 复写**清楚交代了归来机制**（树精重生/借尸还魂/假死被揭穿…读者看得懂为何还活着）= ③忠实复活 → 降 advisory；
+> 死后**突兀出场、毫无说明** = ②漏复活/真矛盾 → 进门。beat 检测失败时退回源弧和解（`bible.life_arcs`：`dies_returns`→放）。
+> _revalidate 真实正文实证：桑念✅树精重生→放、上官尔蓝✅借尸还魂→放、纳珈✅突兀出场→拦（精确区分 ③/②，**优于维14取交集**——后者会误杀上官尔蓝/桑念这类清晰重生）。
+> **生死弧抽取**（喂源弧/项2 用）= 专用轻 prompt **定向细窗 pass**（`extract_life_events_pass`+`roster_str`）：bible 就绪后串行、细分 `n_life≥20`、喂 roster 逐角色核查，治开放抽取漏配角死亡。
+> **安全不变量**：beat 检测+源弧都判不出 → 默认仍 gate，绝不误放真矛盾。
+> **余下局限/后续**：前向预防（喂 plan/draft 遵从源弧，dies_final 禁写活/dies_returns 要求渲染复活）见 `docs/superpowers/plans/` forward-injection（项2，数据显示当前低杠杆，暂缓）。
 
 ---
 

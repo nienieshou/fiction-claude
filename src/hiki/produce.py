@@ -1077,13 +1077,19 @@ async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path,
         if ft_deaths_verified:                        # R9b: 拦不如修——verify过的复活直喂修复器
             ch_texts = await prose_continuity.repair_revivals_smart(cli, ch_texts, ft_deaths_verified)
             residual = await prose_continuity.verify_revivals(cli, ch_texts, ft_deaths_verified)
-            # 和解感知:源书确有死而复生(dies_returns)→降advisory不进门(治桑念类误杀);源永久死却被写活→仍进门(逮袁麟类真矛盾)
-            gate_rev = [r for r in residual if audit.reconcile_revival(life_arcs, r.get("who")) == "gate"]
-            adv_rev = [r for r in residual if r not in gate_rev]
+            # 项1 复活beat检测:复写**清楚交代了归来机制**(③忠实复活,内部自洽)→降advisory;死后突兀出场无说明(②漏复活/真矛盾)→进门。
+            # beat检测失败(None)时退回源弧和解(life_arcs:dies_returns→放)。实证:桑念/上官尔蓝(树精/借尸还魂)放、纳珈(突兀出场)拦。
+            checked = await prose_continuity.verify_revival_beats(cli, ch_texts, residual)
+            gate_rev, adv_rev = [], []
+            for r in checked:
+                rendered = r.get("beat_rendered")
+                if rendered is None:                      # beat检测失败→退回源弧和解
+                    rendered = audit.reconcile_revival(life_arcs, r.get("who")) == "advisory"
+                (adv_rev if rendered else gate_rev).append(r)
             print(f"事实表生死: {len(ft_deaths_verified)}处verify → 修复 → 残留{len(residual)}"
-                  f"(进门{len(gate_rev)}/源弧和解降级{len(adv_rev)})")
+                  f"(进门{len(gate_rev)}/复活beat已渲染降级{len(adv_rev)})")
             if adv_rev:
-                fact_adv += [f"{r.get('who')}源书死而复生/假死归来(源弧和解),复写复活beat或欠铺垫(建议补,非死人复活硬伤)"
+                fact_adv += [f"{r.get('who')}死后复活beat已渲染({(r.get('beat_mech') or '')[:24]}),内部自洽→降advisory(非死人复活硬伤)"
                              for r in adv_rev]
             ft_deaths_verified = gate_rev
         ft["生死_verify后"] = [f"{r['who']}(第{r['revive_ch'] + 1}章)" for r in ft_deaths_verified]
