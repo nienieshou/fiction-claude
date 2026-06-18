@@ -64,9 +64,9 @@ async def _extract_life_one(cli: Client, chunk: str) -> dict:
 
 
 async def extract_life_events_pass(cli: Client, chunks: list[str]) -> list[dict]:
-    """方案B:专用轻 prompt 只抽生死事件,与主 map_extract 并发跑**同一批 chunks**
-    (prefix 缓存命中→输入近零)。返回按窗序的 [{"life_events":[...]}],喂 collect_life_events。
-    实测召回 > 多任务 EXTRACT_CHUNK(后者已撤回 life_events)。"""
+    """方案B:专用轻 prompt 只抽生死事件,与主 map_extract 并发(独立细窗 life_chunks,见 mine_book n_life;
+    flash+轻prompt 成本仍低)。返回按窗序的 [{"life_events":[...]}],喂 collect_life_events。
+    实测召回 > 多任务 EXTRACT_CHUNK(后者已撤回 life_events;细窗治桑念复活漏抽)。"""
     return await asyncio.gather(*[_extract_life_one(cli, c) for c in chunks])
 
 
