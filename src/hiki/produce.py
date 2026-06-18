@@ -1051,10 +1051,12 @@ async def _ending_guard(cli: Client, ch_texts: list[str]) -> dict:
     return {"ch_texts": ch_texts, "ending_fixed": ending_fixed, "climax_skipped": climax_skipped}
 
 
-async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path) -> dict:
+async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path,
+                             life_arcs: dict | None = None) -> dict:
     """4i 事实表对账 + 生死/修为定向修复 + §3.6 Spine薄网。原地修 ch_texts、落 fact_table.json。
     → {ch_texts,fact_table_ok,fact_audit_crashed,spine_net_num,spine_net_id,ft_deaths_verified,fact_adv}。
     (A1/A2 硬化:抽取覆盖不足/非预期崩溃→fact_audit_crashed 计入门;B1-5 独立 scope。)"""
+    life_arcs = life_arcs or {}
     ft_deaths_verified: list[dict] = []
     fact_table_ok = False
     fact_audit_crashed = False
@@ -1075,8 +1077,15 @@ async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path) ->
         if ft_deaths_verified:                        # R9b: 拦不如修——verify过的复活直喂修复器
             ch_texts = await prose_continuity.repair_revivals_smart(cli, ch_texts, ft_deaths_verified)
             residual = await prose_continuity.verify_revivals(cli, ch_texts, ft_deaths_verified)
-            print(f"事实表生死: {len(ft_deaths_verified)} 处verify确认 → 定向修复 → 残留{len(residual)}")
-            ft_deaths_verified = residual
+            # 和解感知:源书确有死而复生(dies_returns)→降advisory不进门(治桑念类误杀);源永久死却被写活→仍进门(逮袁麟类真矛盾)
+            gate_rev = [r for r in residual if audit.reconcile_revival(life_arcs, r.get("who")) == "gate"]
+            adv_rev = [r for r in residual if r not in gate_rev]
+            print(f"事实表生死: {len(ft_deaths_verified)}处verify → 修复 → 残留{len(residual)}"
+                  f"(进门{len(gate_rev)}/源弧和解降级{len(adv_rev)})")
+            if adv_rev:
+                fact_adv += [f"{r.get('who')}源书死而复生(dies_returns),复写复活beat或欠铺垫(建议补,非死人复活硬伤)"
+                             for r in adv_rev]
+            ft_deaths_verified = gate_rev
         ft["生死_verify后"] = [f"{r['who']}(第{r['revive_ch'] + 1}章)" for r in ft_deaths_verified]
         pw_cand = [f for f in ft["findings"] if f.get("cat") == "数值" and f.get("conf") == "中"
                    and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= len(ch_texts)]
@@ -1341,7 +1350,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     # 4h) 章尾句界强制(残句裁掉,治'断在逗号上')
     ch_texts = [_trim_tail(t) for t in ch_texts]
     # 4i) 事实表对账+生死/修为修复+薄网(B1-5 → _fact_audit_repair)
-    fa = await _fact_audit_repair(cli, ch_texts, out_dir)
+    fa = await _fact_audit_repair(cli, ch_texts, out_dir, bible.get("life_arcs"))
     ch_texts = fa["ch_texts"]
     fact_table_ok, fact_audit_crashed = fa["fact_table_ok"], fa["fact_audit_crashed"]
     spine_net_num, spine_net_id = fa["spine_net_num"], fa["spine_net_id"]
