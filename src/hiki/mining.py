@@ -55,9 +55,9 @@ async def map_extract(cli: Client, chunks: list[str]) -> list[dict]:
     return await asyncio.gather(*[_extract_one(cli, c, i) for i, c in enumerate(chunks)])
 
 
-async def _extract_life_one(cli: Client, chunk: str) -> dict:
+async def _extract_life_one(cli: Client, chunk: str, roster: str = "（本段出现的所有人物）") -> dict:
     sys_p, usr_t = prompts.LIFE_EVENTS
-    raw = await cli.complete("chunk_extract", sys_p, usr_t.format(chunk=chunk[:60000]),
+    raw = await cli.complete("chunk_extract", sys_p, usr_t.format(chunk=chunk[:60000], roster=roster),
                              json_mode=True, max_tokens=1500, temperature=0.2)
     r = gate._safe_json(raw)
     # flaky LLM 偶尔直接吐裸数组 [...] 而非 {"life_events":[...]} → 容忍两种,绝不崩整本
@@ -65,11 +65,23 @@ async def _extract_life_one(cli: Client, chunk: str) -> dict:
     return {"life_events": [e for e in events if isinstance(e, dict)]}
 
 
-async def extract_life_events_pass(cli: Client, chunks: list[str]) -> list[dict]:
+def roster_str(bible: dict, cap: int = 30) -> str:
+    """从 bible 取重点角色名(主角+配角,含别名)→定向喂生死抽取,治开放抽取漏次要角色死亡。"""
+    names = []
+    for ch in [bible.get("protagonist", {})] + (bible.get("characters") or []):
+        nm = (ch.get("name") or "").strip()
+        if nm:
+            al = "/".join(a.strip() for a in (ch.get("aliases") or []) if a.strip())
+            names.append(f"{nm}（{al}）" if al else nm)
+    return "、".join(names[:cap]) or "（本段出现的所有人物）"
+
+
+async def extract_life_events_pass(cli: Client, chunks: list[str], roster: str = "") -> list[dict]:
     """方案B:专用轻 prompt 只抽生死事件,与主 map_extract 并发(独立细窗 life_chunks,见 mine_book n_life;
-    flash+轻prompt 成本仍低)。返回按窗序的 [{"life_events":[...]}],喂 collect_life_events。
-    实测召回 > 多任务 EXTRACT_CHUNK(后者已撤回 life_events;细窗治桑念复活漏抽)。"""
-    return await asyncio.gather(*[_extract_life_one(cli, c) for c in chunks])
+    flash+轻prompt 成本仍低)。roster=bible 重点角色名 → 定向逐角色核查(治开放抽取漏配角死亡)。
+    返回按窗序的 [{"life_events":[...]}],喂 collect_life_events。实测召回 > 多任务 EXTRACT_CHUNK。"""
+    rs = roster or "（本段出现的所有人物）"
+    return await asyncio.gather(*[_extract_life_one(cli, c, rs) for c in chunks])
 
 
 # ============ ③ REDUCE 准备：确定性归并 ============
@@ -305,15 +317,16 @@ async def grade_source(cli: Client, bible: dict, dark: dict | None = None) -> di
 async def mine_book(cli: Client, clean: str, n_chunks: int, keep_scenes: int) -> dict:
     """clean全本 → {bible(厚), scenes(全局池,已打分筛选), grade}。暗黑预扫与 map 抽取并发。"""
     chunks = chunk_by_chapters(clean, n_chunks=n_chunks)
-    # 生死复活召回需更细窗:实测12窗漏桑念复活(误判dies_final),~30k字/窗(≥20窗)命中;独立细分,封顶48防失控
-    n_life = min(48, max(20, len(clean) // 30000))
-    life_chunks = chunk_by_chapters(clean, n_chunks=n_life)
-    results, dark, life_results = await asyncio.gather(
-        map_extract(cli, chunks), dark_prescan(cli, clean), extract_life_events_pass(cli, life_chunks))
+    results, dark = await asyncio.gather(map_extract(cli, chunks), dark_prescan(cli, clean))
     all_scenes = merge_scenes(results)
     bible = await reduce_bible(cli, results, all_scenes)
     kept = await score_scenes(cli, all_scenes, keep_scenes)
     grade = await grade_source(cli, bible, dark=dark)
-    bible["life_arcs"] = collect_life_events(life_results)   # 方案B:专用轻prompt细窗pass,召回优于主MAP(实测桑念dies_returns命中)
+    # 生死弧:细窗(实测12窗漏复活,~30k字/窗≥20窗命中,封顶48)+定向喂 bible roster(治开放抽取漏配角死亡);
+    # 须在 bible 就绪后跑(要 roster)→ 串行于 reduce,flash 轻 prompt 快,不显著拖慢
+    n_life = min(48, max(20, len(clean) // 30000))
+    life_chunks = chunk_by_chapters(clean, n_chunks=n_life)
+    life_results = await extract_life_events_pass(cli, life_chunks, roster_str(bible))
+    bible["life_arcs"] = collect_life_events(life_results)   # 方案B:定向细窗pass,召回优于开放/主MAP
     return {"bible": bible, "scenes": kept, "all_scene_count": len(all_scenes),
             "chunks": len(chunks), "grade": grade}

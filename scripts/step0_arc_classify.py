@@ -48,7 +48,8 @@ async def main():
         clean = Path(src).read_text(encoding="utf-8", errors="ignore")
         n_life = min(48, max(20, len(clean) // 30000))     # mine_book 同款细窗
         chunks = mining.chunk_by_chapters(clean, n_chunks=n_life)
-        results = await mining.extract_life_events_pass(cli, chunks)
+        bible = json.loads((Path(d) / "bible.json").read_text(encoding="utf-8"))
+        results = await mining.extract_life_events_pass(cli, chunks, mining.roster_str(bible))  # 定向喂roster
         arcs = mining.collect_life_events(results)
         print(f"== {os.path.basename(d)[:22]} | {len(clean)}字/{n_life}窗 | 抽 {len(arcs)} 弧 ==")
         for f in flagged:
