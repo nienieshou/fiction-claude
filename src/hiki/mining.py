@@ -293,5 +293,6 @@ async def mine_book(cli: Client, clean: str, n_chunks: int, keep_scenes: int) ->
     bible = await reduce_bible(cli, results, all_scenes)
     kept = await score_scenes(cli, all_scenes, keep_scenes)
     grade = await grade_source(cli, bible, dark=dark)
+    bible["life_arcs"] = collect_life_events(results)   # 生死弧冻进 bible,喂和解感知生死门
     return {"bible": bible, "scenes": kept, "all_scene_count": len(all_scenes),
             "chunks": len(chunks), "grade": grade}
