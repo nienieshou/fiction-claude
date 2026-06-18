@@ -266,7 +266,7 @@ function flowHtml(b){
   return h+`</div>`;
 }
 
-const TABS=[["overview","概览"],["dna","DNA"],["scenes","场景"],["gate","闸门"],["cost","成本"],["human","人评"],["spine","Spine"]];
+const TABS=[["overview","概览"],["dna","Extract-DNA"],["scenes","Plan-场景"],["gate","Evaluate-闸门"],["cost","成本"],["human","人评"],["spine","Extract-Spine"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML = TABS.map(([k,l])=>
     `<div class="tab ${S.tab===k?'on':''}" onclick="setTab('${k}')">${l}</div>`).join("");
