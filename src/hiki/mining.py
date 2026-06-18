@@ -303,12 +303,15 @@ async def grade_source(cli: Client, bible: dict, dark: dict | None = None) -> di
 async def mine_book(cli: Client, clean: str, n_chunks: int, keep_scenes: int) -> dict:
     """clean全本 → {bible(厚), scenes(全局池,已打分筛选), grade}。暗黑预扫与 map 抽取并发。"""
     chunks = chunk_by_chapters(clean, n_chunks=n_chunks)
+    # 生死复活召回需更细窗:实测12窗漏桑念复活(误判dies_final),~30k字/窗(≥20窗)命中;独立细分,封顶48防失控
+    n_life = min(48, max(20, len(clean) // 30000))
+    life_chunks = chunk_by_chapters(clean, n_chunks=n_life)
     results, dark, life_results = await asyncio.gather(
-        map_extract(cli, chunks), dark_prescan(cli, clean), extract_life_events_pass(cli, chunks))
+        map_extract(cli, chunks), dark_prescan(cli, clean), extract_life_events_pass(cli, life_chunks))
     all_scenes = merge_scenes(results)
     bible = await reduce_bible(cli, results, all_scenes)
     kept = await score_scenes(cli, all_scenes, keep_scenes)
     grade = await grade_source(cli, bible, dark=dark)
-    bible["life_arcs"] = collect_life_events(life_results)   # 方案B:专用pass(同窗,缓存近零),召回优于主MAP
+    bible["life_arcs"] = collect_life_events(life_results)   # 方案B:专用轻prompt细窗pass,召回优于主MAP(实测桑念dies_returns命中)
     return {"bible": bible, "scenes": kept, "all_scene_count": len(all_scenes),
             "chunks": len(chunks), "grade": grade}

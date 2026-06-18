@@ -10,7 +10,7 @@ from hiki import mining, audit
 
 CASES = [("output/ZTGGX02751听说我死后成了反派白月光_20260617_full", {"桑念": "dies_returns"}),
          ("output/_rerun_ZYGGX02148", {"袁麟": "dies_final", "卢炳元": "dies_final"})]
-N_CHUNKS = int(sys.argv[1]) if len(sys.argv) > 1 else 12   # 方案A:提窗数(12/20/24)看是否够救回难例
+N_CHUNKS = int(sys.argv[1]) if len(sys.argv) > 1 else 0   # 0=用 mine_book 同款 n_life 细窗逻辑(production路径)
 
 async def main():
     cli = Client()
@@ -19,8 +19,9 @@ async def main():
         if not srcs:
             print(f"!! 缺源: {book}"); continue
         clean = Path(srcs[0]).read_text(encoding="utf-8", errors="ignore")
-        chunks = mining.chunk_by_chapters(clean, n_chunks=N_CHUNKS)
-        results = await mining.map_extract(cli, chunks)
+        nl = N_CHUNKS or min(48, max(20, len(clean) // 30000))   # mine_book 同款细窗
+        chunks = mining.chunk_by_chapters(clean, n_chunks=nl)
+        results = await mining.extract_life_events_pass(cli, chunks)   # 方案B:专用pass(mine_book 实际路径)
         arcs = mining.collect_life_events(results)
         print(f"\n== {os.path.basename(book)[:20]} | 抽到 {len(arcs)} 条生死弧 ==")
         for who, want in gt.items():
