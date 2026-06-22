@@ -26,7 +26,8 @@ if _SRC not in sys.path:
 
 # 行之有效·质量优先配置（讨论沉淀, 见 docs/design/web_console.md §9 / fact_spine.md M2）：
 # Fact Spine 全套(+18.8 承重)、精修 3 轮(2-3 即够,多轮震荡)、每场景候选 3、交付门+可拒收。
-# best-of-3 已启(交付门拒→重掷,env HIKI_WEB_BEST_OF;源头致命不重)。质量 > 成本。
+# best-of-2 已启(交付门拒→重掷,env HIKI_WEB_BEST_OF;源头致命不重)。质量 > 成本。
+# 定档 2 的依据(2026-06-22 十本验证):救回仅发生在第2掷;第3掷零救回(唯一用到的是系统性必拒,纯浪费)。
 QUALITY = {"spine": True, "refine_rounds": 3, "n_cand": 3}
 
 # job 并发闸:web 上传无外层 --parallel,多本齐发会撞 DeepSeek 限流→APITimeout 崩;闸到 N(默认2)排队。
@@ -136,7 +137,7 @@ def _classify_bestof(history: list[dict]) -> str:
 async def _run_job(slug: str, src_path: Path, run_fn=None) -> None:
     job = JOBS[slug]
     out_dir = paths.OUTPUT / f"{slug}_full"
-    best_of = max(1, int(os.environ.get("HIKI_WEB_BEST_OF", "3")))
+    best_of = max(1, int(os.environ.get("HIKI_WEB_BEST_OF", "2")))
     job["best_of"] = best_of
     async with _JOB_SEM:                                  # 并发闸:多本上传排队,不齐发(防APITimeout崩)
         job["status"] = "running"
