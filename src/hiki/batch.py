@@ -62,6 +62,7 @@ def load_tasks(path: Path, defaults: dict) -> list[Task]:
             refine_rounds=int(t.get("refine_rounds", defaults["refine_rounds"])),
             min_grade=t.get("min_grade", defaults["min_grade"]),
             force=bool(t.get("force", defaults["force"])),
+            best_of=int(t.get("best_of", defaults.get("best_of", 1))),
         ))
     return tasks
 

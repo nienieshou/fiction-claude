@@ -128,3 +128,14 @@ def test_one_exhausts_best_of_all_rejected(tmp_path):
     async def fake_run(*a, **k): return {"deliverable": False, "交付门": ["死人复活"]}
     res = asyncio.run(batch._one(asyncio.Semaphore(1), _task(tmp_path, 2), run_fn=fake_run))
     assert res["throws"] == 2 and res["rejected"] is True
+
+
+def test_load_tasks_best_of(tmp_path):
+    y = tmp_path / "t.yaml"
+    y.write_text("tasks:\n  - slug: a\n    source: x.txt\n    best_of: 3\n  - slug: b\n    source: y.txt\n",
+                 encoding="utf-8")
+    defaults = {"out": "output", "chapters": 60, "chunks": 12, "candidates": 3,
+                "refine_rounds": 5, "min_grade": None, "force": False, "best_of": 2}
+    tasks = batch.load_tasks(y, defaults)
+    assert tasks[0].best_of == 3      # per-task 覆盖
+    assert tasks[1].best_of == 2      # 取 default
