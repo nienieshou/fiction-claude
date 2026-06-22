@@ -28,6 +28,7 @@ class Task:
     refine_rounds: int = 5
     min_grade: str | None = None
     force: bool = False
+    best_of: int = 1
 
 
 def load_tasks(path: Path, defaults: dict) -> list[Task]:
@@ -63,6 +64,12 @@ def load_tasks(path: Path, defaults: dict) -> list[Task]:
             force=bool(t.get("force", defaults["force"])),
         ))
     return tasks
+
+
+def _should_retry(rep: dict) -> bool:
+    """best-of-N:仅"交付门拒"(deliverable is False 且非源头致命)值得重掷——draft随机造死亡那类。
+    源头致命(rejected=True:Q/暗黑/低于min-grade)重掷无用;已交付/无信号 不重。"""
+    return rep.get("deliverable") is False and not rep.get("rejected")
 
 
 def _pick(rep: dict) -> dict:
