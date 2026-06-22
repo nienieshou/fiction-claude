@@ -92,3 +92,39 @@ def test_should_retry_no_signal():
 def test_task_best_of_default():
     t = batch.Task(slug="x", source=Path("a"), out_dir=Path("o"))
     assert t.best_of == 1
+
+
+def _task(tmp_path, best_of):
+    src = tmp_path / "s.txt"; src.write_text("x", encoding="utf-8")
+    return batch.Task(slug="t", source=src, out_dir=tmp_path / "o", best_of=best_of)
+
+
+def test_one_retries_until_deliverable(tmp_path):
+    # best_of=3, 前两稿交付门拒、第三稿可交付 → 3 throws, 终态可交付; 重掷用 force=True
+    reps = [{"deliverable": False}, {"deliverable": False}, {"deliverable": True, "title": "ok"}]
+    forces = []
+    async def fake_run(*a, force=False, **k):
+        forces.append(force); return reps[len(forces) - 1]
+    res = asyncio.run(batch._one(asyncio.Semaphore(1), _task(tmp_path, 3), run_fn=fake_run))
+    assert res["throws"] == 3 and res["rejected"] is False
+    assert forces == [False, True, True]      # 首稿用 task.force(False), 重掷强制 force
+
+
+def test_one_stops_on_first_deliverable(tmp_path):
+    reps = [{"deliverable": True, "title": "ok"}]
+    async def fake_run(*a, **k): return reps[0]
+    res = asyncio.run(batch._one(asyncio.Semaphore(1), _task(tmp_path, 3), run_fn=fake_run))
+    assert res["throws"] == 1 and res["rejected"] is False
+
+
+def test_one_no_retry_on_source_fatal(tmp_path):
+    calls = []
+    async def fake_run(*a, **k): calls.append(1); return {"rejected": True}
+    res = asyncio.run(batch._one(asyncio.Semaphore(1), _task(tmp_path, 3), run_fn=fake_run))
+    assert res["throws"] == 1 and len(calls) == 1   # 源头致命不重掷
+
+
+def test_one_exhausts_best_of_all_rejected(tmp_path):
+    async def fake_run(*a, **k): return {"deliverable": False, "交付门": ["死人复活"]}
+    res = asyncio.run(batch._one(asyncio.Semaphore(1), _task(tmp_path, 2), run_fn=fake_run))
+    assert res["throws"] == 2 and res["rejected"] is True

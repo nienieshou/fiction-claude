@@ -80,16 +80,22 @@ def _pick(rep: dict) -> dict:
     return out
 
 
-async def _one(sem: asyncio.Semaphore, task: Task) -> dict:
+async def _one(sem: asyncio.Semaphore, task: Task, run_fn=run) -> dict:
     async with sem:                                   # 外层限并行本数(账号上限内)
         t0 = time.time()
         if not task.source.exists():
             return {"slug": task.slug, "ok": False, "error": f"源不存在: {task.source}"}
         try:
-            rep = await run(task.source, task.n_ch, task.n_chunks, task.n_cand,
-                            task.refine_rounds, min_grade=task.min_grade,
-                            out_dir=task.out_dir, force=task.force)
-            return {"slug": task.slug, "ok": True, "out_dir": str(task.out_dir), **_pick(rep)}
+            rep, throws = None, 0
+            for attempt in range(1, max(1, task.best_of) + 1):   # best-of-N: 拒收即重掷
+                throws = attempt
+                rep = await run_fn(task.source, task.n_ch, task.n_chunks, task.n_cand,
+                                   task.refine_rounds, min_grade=task.min_grade,
+                                   out_dir=task.out_dir, force=(task.force if attempt == 1 else True))
+                if not _should_retry(rep):            # 已交付 或 源头致命 → 停(致命重掷无用)
+                    break
+            return {"slug": task.slug, "ok": True, "out_dir": str(task.out_dir),
+                    "throws": throws, **_pick(rep)}
         except Exception as e:                        # 单本失败隔离:落 traceback,不拖累其余
             task.out_dir.mkdir(parents=True, exist_ok=True)
             (task.out_dir / "_crash.txt").write_text(traceback.format_exc(), encoding="utf-8")
