@@ -115,6 +115,18 @@ def job_status(slug: str) -> dict | None:
             "log": j.get("log", [])[-12:], "error": j.get("error")}
 
 
+def _classify_bestof(history: list[dict]) -> str:
+    """best-of-N 结果分类(供诊断):T1直接交付 / 重掷救回 / 系统性拒 / 源头致命 / none。"""
+    if not history:
+        return "none"
+    final = history[-1]
+    if final.get("deliverable"):
+        return "T1直接交付" if len(history) == 1 else "重掷救回"
+    if any(h.get("rejected") for h in history):
+        return "源头致命"
+    return "系统性拒(全稿交付门拒)"
+
+
 async def _run_job(slug: str, src_path: Path) -> None:
     job = JOBS[slug]
     job["status"] = "running"
