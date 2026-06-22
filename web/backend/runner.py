@@ -117,7 +117,8 @@ def job_status(slug: str) -> dict | None:
     if not j:
         return None
     return {"slug": slug, "status": j["status"], "stage": j.get("stage", 0),
-            "log": j.get("log", [])[-12:], "error": j.get("error"), "throws": j.get("throws", 1)}
+            "log": j.get("log", [])[-12:], "error": j.get("error"),
+            "throws": j.get("throws", 1), "best_of": j.get("best_of", 1)}
 
 
 def _classify_bestof(history: list[dict]) -> str:
@@ -136,6 +137,7 @@ async def _run_job(slug: str, src_path: Path, run_fn=None) -> None:
     job = JOBS[slug]
     out_dir = paths.OUTPUT / f"{slug}_full"
     best_of = max(1, int(os.environ.get("HIKI_WEB_BEST_OF", "3")))
+    job["best_of"] = best_of
     async with _JOB_SEM:                                  # 并发闸:多本上传排队,不齐发(防APITimeout崩)
         job["status"] = "running"
         job["log"].append(f"start · {src_path.name} · best-of-{best_of} · 质量优先(Spine开,精修{QUALITY['refine_rounds']}轮,候选{QUALITY['n_cand']})")
