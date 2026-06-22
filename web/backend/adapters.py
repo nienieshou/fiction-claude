@@ -106,6 +106,9 @@ def dir_to_book(d: Path, hidx: dict[str, float], active: frozenset[str] = frozen
     mode = mode_raw if isinstance(mode_raw, int) else _MODE_STR_TO_INT.get(mode_raw, 0)
     human = hidx.get(slug) or hidx.get((report or {}).get("source", "").rsplit(".", 1)[0]) \
         or hidx.get(Path((report or {}).get("source", "")).stem)
+    bof = paths.load_json(d / "_bestof.json")
+    bestof = ({"throws": bof.get("throws"), "classification": bof.get("classification")}
+              if isinstance(bof, dict) and bof.get("throws") else None)
     return {
         "id": bid, "title": title, "src": (report or {}).get("source") or slug,
         "slug": slug, "genre": grade.get("genre") or (report or {}).get("central_conflict", "") or "待识别",
@@ -116,6 +119,7 @@ def dir_to_book(d: Path, hidx: dict[str, float], active: frozenset[str] = frozen
         "cost": round((report or {}).get("cost_cny") or 0),
         "real": True, "reject_reason": reject_reason,
         "seconds": (report or {}).get("seconds"), "calls": (report or {}).get("calls"),
+        "bestof": bestof,
     }
 
 
@@ -315,6 +319,11 @@ def book_detail(book_id: str, job_books: list[dict] | None = None) -> dict:
                 if not any(r.get("k") == "实测总成本" for r in base["cost"]):
                     base["cost"] = [{"k": "实测总成本", "usd": round(report["cost_cny"] * 0.14, 2),
                                      "note": f"¥{report['cost_cny']} 真实"}] + base["cost"]
+        bof = paths.load_json(d / "_bestof.json")
+        if isinstance(bof, dict) and bof.get("throws"):
+            base["bestof"] = {"best_of": bof.get("best_of"), "throws": bof.get("throws"),
+                              "classification": bof.get("classification"),
+                              "history": bof.get("history") or []}
     return base
 
 

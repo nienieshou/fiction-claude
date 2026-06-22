@@ -78,3 +78,11 @@ def test_job_status_exposes_throws():
     s = runner.job_status("js")
     assert s["throws"] == 3
     runner.JOBS.pop("js", None)
+
+
+def test_job_status_exposes_best_of():
+    runner.JOBS["bo"] = {"status": "running", "stage": 2, "log": [], "error": None,
+                         "throws": 2, "best_of": 3}
+    s = runner.job_status("bo")
+    assert s["best_of"] == 3 and s["throws"] == 2
+    runner.JOBS.pop("bo", None)

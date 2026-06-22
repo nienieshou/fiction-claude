@@ -112,7 +112,7 @@
 
 <script>
 const API = location.origin.startsWith("http") ? "" : "http://127.0.0.1:8000";
-const S = { books:[], sel:null, tab:"overview", stats:{}, calib:{}, stages:[], detail:null, mode:{} };
+const S = { books:[], sel:null, tab:"overview", stats:{}, calib:{}, stages:[], detail:null, mode:{}, jobs:{} };
 
 // ---- palette ----
 const gC = g => ({S:"#ffd166",A:"#3fb950",B:"#58a6ff",C:"#d29922",D:"#f0883e",Q:"#6e7681"}[g]||"#6e7681");
@@ -130,6 +130,20 @@ function statusInfo(b){
   if(b.status==="idle")      return {t:"待产·已清洗",c:"#8b949e",bg:"rgba(139,148,158,.12)"};
   if(b.status==="stalled")   return {t:"中断·可续跑",c:"#f0883e",bg:"rgba(240,136,62,.12)"};
   return {t:"进行中",c:"#58a6ff",bg:"rgba(88,166,255,.12)"};
+}
+// best-of-N 稿次徽章:运行中且重掷>1时显示"⟳N/M稿"(解释阶段条重置);否则空
+function throwBadge(b){
+  const j=S.jobs[b.slug]; if(!j) return "";
+  const n=j.throws||1, m=j.best_of||1;
+  if((b.status==="running"||b.status==="idle") && (n>1 || m>1))
+    return `<span class="tbadge" title="best-of-${m}:第${n}稿(交付门拒会重掷,阶段条随之重走)" style="color:#d2a8ff;background:rgba(210,168,255,.12);padding:1px 6px;border-radius:6px;font-size:11px">⟳ ${n}/${m}稿</span>`;
+  return "";
+}
+// 完成态 best-of 分类标签(仅 throws>1:救回/系统性才显示;一次过不打扰)
+function bestofChip(b){
+  const bo=b.bestof; if(!bo || (bo.throws||1)<=1) return "";
+  const col = bo.classification && bo.classification.indexOf("救回")>=0 ? "#3fb950" : "#f0883e";
+  return `<span class="bochip" title="${bo.classification||''}" style="color:${col};background:rgba(255,255,255,.04);padding:1px 6px;border-radius:6px;font-size:11px">${esc(bo.classification||'')}·${bo.throws}稿</span>`;
 }
 function states(b){
   const n=6,a=[];
@@ -212,7 +226,7 @@ function renderSide(){
           ${(b.real||b.uploaded)
             ? `<span class="del" title="删除任务" onclick="delBook(event,'${b.id}')">✕</span>`
             : `<span class="demo" title="演示样例 · 非真实任务,不可删除">演示</span>`}</span></div>
-      <div class="row2"><span class="genre">${esc(b.genre)} · <span style="color:${si.c}">${si.t}</span></span>
+      <div class="row2"><span class="genre">${esc(b.genre)} · <span style="color:${si.c}">${si.t}</span> ${throwBadge(b)}${bestofChip(b)}</span>
         <span class="hbadge" style="color:${humanColor(b.human)}">${b.human==null?"—":b.human}</span></div>
       <div class="dots" style="margin-top:7px">${dots}</div></div>`;
   }).join("");
@@ -295,6 +309,8 @@ function ovHtml(){
   return rej + `<div class="grid g2">
     <div class="item"><div class="lab">认证状态</div><div class="val" style="color:${statusInfo(b).c}">${statusInfo(b).t}</div><div class="note">${esc(certNote(b))}</div></div>
     <div class="item"><div class="lab">当前阶段</div><div class="val">${S.stages[b.stage]?S.stages[b.stage].name+" · "+S.stages[b.stage].cn:"—"}</div></div>
+    <div class="item"><div class="lab">best-of 稿次</div><div class="val">${(()=>{const j=S.jobs[b.slug],bo=S.detail&&S.detail.bestof;if(j&&((j.throws||1)>1||(j.best_of||1)>1))return `第${j.throws||1}/${j.best_of||1}稿(进行中)`;if(bo)return `${bo.classification||''} · ${bo.throws}/${bo.best_of}稿`;return "—";})()}</div>
+      <div class="note">${(()=>{const bo=S.detail&&S.detail.bestof;if(!bo||!bo.history)return "";return bo.history.map(h=>`稿${h.throw} ${h.deliverable?'✓':'✗'}${h.reason?(' '+esc(h.reason)):''}`).join(' · ');})()}</div></div>
     <div class="item"><div class="lab">改写模式</div><div class="val">${esc(S.mode.text||MODE[b.mode]||"—")}</div><div class="note">${esc(S.mode.note||"")}</div></div>
     <div class="item"><div class="lab">Spine</div><div class="val">${d.spine&&d.spine.length?"已冻结":"待建/未启用"}</div></div>
   </div>${dims.length?`<div style="margin-top:14px">`+dims.map(x=>dimRow(x)).join("")+`</div>`:""}`;
@@ -465,6 +481,7 @@ async function pollJobs(slugs){
     const next=[];
     for(const s of active){
       try{ const j=await jget("/api/jobs/"+encodeURIComponent(s));
+        S.jobs[s]=j;
         if(j.status==="running"||j.status==="queued") next.push(s); }catch(e){}
     }
     try{ S.books=await jget("/api/books"); S.stats=await jget("/api/stats"); renderSide(); if(S.sel) renderMain(); }catch(e){}

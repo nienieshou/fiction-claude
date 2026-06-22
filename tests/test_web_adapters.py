@@ -317,3 +317,30 @@ def test_make_slug_collapses_when_not_renamed():
     assert same.startswith("极品全能小村医_") and same.count("极品全能小村医") == 1
     empty = runner.make_slug("某本", "")
     assert empty.startswith("某本_") and empty.count("某本") == 1
+
+
+# ---------- bestof ----------
+def test_dir_to_book_bestof(fake_output):
+    d = fake_output / "bo_full"
+    _write(d, "report.json", {"deliverable": True, "cost_cny": 8})
+    _write(d, "_bestof.json", {"best_of": 3, "throws": 2, "classification": "重掷救回",
+                               "history": [{"throw": 1, "deliverable": False, "reason": "死人复活"},
+                                           {"throw": 2, "deliverable": True}]})
+    b = adapters.dir_to_book(d, {})
+    assert b["bestof"]["throws"] == 2 and b["bestof"]["classification"] == "重掷救回"
+
+
+def test_dir_to_book_bestof_absent(fake_output):
+    d = fake_output / "nob_full"
+    _write(d, "report.json", {"deliverable": True})
+    assert adapters.dir_to_book(d, {}).get("bestof") is None
+
+
+def test_book_detail_bestof_history(fake_output):
+    d = fake_output / "boh_full"
+    _write(d, "report.json", {"deliverable": False, "交付门": ["死人复活"]})
+    _write(d, "_bestof.json", {"best_of": 3, "throws": 3, "classification": "系统性拒(全稿交付门拒)",
+                               "history": [{"throw": i, "deliverable": False, "reason": "死人复活"} for i in (1, 2, 3)]})
+    det = adapters.book_detail("boh_full")
+    assert det["bestof"]["classification"].startswith("系统性拒")
+    assert len(det["bestof"]["history"]) == 3
