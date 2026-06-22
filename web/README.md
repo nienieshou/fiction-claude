@@ -48,7 +48,7 @@ $env:PYTHONPATH = "src"          # runner 触发改写时要 import hiki
 手动点「▶ 续跑」，或**启动时自动续跑**所有 stalled（默认开，`HIKI_WEB_AUTORESUME=0` 关闭）。
 续跑从已有产物 B2 继续（省钱）。列表按最新活动倒序，最新任务置顶。
 
-**best-of-3 + 并发闸（R17）**：上传后每本默认 **best-of-3**——交付门拒(死人复活/章缝/双版本等随机型)→ force 重掷,首个可交付即停,3 稿全拒则归类拒收(系统性);源头致命(Q/暗黑)不重掷。每稿信息落 `output/<slug>_full/_bestof.json`(逐稿 deliverable/拒因/¥ + 分类:T1直接交付/重掷救回/系统性拒)。`HIKI_WEB_BEST_OF` 覆盖次数。job 并发闸 `HIKI_WEB_CONCURRENCY`(默认 2)→ 多本上传排队,避免齐发撞 DeepSeek 限流(APITimeout)。成本:可交付本 1×、拒收本至多 3×。
+**best-of-3 + 并发闸（R17）**：上传后每本默认 **best-of-3**——交付门拒(死人复活/章缝/双版本等随机型)→ force 重掷,首个可交付即停,3 稿全拒则归类拒收(系统性);源头致命(Q/暗黑)不重掷。每稿信息落 `output/<slug>_full/_bestof.json`(逐稿 deliverable/拒因/¥ + 分类:T1直接交付/重掷救回/系统性拒)。`HIKI_WEB_BEST_OF` 覆盖次数。job 并发闸 `HIKI_WEB_CONCURRENCY`(默认 2)→ 多本上传排队,避免齐发撞 DeepSeek 限流(APITimeout)。成本:可交付本 1×、拒收本至多 3×。仪表盘:运行中重掷的本显示"⟳ N/M稿"徽章(解释阶段条重走);完成态显示分类标签(重掷救回·N稿 / 系统性拒·N稿);详情面板显示逐稿历史(稿N ✓/✗ 拒因)。一次过的本不显示稿次,保持干净。
 
 ## 5. API
 
