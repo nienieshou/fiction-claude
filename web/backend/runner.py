@@ -117,7 +117,7 @@ def job_status(slug: str) -> dict | None:
     if not j:
         return None
     return {"slug": slug, "status": j["status"], "stage": j.get("stage", 0),
-            "log": j.get("log", [])[-12:], "error": j.get("error")}
+            "log": j.get("log", [])[-12:], "error": j.get("error"), "throws": j.get("throws", 1)}
 
 
 def _classify_bestof(history: list[dict]) -> str:

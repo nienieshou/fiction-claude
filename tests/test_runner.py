@@ -71,3 +71,10 @@ def test_run_job_no_retry_source_fatal(tmp_path, monkeypatch):
     asyncio.run(runner._run_job("q", tmp_path / "s.txt", run_fn=fake_run))
     assert len(calls) == 1
     assert runner.JOBS["q"]["status"] == "rejected"
+
+
+def test_job_status_exposes_throws():
+    runner.JOBS["js"] = {"status": "rejected", "stage": 5, "log": ["x"], "error": None, "throws": 3}
+    s = runner.job_status("js")
+    assert s["throws"] == 3
+    runner.JOBS.pop("js", None)
