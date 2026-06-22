@@ -25,6 +25,8 @@ def _add_run_opts(p: argparse.ArgumentParser) -> None:
     p.add_argument("--spine", action=argparse.BooleanOptionalAction, default=True,
                    help="Fact Spine 事前一致性(质量默认开,HIKI_SPINE=1;--no-spine 关闭)")
     p.add_argument("--force", action="store_true", help="忽略已有阶段产物,从头重跑(默认续跑)")
+    p.add_argument("--best-of", type=int, default=1,
+                   help="拒收即重掷N次取首个可交付(只重交付门拒,非源头致命;每次重掷=一次全量¥)")
 
 
 def _cmd_run(a: argparse.Namespace) -> None:
@@ -32,14 +34,15 @@ def _cmd_run(a: argparse.Namespace) -> None:
     os.environ["HIKI_SPINE"] = "1" if a.spine else "0"   # 复写前置,produce 各阶段读 env(质量默认开)
     defaults = {"out": a.out, "chapters": a.chapters, "chunks": a.chunks,
                 "candidates": a.candidates, "refine_rounds": a.refine_rounds,
-                "min_grade": a.min_grade, "force": a.force}
+                "min_grade": a.min_grade, "force": a.force, "best_of": a.best_of}
     if a.tasks_file:
         tasks = batch.load_tasks(Path(a.tasks_file), defaults)
     elif a.src:
         single_out = Path(a.out) if a.out else Path("output") / (Path(a.src).stem + "_full")
         tasks = [batch.Task(slug=Path(a.src).stem, source=Path(a.src), out_dir=single_out,
                             n_ch=a.chapters, n_chunks=a.chunks, n_cand=a.candidates,
-                            refine_rounds=a.refine_rounds, min_grade=a.min_grade, force=a.force)]
+                            refine_rounds=a.refine_rounds, min_grade=a.min_grade, force=a.force,
+                            best_of=a.best_of)]
     else:
         print("用法: hiki run <src.txt> | hiki run --tasks-file tasks.yaml")
         sys.exit(2)
