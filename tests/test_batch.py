@@ -139,3 +139,12 @@ def test_load_tasks_best_of(tmp_path):
     tasks = batch.load_tasks(y, defaults)
     assert tasks[0].best_of == 3      # per-task 覆盖
     assert tasks[1].best_of == 2      # 取 default
+
+
+def test_summary_counts_rethrows(tmp_path):
+    results = [{"ok": True, "rejected": False, "throws": 1, "cost_cny": 8},
+               {"ok": True, "rejected": False, "throws": 3, "cost_cny": 24},  # 救回:重掷2次
+               {"ok": True, "rejected": True, "throws": 2, "cost_cny": 16}]
+    s = batch.write_summary(results, 100.0, out_dir=tmp_path)
+    assert s["重掷总次数"] == (1 + 3 + 2)
+    assert s["重掷救回本数"] == 1     # throws>1 且最终可交付

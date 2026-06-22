@@ -114,10 +114,14 @@ def write_summary(results: list[dict], wall: float, out_dir: Path = Path("output
     fail = [r for r in results if not r.get("ok")]
     delivered = [r for r in ok if not r.get("rejected")]
     cost = round(sum(r.get("cost_cny", 0) or 0 for r in results), 2)
+    rethrown = [r for r in ok if (r.get("throws") or 1) > 1]
+    summary_extra = {"重掷总次数": sum(r.get("throws", 1) for r in ok),
+                     "重掷救回本数": sum(1 for r in rethrown if not r.get("rejected"))}
     summary = {"任务数": len(results), "成功": len(ok), "失败": len(fail),
                "可交付": len(delivered), "拒收/不可交付": len(ok) - len(delivered),
                "总成本_cny": cost, "墙钟_秒": wall,
-               "均成本_cny": round(cost / max(1, len(ok)), 2), "results": results}
+               "均成本_cny": round(cost / max(1, len(ok)), 2),
+               **summary_extra, "results": results}
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "batch_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -128,10 +132,10 @@ def write_summary(results: list[dict], wall: float, out_dir: Path = Path("output
     for r in results:
         if r.get("ok"):
             g = "✓可交付" if not r.get("rejected") else "；".join(r.get("交付门") or ["拦截"])[:28]
-            lines.append(f"| {r['slug']} | {r.get('grade')} | {r.get('out_chapters')} | "
+            lines.append(f"| {r.get('slug','')} | {r.get('grade')} | {r.get('out_chapters')} | "
                          f"{r.get('final_chars')} | {g} | {r.get('cost_cny')} | {r.get('seconds')} | "
                          f"{r.get('out_dir','')} |")
         else:
-            lines.append(f"| {r['slug']} | **失败** | | | {r.get('error','')[:40]} | | {r.get('seconds','')} | |")
+            lines.append(f"| {r.get('slug','')} | **失败** | | | {r.get('error','')[:40]} | | {r.get('seconds','')} | |")
     (out_dir / "batch_summary.md").write_text("\n".join(lines), encoding="utf-8")
     return summary
