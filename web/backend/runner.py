@@ -26,7 +26,7 @@ if _SRC not in sys.path:
 
 # 行之有效·质量优先配置（讨论沉淀, 见 docs/design/web_console.md §9 / fact_spine.md M2）：
 # Fact Spine 全套(+18.8 承重)、精修 3 轮(2-3 即够,多轮震荡)、每场景候选 3、交付门+可拒收。
-# 不含 best-of-3(3× 成本,本期未启)。质量 > 成本。
+# best-of-3 已启(交付门拒→重掷,env HIKI_WEB_BEST_OF;源头致命不重)。质量 > 成本。
 QUALITY = {"spine": True, "refine_rounds": 3, "n_cand": 3}
 
 # job 并发闸:web 上传无外层 --parallel,多本齐发会撞 DeepSeek 限流→APITimeout 崩;闸到 N(默认2)排队。
