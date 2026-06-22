@@ -226,7 +226,7 @@ function renderSide(){
           ${(b.real||b.uploaded)
             ? `<span class="del" title="删除任务" onclick="delBook(event,'${b.id}')">✕</span>`
             : `<span class="demo" title="演示样例 · 非真实任务,不可删除">演示</span>`}</span></div>
-      <div class="row2"><span class="genre">${esc(b.genre)} · <span style="color:${si.c}">${si.t}</span></span>
+      <div class="row2"><span class="genre">${esc(b.genre)} · <span style="color:${si.c}">${si.t}</span> ${throwBadge(b)}${bestofChip(b)}</span>
         <span class="hbadge" style="color:${humanColor(b.human)}">${b.human==null?"—":b.human}</span></div>
       <div class="dots" style="margin-top:7px">${dots}</div></div>`;
   }).join("");
@@ -309,6 +309,8 @@ function ovHtml(){
   return rej + `<div class="grid g2">
     <div class="item"><div class="lab">认证状态</div><div class="val" style="color:${statusInfo(b).c}">${statusInfo(b).t}</div><div class="note">${esc(certNote(b))}</div></div>
     <div class="item"><div class="lab">当前阶段</div><div class="val">${S.stages[b.stage]?S.stages[b.stage].name+" · "+S.stages[b.stage].cn:"—"}</div></div>
+    <div class="item"><div class="lab">best-of 稿次</div><div class="val">${(()=>{const j=S.jobs[b.slug],bo=S.detail&&S.detail.bestof;if(j&&((j.throws||1)>1||(j.best_of||1)>1))return `第${j.throws||1}/${j.best_of||1}稿(进行中)`;if(bo)return `${bo.classification||''} · ${bo.throws}/${bo.best_of}稿`;return "—";})()}</div>
+      <div class="note">${(()=>{const bo=S.detail&&S.detail.bestof;if(!bo||!bo.history)return "";return bo.history.map(h=>`稿${h.throw} ${h.deliverable?'✓':'✗'}${h.reason?(' '+esc(h.reason)):''}`).join(' · ');})()}</div></div>
     <div class="item"><div class="lab">改写模式</div><div class="val">${esc(S.mode.text||MODE[b.mode]||"—")}</div><div class="note">${esc(S.mode.note||"")}</div></div>
     <div class="item"><div class="lab">Spine</div><div class="val">${d.spine&&d.spine.length?"已冻结":"待建/未启用"}</div></div>
   </div>${dims.length?`<div style="margin-top:14px">`+dims.map(x=>dimRow(x)).join("")+`</div>`:""}`;
