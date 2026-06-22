@@ -168,6 +168,8 @@ async function boot(){
     S.stages=stages; S.stats=stats; S.books=books; S.calib=calib;
     S.sel = books[0] ? books[0].id : null;
     renderSide();
+    const live = books.filter(b => b.status==="running").map(b => b.slug);   // 页面加载即轮询在跑的本(autoresume/API/刷新)→稿次徽章+自动刷新
+    if(live.length) pollJobs(live);
     if(S.sel) await loadBook(S.sel); else renderMain();
   }catch(e){ showErr(e.message+" — 后端是否已启动？ uvicorn web.backend.app:app"); }
 }
