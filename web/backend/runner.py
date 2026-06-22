@@ -28,6 +28,10 @@ if _SRC not in sys.path:
 # 不含 best-of-3(3× 成本,本期未启)。质量 > 成本。
 QUALITY = {"spine": True, "refine_rounds": 3, "n_cand": 3}
 
+# job 并发闸:web 上传无外层 --parallel,多本齐发会撞 DeepSeek 限流→APITimeout 崩;闸到 N(默认2)排队。
+_JOB_CONCURRENCY = max(1, int(os.environ.get("HIKI_WEB_CONCURRENCY", "2")))
+_JOB_SEM = asyncio.Semaphore(_JOB_CONCURRENCY)
+
 # 内存任务表：slug -> {status, stage, log[], error, report}
 JOBS: dict[str, dict] = {}
 # 任务对应的书目 stub（并入 /api/books）
