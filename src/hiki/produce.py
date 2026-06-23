@@ -13,7 +13,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config, event_audit
+from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config, event_audit, signals
 from .client import Client
 from .ingest import ingest
 from .slice_validate import (_process_scene, _fit_chapter, _truncate, _assemble,
@@ -1451,6 +1451,15 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "calls": cli.calls, "cost_cny": round(cli.cost_cny, 2),
         "seconds": round(time.time() - started, 1),    # 此处=门拒终点(Evaluate);通过则 finalize 重算到 Assemble
     }
+    # 冻结信号向量(可合池):每本落同一套 → 喂质量代理飞轮。人评行直接拷 report["signals"]。
+    report["signals"] = signals.build_signal_vector(
+        deliverable=deliverable, grade=(grade or {}).get("grade"),
+        immersion_score=immersion.get("代入感分"), reenact_hits=len(reenact_hits),
+        seam_detected=seam_found, seam_residual=seam_found - len(seam_fixed),
+        dark_ratio=dark_rep["dark_ratio"], spine_num_contra=spine_net_num,
+        spine_id_contra=spine_net_id, ft_revival_residual=len(ft_deaths_verified),
+        too_short_chapters=len([d for d in det if d.startswith("过短")]),
+        final_consistent=final_consistent, intra_repeat_chapters=len(intra_rep))
     # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
     return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report,
                                  open_premise, immersion)         # C: 复用门前算好的 immersion(不重算)
