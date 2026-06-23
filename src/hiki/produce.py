@@ -1196,6 +1196,7 @@ def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: 
         "数值真矛盾": sig["spine_net_num"],
         "身份真矛盾": sig["spine_net_id"],
         "承重审计崩溃": sig["fact_audit_crashed"],
+        "开篇代入感": sig.get("immersion_score"),
     }
     ship_issues = gate.evaluate_ship_gate(ship_signals, gate_thr)
     return {"audit_struct": audit_struct, "audit_fore": audit_fore, "audit_mech": audit_mech,
@@ -1205,7 +1206,7 @@ def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: 
 
 async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, final: str,
                           deliverable: bool, ship_issues: list, report: dict,
-                          open_premise: str = "") -> dict:
+                          open_premise: str = "", immersion: dict | None = None) -> dict:
     """阶段9 finalize(B1-2): gen_title + 输出《书名》.md + craft审计 + 落 report.json。
     report 主体在 run() 组装(引用各相位局部);此处补 title/output/craft 字段并落盘后返回。"""
     tmeta = await gen_title(cli, bible, ending=final)
@@ -1224,7 +1225,8 @@ async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, fi
         audit_craft = await audit.craft_audit(cli, final[:9000])
     except Exception as e:
         audit_craft = [f"(craft审计跳过:{type(e).__name__})"]
-    immersion = await audit.opening_immersion_audit(cli, final, open_premise)   # C: 开篇代入感(advisory)
+    if immersion is None:                          # 兜底:run() 已门前算好并传入;独立调用时才现算
+        immersion = await audit.opening_immersion_audit(cli, final, open_premise)
     imm_warn = (immersion.get("代入锚") == "warn" or immersion.get("premise清晰") == "warn"
                 or (isinstance(immersion.get("代入感分"), (int, float)) and immersion["代入感分"] < 60))
     if imm_warn:
@@ -1398,11 +1400,15 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         except Exception as e:                       # 失败隔离:不崩整本
             print(f"事件状态账跳过(flaky): {type(e).__name__}: {e}")
 
+    # C: 开篇代入感审计——提到门前算(低分进门,见 gate.opening_immersion_min);算一次,复用到 finalize
+    open_premise = _open_premise(bible, plan)
+    immersion = await audit.opening_immersion_audit(cli, final, open_premise)   # 标注穿越/重生
     # 5+5.5) 37维审计 + 交付门(B1-3轻: 纯函数 _run_ship_gate,可测;阈值在 config)
     sig = {"dark_ratio": dark_rep["dark_ratio"], "climax_skipped": climax_skipped,
            "fact_table_ok": fact_table_ok, "ft_deaths_verified": ft_deaths_verified,
            "reenact_hits": reenact_hits, "intra_rep": intra_rep, "spine_net_num": spine_net_num,
-           "spine_net_id": spine_net_id, "fact_audit_crashed": fact_audit_crashed}
+           "spine_net_id": spine_net_id, "fact_audit_crashed": fact_audit_crashed,
+           "immersion_score": immersion.get("代入感分")}
     g = _run_ship_gate(bible, ordered, final, det, advisory, seam_found - len(seam_fixed), sig, gate_thr)
     audit_struct, audit_fore, audit_mech = g["audit_struct"], g["audit_fore"], g["audit_mech"]
     final_consistent, ship_issues, deliverable = g["final_consistent"], g["ship_issues"], g["deliverable"]
@@ -1447,7 +1453,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     }
     # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
     return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report,
-                                 _open_premise(bible, plan))      # C: 开篇代入感审计用(标注穿越/重生)
+                                 open_premise, immersion)         # C: 复用门前算好的 immersion(不重算)
 
 
 def _variety(beats: list[dict]) -> str:
