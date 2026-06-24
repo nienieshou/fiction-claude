@@ -31,7 +31,8 @@ def normalize_book(out_dir: Path, dry_run: bool = False) -> dict:
     safe = _safe_filename(raw_title, fallback=_safe_filename(slug))
     out_name = _book_filename(slug, safe)
     new_path = _delivery_path(out_dir, deliverable, out_name)
-    if new_path.exists() and report.get("output_file") == str(new_path):
+    prev = report.get("output_file")                   # 比较用 resolve():绝对(web)/相对(CLI)表示等价才算幂等
+    if new_path.exists() and prev and Path(prev).resolve() == new_path.resolve():
         return {"slug": slug, "status": "already", "path": str(new_path)}
     if dry_run:
         return {"slug": slug, "status": "would-normalize", "path": str(new_path)}
@@ -39,10 +40,9 @@ def normalize_book(out_dir: Path, dry_run: bool = False) -> dict:
     body = f"《{raw_title}》\n\n{final_text}" if raw_title else final_text
     new_path.parent.mkdir(parents=True, exist_ok=True)
     new_path.write_text(body, encoding="utf-8")
-    old = report.get("output_file")                    # 只认 output_file 指向的旧文件,不猜测
-    if old:
-        old_path = out_dir / old
-        if old_path.exists() and old_path != new_path:
+    if prev:                                            # 只认 output_file 指向的旧文件,不猜测
+        old_path = out_dir / prev                       # prev 绝对时 / 运算返回该绝对路径
+        if old_path.exists() and old_path.resolve() != new_path.resolve():  # resolve 防误删刚写的同一文件
             old_path.unlink()
     report["output_file"] = str(new_path)
     rep_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

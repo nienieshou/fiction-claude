@@ -63,6 +63,20 @@ def test_normalize_book_dry_run(tmp_path):
     assert (out_dir / OLD_MD).exists()                          # 未动盘
 
 
+def test_normalize_book_idempotent_abs_then_rel(tmp_path, monkeypatch):
+    # web 用绝对根、CLI 用相对根 → output_file 字符串不同,不能误判未归一
+    # (否则重复迁移会把刚写的已交付文件 unlink 掉 — 数据丢失)。
+    book = _make_book(tmp_path / "ZYGGY02252穿成萌娃_reval")
+    res1 = normalize_book(book)                      # 第一次:绝对路径(仿 web paths.OUTPUT)
+    assert res1["status"] == "normalized"
+    new_abs = Path(res1["path"])
+    assert new_abs.exists()
+    monkeypatch.chdir(tmp_path)                      # 第二次:相对路径(仿 CLI `hiki normalize output`)
+    res2 = normalize_book(Path("ZYGGY02252穿成萌娃_reval"))
+    assert res2["status"] == "already"              # 等价路径→已归一,不重迁
+    assert new_abs.exists()                          # 已交付文件未被误删
+
+
 def test_normalize_book_no_title_bare_body(tmp_path):
     # 无 title → 裸正文(无《》头),与 produce._stage_finalize / point_repair._repair_delivery 字节一致
     out_dir = _make_book(tmp_path / "ZYGGY02252穿成萌娃_reval", title="")
