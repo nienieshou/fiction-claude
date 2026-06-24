@@ -1218,15 +1218,16 @@ async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, fi
     tmeta = await gen_title(cli, bible, ending=final)
     title, tagline = tmeta.get("title", ""), tmeta.get("tagline", "")
     safe = _safe_filename(title, fallback=_safe_filename(src.stem))
-    book = f"# 《{title}》\n\n> {tagline}\n\n---\n\n{final}" if title else final
+    book = f"《{title}》\n\n{final}" if title else final   # 甲:纯文本头,无 markdown 记号
     (out_dir / "final.md").write_text(final, encoding="utf-8")
-    grade_letter = (report.get("grade") or {}).get("grade") or "X"   # 成书科学命名:源ID_档_日期_《书名》
-    out_name = _book_filename(out_dir.name, grade_letter, time.strftime("%Y%m%d"), safe, deliverable)
-    (out_dir / out_name).write_text(book, encoding="utf-8")
+    out_name = _book_filename(out_dir.name, safe)          # <源ID><新书名>.txt(干净交付名)
+    out_path = _delivery_path(out_dir, deliverable, out_name)   # 可交付→_deliverable/;不可交付→_rejected/
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(book, encoding="utf-8")
     if deliverable:
-        print(f"成品命名：{out_name} —— {tagline}")
+        print(f"成品命名：{out_name} —— {tagline}  → {out_path.parent}")
     else:
-        print(f"⛔ 交付门拦截：{'；'.join(ship_issues)} → {out_name}（重跑或拒收，绝不流向编辑）")
+        print(f"⛔ 交付门拦截：{'；'.join(ship_issues)} → _rejected/{out_name}（重跑或拒收，绝不流向编辑）")
     try:                                          # craft 仅 advisory，绝不为它丢成品/报告
         audit_craft = await audit.craft_audit(cli, final[:9000])
     except Exception as e:
@@ -1239,7 +1240,7 @@ async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, fi
         print(f"⚠ 开篇代入感审计: 代入锚={immersion.get('代入锚')} premise={immersion.get('premise清晰')} "
               f"代入感分={immersion.get('代入感分')} | {'；'.join(immersion.get('issues') or [])[:120]}")
     report.update({"title": title, "tagline": tagline, "alt_titles": tmeta.get("alts", []),
-                   "output_file": out_name, "audit_人+故事性_craft(advisory)": audit_craft or ["无"],
+                   "output_file": str(out_path), "audit_人+故事性_craft(advisory)": audit_craft or ["无"],
                    "开篇代入感审计(advisory)": immersion})
     if deliverable:                                    # 通过:总历时终点延到 Assemble 结束(含命名/审计)
         report["seconds"] = round(time.time() - _started_at(out_dir, time.time()), 1)
