@@ -72,3 +72,15 @@ def test_normalize_tree_scans_and_skips(tmp_path):
     assert statuses["ZYGGY02252穿成萌娃_reval"] == "normalized"
     assert statuses["_misc"] == "skip-no-report"
     assert "batch_summary.json" not in statuses                 # 非目录不计
+
+
+def test_cli_normalize_dry_run(tmp_path, monkeypatch, capsys):
+    import sys
+    from hiki.__main__ import main
+    _make_book(tmp_path / "ZYGGY02252穿成萌娃_reval")
+    monkeypatch.setattr(sys, "argv", ["hiki", "normalize", str(tmp_path), "--dry-run"])
+    main()
+    out = capsys.readouterr().out
+    assert "DRY-RUN" in out
+    assert "would-normalize" in out
+    assert not (tmp_path / "_deliverable").exists()   # dry-run 不动盘
