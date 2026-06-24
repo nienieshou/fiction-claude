@@ -17,7 +17,19 @@ from pathlib import Path
 from . import prompts, gate, audit, prose_continuity, prose_facts
 from .client import Client
 from .slice_validate import _strip_markers
-from .produce import _trim_tail
+from .produce import _trim_tail, _book_filename, _delivery_path, _safe_filename
+
+def _repair_delivery(out_dir: Path, title: str, body_text: str, deliverable: bool):
+    """复检后交付落盘决策(纯,不写盘): 返回 (write_path, stale_rejected_path|None, book_text)。
+    与 produce._stage_finalize 同构: 甲格式正文 + 干净交付名 + _deliverable/_rejected 分流。
+    deliverable 时 stale = 旧的 _rejected/ 同名件路径,供调用方清掉(本子转可交付)。"""
+    safe = _safe_filename(title)
+    out_name = _book_filename(out_dir.name, safe)
+    write_path = _delivery_path(out_dir, deliverable, out_name)
+    stale = _delivery_path(out_dir, False, out_name) if deliverable else None
+    book = f"《{title}》\n\n{body_text}" if title else body_text
+    return write_path, stale, book
+
 
 _EDIT_NOTE = re.compile(r"^\s*【[^】]{0,40}】\s*$", re.M)
 
@@ -188,20 +200,19 @@ async def run(out_dir: Path) -> dict:
     (out_dir / "final.md").write_text(final2, encoding="utf-8")
     deliverable = not issues2
     title = rep.get("title") or out_dir.name
-    book = f"# 《{title}》\n\n> {rep.get('tagline', '')}\n\n---\n\n{final2}"
-    old = rep.get("output_file") or ""
-    name = old.replace(".不可交付", "") if deliverable and old else (old or f"《{title}》.md")
-    (out_dir / name).write_text(book, encoding="utf-8")
-    if deliverable and old and ".不可交付" in old and (out_dir / old).exists():
-        (out_dir / old).unlink()
-    rep.update({"deliverable": deliverable, "output_file": name,
+    write_path, stale, book = _repair_delivery(out_dir, title, final2, deliverable)
+    write_path.parent.mkdir(parents=True, exist_ok=True)
+    write_path.write_text(book, encoding="utf-8")
+    if stale and stale != write_path and stale.exists():   # 转可交付→清掉旧的 _rejected/ 同名件
+        stale.unlink()
+    rep.update({"deliverable": deliverable, "output_file": str(write_path),
                 "交付门": ["点修后通过"] if deliverable else [f"点修后仍拦:{issues2}"],
                 "点修": {"复活修复": [r["who"] for r in revived] or ["无"],
                          "章级重写采用": applied or ["无"], "复检残留": issues2 or ["无"],
                          "点修成本¥": round(cli.cost_cny, 2)}})
     (out_dir / "report.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2),
                                          encoding="utf-8")
-    print(f"点修复检: {'✅ 通过,已交付 ' + name if deliverable else '⛔ 仍拦: ' + '；'.join(issues2)}"
+    print(f"点修复检: {'✅ 通过,已交付 ' + write_path.name if deliverable else '⛔ 仍拦: ' + '；'.join(issues2)}"
           f" | ¥{cli.cost_cny:.2f}")
     return rep
 
