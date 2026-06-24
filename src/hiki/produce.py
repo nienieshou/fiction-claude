@@ -70,10 +70,9 @@ def _source_id(ref: str) -> str:
     return m.group(0) if m else (_safe_filename(ref)[:12] or "源")
 
 
-def _book_filename(source_ref: str, grade: str, date: str, safe_title: str, deliverable: bool) -> str:
-    """成书科学命名：<源ID>_<档>_<YYYYMMDD>_《书名》[.不可交付].md —— 可追溯/可排序/状态显式。"""
-    suffix = "" if deliverable else ".不可交付"
-    return f"{_source_id(source_ref)}_{grade or 'X'}_{date}_《{safe_title}》{suffix}.md"
+def _book_filename(source_ref: str, safe_title: str) -> str:
+    """成书交付命名：<源ID><新书名>.txt —— 干净交付名；档/日期/状态剥离至 report.json，源ID 为对账锚。"""
+    return f"{_source_id(source_ref)}{safe_title}.txt"
 
 
 def _started_at(out_dir: Path, now: float) -> float:
