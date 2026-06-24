@@ -23,19 +23,20 @@ def normalize_book(out_dir: Path, dry_run: bool = False) -> dict:
         return {"slug": slug, "status": "skip-no-report"}
     if not isinstance(report, dict):
         return {"slug": slug, "status": "skip-no-report"}
-    title = report.get("title") or slug
+    raw_title = report.get("title") or ""          # 与 produce._stage_finalize 同构:空 title→裸正文
     deliverable = bool(report.get("deliverable"))
     final_path = out_dir / "final.md"
     if not final_path.exists():
         return {"slug": slug, "status": "skip-no-final"}
-    out_name = _book_filename(slug, _safe_filename(title))
+    safe = _safe_filename(raw_title, fallback=_safe_filename(slug))
+    out_name = _book_filename(slug, safe)
     new_path = _delivery_path(out_dir, deliverable, out_name)
     if new_path.exists() and report.get("output_file") == str(new_path):
         return {"slug": slug, "status": "already", "path": str(new_path)}
     if dry_run:
         return {"slug": slug, "status": "would-normalize", "path": str(new_path)}
     final_text = final_path.read_text(encoding="utf-8")
-    body = f"《{title}》\n\n{final_text}"
+    body = f"《{raw_title}》\n\n{final_text}" if raw_title else final_text
     new_path.parent.mkdir(parents=True, exist_ok=True)
     new_path.write_text(body, encoding="utf-8")
     old = report.get("output_file")                    # 只认 output_file 指向的旧文件,不猜测

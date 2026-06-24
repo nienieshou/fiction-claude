@@ -29,3 +29,18 @@ def test_web_normalize_hook_disabled(tmp_path, monkeypatch):
     monkeypatch.setenv("HIKI_WEB_NORMALIZE", "0")
     app._normalize_books()
     assert not (tmp_path / "_deliverable").exists()   # 关闭→不动盘
+
+
+def test_output_dirs_skips_delivery_aggregate(tmp_path, monkeypatch):
+    # 归一产生的 _deliverable/_rejected 不应被书目发现误当成书(即便其下有像书的子目录)
+    from web.backend import paths
+    book = tmp_path / "ZYGGY02079买来_reval"
+    book.mkdir()
+    (book / "report.json").write_text("{}", encoding="utf-8")
+    fake = tmp_path / "_deliverable" / "somebook"
+    fake.mkdir(parents=True)
+    (fake / "report.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path)
+    names = [p.name for p in paths.output_dirs()]
+    assert "ZYGGY02079买来_reval" in names
+    assert "somebook" not in names

@@ -63,6 +63,16 @@ def test_normalize_book_dry_run(tmp_path):
     assert (out_dir / OLD_MD).exists()                          # 未动盘
 
 
+def test_normalize_book_no_title_bare_body(tmp_path):
+    # 无 title → 裸正文(无《》头),与 produce._stage_finalize / point_repair._repair_delivery 字节一致
+    out_dir = _make_book(tmp_path / "ZYGGY02252穿成萌娃_reval", title="")
+    res = normalize_book(out_dir)
+    assert res["status"] == "normalized"
+    body = Path(res["path"]).read_text(encoding="utf-8")
+    assert not body.startswith("《")
+    assert body == "第一章\n\n正文内容。"
+
+
 def test_normalize_tree_scans_and_skips(tmp_path):
     _make_book(tmp_path / "ZYGGY02252穿成萌娃_reval")
     (tmp_path / "_misc").mkdir()                                # 目录但无 report.json
