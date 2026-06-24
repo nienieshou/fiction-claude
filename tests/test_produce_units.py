@@ -2,7 +2,7 @@
 (原 scripts/_test_r13_units.py 迁入 + B1-3 门 gather)"""
 from hiki import gate
 from hiki.produce import (_wave_bounds, _control_plane, _settle_facts, _run_ship_gate, _open_premise,
-                         _source_id, _book_filename, _started_at, _spine_alive_baseline)
+                         _source_id, _book_filename, _delivery_path, _started_at, _spine_alive_baseline)
 
 
 def test_spine_alive_baseline():
@@ -187,3 +187,14 @@ def test_control_plane_identity_and_item_accounts():
     assert "成器=" not in cp2                         # 本章没点名→不注入
     assert "物品账" in cp2 and "雷灵珠(第50章碎裂成齑粉,绝不再完好出现" in cp2
     assert "茶壶" not in cp2                          # 非终态不入账
+
+
+def test_delivery_path_routes_by_deliverable():
+    from pathlib import Path
+    out_dir = Path("output") / "ZYGGY02252穿成萌娃_reval"
+    # 可交付 → 上级 _deliverable/ 汇聚
+    d = _delivery_path(out_dir, True, "ZYGGY02252归隐田园：执子手共白头.txt")
+    assert d == Path("output") / "_deliverable" / "ZYGGY02252归隐田园：执子手共白头.txt"
+    # 不可交付 → 本子 _rejected/ 隔离
+    r = _delivery_path(out_dir, False, "ZYGGY02252归隐田园：执子手共白头.txt")
+    assert r == out_dir / "_rejected" / "ZYGGY02252归隐田园：执子手共白头.txt"

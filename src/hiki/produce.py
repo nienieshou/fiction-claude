@@ -75,6 +75,13 @@ def _book_filename(source_ref: str, safe_title: str) -> str:
     return f"{_source_id(source_ref)}{safe_title}.txt"
 
 
+def _delivery_path(out_dir: Path, deliverable: bool, out_name: str) -> Path:
+    """交付件落盘路径：可交付汇聚 <out_dir 上级>/_deliverable/；不可交付隔离 <out_dir>/_rejected/。
+    靠位置区分交付资格，文件名本身不带状态(A2-a)。"""
+    base = (out_dir.parent / "_deliverable") if deliverable else (out_dir / "_rejected")
+    return base / out_name
+
+
 def _started_at(out_dir: Path, now: float) -> float:
     """单一总历时:首次 Ingest 开始时间戳,持久化一次(out_dir/_timing.json),续跑不覆盖。
     seconds = 终点(停哪算哪:通过→Assemble/门拒→Evaluate/早拒→判定点) − 此 started_at。"""
