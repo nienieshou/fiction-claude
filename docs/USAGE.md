@@ -79,6 +79,7 @@ tasks:
 | `--parallel` | 3 | 并行本数（账号限流内，≤5） |
 | `--spine / --no-spine` | **开（质量默认）** | Fact Spine 事前一致性（承重 +18.8 实证）；`--no-spine` 关闭 |
 | `--force` | 关 | 忽略已有阶段产物从头重跑（默认**续跑**：mine/plan/draft 产物在即跳过） |
+| `--best-of` | 1 | 拒收即重掷N次取首个可交付。**只重"交付门拒"**(死人复活/章缝/双版本等随机型),源头致命(Q/暗黑/低于min-grade)不重。每次重掷=一次全量¥。实证:随机型重掷必救,系统性源(每稿都造死人复活)救不了——后者待"反造死亡预防"。 |
 
 **续跑(B2)**：崩溃/中断后重跑同一命令，自动跳过已完成阶段（draft 逐章续画）。**失败隔离**：一本崩不拖累其余，traceback 落 `<out>/<slug>/_crash.txt`。汇总 `output/batch_summary.{json,md}`。
 
@@ -150,7 +151,7 @@ $env:PYTHONPATH="src"; python -m hiki.batch fictions_source --parallel 4 --min-g
 $env:PYTHONPATH="src"; python -m hiki.point_repair output\某本_full
 ```
 
-参数仅 `out_dir`（生产产出目录）。复检通过则交付并清掉旧的 `.不可交付.md`。
+参数仅 `out_dir`（生产产出目录）。复检通过则把成品写入 `_deliverable/` 并清掉旧的 `_rejected/` 同名件。
 
 ---
 
@@ -159,16 +160,17 @@ $env:PYTHONPATH="src"; python -m hiki.point_repair output\某本_full
 每本生产在 `output/<源名>_full/`：
 
 ```
-output/<源名>_full/
-├── source/clean.txt, meta.json   清洗结果
-├── bible.json                    厚圣经（主角/中心冲突/语域/弧/agency）
-├── macro.json                    60 章节拍骨架
-├── plan.json                     逐章/逐场景规划（含时序元数据）
-├── fact_table.json               全书事实表（生死/修为对账）
-├── final.md                      纯正文成品
-├── 《书名》.md                    带书名+卖点的成品（可交付时）
-├── 《书名》.不可交付.md            交付门拦截时（绝不流向编辑）
-└── report.json                   全量诊断报告
+output/
+├── _deliverable/<源ID><书名>.txt      可交付成品（汇聚，跨本）
+└── <源名>_full/
+    ├── source/clean.txt, meta.json   清洗结果
+    ├── bible.json                    厚圣经（主角/中心冲突/语域/弧/agency）
+    ├── macro.json                    60 章节拍骨架
+    ├── plan.json                     逐章/逐场景规划（含时序元数据）
+    ├── fact_table.json               全书事实表（生死/修为对账）
+    ├── final.md                      纯正文（raw，无书名头）
+    ├── _rejected/<源ID><书名>.txt     交付门拦截时隔离（绝不流向编辑）
+    └── report.json                   全量诊断报告
 ```
 
 `report.json` 关键字段：`deliverable`、`交付门`、`grade`、`final_consistent`、`暗黑比`、`章缝_检出/修复`、`套话门_重写章数`、各类 advisory、`cost_cny`、`seconds`。
@@ -179,7 +181,7 @@ output/<源名>_full/
 
 系统**不靠 LLM 打绝对分自证质量**（实证：DeepSeek 自评、甚至 Opus 都 Goodhart 高估 9–17 分）。质量认证 = 确定性硬检 + 机械信号 + 人工 ground truth。
 
-**确定性交付门**（命中即 `deliverable=false`，写 `.不可交付.md`）：
+**确定性交付门**（命中即 `deliverable=false`，成品落 `<slug>/_rejected/`，绝不流向编辑）：
 - 阵营串线 ≥1 条
 - 过短章 ≥3 章
 - 暗黑饱和（暗黑比 >0.25）
@@ -237,7 +239,7 @@ python -m hiki.point_repair output\某本_full
 | `REDUCE 失败：厚 bible 无效` | pro 思考模式偶发吐空（flaky），**非源质量问题，直接重跑** |
 | 控制台中文乱码 | 已自动处理；若仍乱，确认终端 UTF-8 |
 | 大量 429 | 降 `--parallel`；并发受账号上限 pro500/flash2500 |
-| 成品是 `.不可交付.md` | 交付门拦截，看 `report.json > 交付门`，重跑/点修/或弃源 |
+| 成品在 `_rejected/` 目录 | 交付门拦截，看 `report.json`（`deliverable`/`交付门`），重跑/点修/或弃源 |
 | 找不到 `hiki` 模块 | 未设 `PYTHONPATH=src` |
 
 ---

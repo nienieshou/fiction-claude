@@ -130,7 +130,9 @@ SHIP_GATE_DEFAULTS = {
     "block_on_climax_skip": False,   # 预告跳过 是否硬拦。旧=硬拦;仅命中可追本(星厨74.8"基本连得上")→降advisory
     "block_on_final_inconsistent": False,  # final_consistent=否 是否硬拦。旧=硬拦;反相关(只命中隐婚/团宠两可追本)→降advisory
     "intra_repeat_thr": 0.08,        # 章内12-gram双半重合 > → 判整章双版本(检测侧用,非门内)
-}
+    "opening_immersion_min": 40,     # 开篇代入感分 < → 拦(读者无法代入的灾难地板)。editor-eval-2(量产盘10本)校准:
+}                                    #   买来代入感30→人承重40(最低,"第二章重复了")拦;其余≥65→承重≥50 安全;0=关闭。
+                                     #   注:这是 eval-5"craft 类不进门"的定向例外——仅最低段灾难地板,且 best-of-N 重掷救济,非裁质量
 
 
 def evaluate_ship_gate(sig: dict, thr: dict | None = None) -> list[str]:
@@ -163,6 +165,9 @@ def evaluate_ship_gate(sig: dict, thr: dict | None = None) -> list[str]:
                       f"条(起草违反冻结事实,详见fact_table.json)")
     if sig.get("承重审计崩溃"):
         issues.append("承重事实审计非预期中断,结果不可信(不可判定一致性,需重跑)")
+    imm = sig.get("开篇代入感")
+    if isinstance(imm, (int, float)) and t.get("opening_immersion_min", 0) and imm < t["opening_immersion_min"]:
+        issues.append(f"开篇代入感{imm}<{t['opening_immersion_min']}(读者无法代入,editor-eval-2:30→人承重40)")
     return issues
 
 

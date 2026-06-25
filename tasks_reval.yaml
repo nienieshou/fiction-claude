@@ -1,0 +1,7 @@
+# 代入感<40 门验证重跑(2026-06-23, build ed68c62)
+# 买来: 代入感30→应被门拦→best-of-2重掷; 穿成萌娃: 代入感88→对照,应直接交付(无回归)
+tasks:
+  - slug: ZYGGY02079农女为后：皇上独宠我
+    source: fictions_source/ZYGGY02079买来的禁欲夫君是太子.txt
+  - slug: ZYGGY02252归隐田园：执子手共白头
+    source: fictions_source/ZYGGY02252穿成萌娃去流放？不怕，我把皇宫抄空了！.txt

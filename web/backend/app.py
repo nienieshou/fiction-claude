@@ -48,8 +48,23 @@ async def _auto_resume_stalled() -> None:
             print(f"[autoresume] 跳过 {b.get('slug')}: {type(e).__name__}: {e}")
 
 
+def _normalize_books() -> None:
+    """启动时把旧命名成书归一到新规范(<源ID><新书名>.txt → _deliverable/)。幂等。HIKI_WEB_NORMALIZE=0 关闭。"""
+    if os.environ.get("HIKI_WEB_NORMALIZE", "1") == "0":
+        return
+    try:
+        from hiki import normalize
+        results = normalize.normalize_tree(paths.OUTPUT)
+        n = sum(1 for r in results if r.get("status") == "normalized")
+        if n:
+            print(f"[normalize] 归一 {n} 本旧命名成书 → _deliverable/")
+    except Exception as e:
+        print(f"[normalize] 跳过: {type(e).__name__}: {e}")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    _normalize_books()
     await _auto_resume_stalled()
     yield
 

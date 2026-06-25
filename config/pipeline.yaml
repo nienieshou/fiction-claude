@@ -32,6 +32,7 @@ ship_gate:
   block_on_climax_skip: false      # 预告跳过 硬拦?旧=是;仅命中可追本→降advisory
   block_on_final_inconsistent: false  # final_consistent=否 硬拦?旧=是;反相关→降advisory
   intra_repeat_thr: 0.08           # 章内12-gram双半重合 > → 判整章双版本
+  opening_immersion_min: 40        # 开篇代入感分 < → 拦(灾难地板)。editor-eval-2:买来30→人承重40;0=关闭
 
 # P0 清洗：网文 txt 垃圾模式（可滚动扩，maintainable）
 ingest:

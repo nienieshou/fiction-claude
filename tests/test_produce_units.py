@@ -2,7 +2,7 @@
 (原 scripts/_test_r13_units.py 迁入 + B1-3 门 gather)"""
 from hiki import gate
 from hiki.produce import (_wave_bounds, _control_plane, _settle_facts, _run_ship_gate, _open_premise,
-                         _source_id, _book_filename, _started_at, _spine_alive_baseline)
+                         _source_id, _book_filename, _delivery_path, _started_at, _spine_alive_baseline)
 
 
 def test_spine_alive_baseline():
@@ -52,12 +52,13 @@ def test_source_id_extracts_library_code():
     assert _source_id("重生之首富归来")  # 无码→兜底非空
 
 
-def test_book_filename_scientific_scheme():
-    # 源ID_档_日期_《书名》[.不可交付].md
-    nm = _book_filename("CPBGX00192灵气复苏_开局无限合成_full", "A", "20260617", "武神斩神", True)
-    assert nm == "CPBGX00192_A_20260617_《武神斩神》.md"
-    rej = _book_filename("CPBXN00188冰川探墓_full", "B", "20260617", "盗墓主播", False)
-    assert rej == "CPBXN00188_B_20260617_《盗墓主播》.不可交付.md"
+def test_book_filename_clean_delivery_scheme():
+    # <源ID><新书名>.txt —— 干净交付名,无档/日期/《》/状态后缀
+    nm = _book_filename("CPBGX00192灵气复苏_开局无限合成_full", "武神斩神")
+    assert nm == "CPBGX00192武神斩神.txt"
+    # 全角：保留(_safe_filename 不清全角冒号),源ID 直接粘书名
+    nm2 = _book_filename("ZYGGY02252穿成萌娃_reval", "归隐田园：执子手共白头")
+    assert nm2 == "ZYGGY02252归隐田园：执子手共白头.txt"
 
 
 def _clean_sig():
@@ -186,3 +187,14 @@ def test_control_plane_identity_and_item_accounts():
     assert "成器=" not in cp2                         # 本章没点名→不注入
     assert "物品账" in cp2 and "雷灵珠(第50章碎裂成齑粉,绝不再完好出现" in cp2
     assert "茶壶" not in cp2                          # 非终态不入账
+
+
+def test_delivery_path_routes_by_deliverable():
+    from pathlib import Path
+    out_dir = Path("output") / "ZYGGY02252穿成萌娃_reval"
+    # 可交付 → 上级 _deliverable/ 汇聚
+    d = _delivery_path(out_dir, True, "ZYGGY02252归隐田园：执子手共白头.txt")
+    assert d == Path("output") / "_deliverable" / "ZYGGY02252归隐田园：执子手共白头.txt"
+    # 不可交付 → 本子 _rejected/ 隔离
+    r = _delivery_path(out_dir, False, "ZYGGY02252归隐田园：执子手共白头.txt")
+    assert r == out_dir / "_rejected" / "ZYGGY02252归隐田园：执子手共白头.txt"

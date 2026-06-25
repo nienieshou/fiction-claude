@@ -28,6 +28,7 @@ class Task:
     refine_rounds: int = 5
     min_grade: str | None = None
     force: bool = False
+    best_of: int = 1
 
 
 def load_tasks(path: Path, defaults: dict) -> list[Task]:
@@ -61,8 +62,15 @@ def load_tasks(path: Path, defaults: dict) -> list[Task]:
             refine_rounds=int(t.get("refine_rounds", defaults["refine_rounds"])),
             min_grade=t.get("min_grade", defaults["min_grade"]),
             force=bool(t.get("force", defaults["force"])),
+            best_of=int(t.get("best_of", defaults.get("best_of", 1))),
         ))
     return tasks
+
+
+def _should_retry(rep: dict) -> bool:
+    """best-of-N:仅"交付门拒"(deliverable is False 且非源头致命)值得重掷——draft随机造死亡那类。
+    源头致命(rejected=True:Q/暗黑/低于min-grade)重掷无用;已交付/无信号 不重。"""
+    return rep.get("deliverable") is False and not rep.get("rejected")
 
 
 def _pick(rep: dict) -> dict:
@@ -73,16 +81,22 @@ def _pick(rep: dict) -> dict:
     return out
 
 
-async def _one(sem: asyncio.Semaphore, task: Task) -> dict:
+async def _one(sem: asyncio.Semaphore, task: Task, run_fn=run) -> dict:
     async with sem:                                   # 外层限并行本数(账号上限内)
         t0 = time.time()
         if not task.source.exists():
             return {"slug": task.slug, "ok": False, "error": f"源不存在: {task.source}"}
         try:
-            rep = await run(task.source, task.n_ch, task.n_chunks, task.n_cand,
-                            task.refine_rounds, min_grade=task.min_grade,
-                            out_dir=task.out_dir, force=task.force)
-            return {"slug": task.slug, "ok": True, "out_dir": str(task.out_dir), **_pick(rep)}
+            rep, throws = None, 0
+            for attempt in range(1, max(1, task.best_of) + 1):   # best-of-N: 拒收即重掷
+                throws = attempt
+                rep = await run_fn(task.source, task.n_ch, task.n_chunks, task.n_cand,
+                                   task.refine_rounds, min_grade=task.min_grade,
+                                   out_dir=task.out_dir, force=(task.force if attempt == 1 else True))
+                if not _should_retry(rep):            # 已交付 或 源头致命 → 停(致命重掷无用)
+                    break
+            return {"slug": task.slug, "ok": True, "out_dir": str(task.out_dir),
+                    "throws": throws, **_pick(rep)}
         except Exception as e:                        # 单本失败隔离:落 traceback,不拖累其余
             task.out_dir.mkdir(parents=True, exist_ok=True)
             (task.out_dir / "_crash.txt").write_text(traceback.format_exc(), encoding="utf-8")
@@ -100,10 +114,14 @@ def write_summary(results: list[dict], wall: float, out_dir: Path = Path("output
     fail = [r for r in results if not r.get("ok")]
     delivered = [r for r in ok if not r.get("rejected")]
     cost = round(sum(r.get("cost_cny", 0) or 0 for r in results), 2)
+    rethrown = [r for r in ok if (r.get("throws") or 1) > 1]
+    summary_extra = {"重掷总次数": sum(r.get("throws", 1) for r in ok),
+                     "重掷救回本数": sum(1 for r in rethrown if not r.get("rejected"))}
     summary = {"任务数": len(results), "成功": len(ok), "失败": len(fail),
                "可交付": len(delivered), "拒收/不可交付": len(ok) - len(delivered),
                "总成本_cny": cost, "墙钟_秒": wall,
-               "均成本_cny": round(cost / max(1, len(ok)), 2), "results": results}
+               "均成本_cny": round(cost / max(1, len(ok)), 2),
+               **summary_extra, "results": results}
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "batch_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -114,10 +132,10 @@ def write_summary(results: list[dict], wall: float, out_dir: Path = Path("output
     for r in results:
         if r.get("ok"):
             g = "✓可交付" if not r.get("rejected") else "；".join(r.get("交付门") or ["拦截"])[:28]
-            lines.append(f"| {r['slug']} | {r.get('grade')} | {r.get('out_chapters')} | "
+            lines.append(f"| {r.get('slug','')} | {r.get('grade')} | {r.get('out_chapters')} | "
                          f"{r.get('final_chars')} | {g} | {r.get('cost_cny')} | {r.get('seconds')} | "
                          f"{r.get('out_dir','')} |")
         else:
-            lines.append(f"| {r['slug']} | **失败** | | | {r.get('error','')[:40]} | | {r.get('seconds','')} | |")
+            lines.append(f"| {r.get('slug','')} | **失败** | | | {r.get('error','')[:40]} | | {r.get('seconds','')} | |")
     (out_dir / "batch_summary.md").write_text("\n".join(lines), encoding="utf-8")
     return summary

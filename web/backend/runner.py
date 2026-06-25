@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 import re
 import sys
@@ -25,8 +26,13 @@ if _SRC not in sys.path:
 
 # 行之有效·质量优先配置（讨论沉淀, 见 docs/design/web_console.md §9 / fact_spine.md M2）：
 # Fact Spine 全套(+18.8 承重)、精修 3 轮(2-3 即够,多轮震荡)、每场景候选 3、交付门+可拒收。
-# 不含 best-of-3(3× 成本,本期未启)。质量 > 成本。
+# best-of-2 已启(交付门拒→重掷,env HIKI_WEB_BEST_OF;源头致命不重)。质量 > 成本。
+# 定档 2 的依据(2026-06-22 十本验证):救回仅发生在第2掷;第3掷零救回(唯一用到的是系统性必拒,纯浪费)。
 QUALITY = {"spine": True, "refine_rounds": 3, "n_cand": 3}
+
+# job 并发闸:web 上传无外层 --parallel,多本齐发会撞 DeepSeek 限流→APITimeout 崩;闸到 N(默认2)排队。
+_JOB_CONCURRENCY = max(1, int(os.environ.get("HIKI_WEB_CONCURRENCY", "2")))
+_JOB_SEM = asyncio.Semaphore(_JOB_CONCURRENCY)
 
 # 内存任务表：slug -> {status, stage, log[], error, report}
 JOBS: dict[str, dict] = {}
@@ -112,36 +118,75 @@ def job_status(slug: str) -> dict | None:
     if not j:
         return None
     return {"slug": slug, "status": j["status"], "stage": j.get("stage", 0),
-            "log": j.get("log", [])[-12:], "error": j.get("error")}
+            "log": j.get("log", [])[-12:], "error": j.get("error"),
+            "throws": j.get("throws", 1), "best_of": j.get("best_of", 1)}
 
 
-async def _run_job(slug: str, src_path: Path) -> None:
+def _classify_bestof(history: list[dict]) -> str:
+    """best-of-N 结果分类(供诊断):T1直接交付 / 重掷救回 / 系统性拒 / 源头致命 / none。"""
+    if not history:
+        return "none"
+    final = history[-1]
+    if final.get("deliverable"):
+        return "T1直接交付" if len(history) == 1 else "重掷救回"
+    if any(h.get("rejected") for h in history):
+        return "源头致命"
+    return "系统性拒(全稿交付门拒)"
+
+
+async def _run_job(slug: str, src_path: Path, run_fn=None) -> None:
     job = JOBS[slug]
-    job["status"] = "running"
-    job["log"].append(f"start · {src_path.name} · 质量优先(Spine开,精修{QUALITY['refine_rounds']}轮,候选{QUALITY['n_cand']})")
     out_dir = paths.OUTPUT / f"{slug}_full"
-    try:
-        if QUALITY["spine"]:
-            os.environ["HIKI_SPINE"] = "1"          # 质量优先:Fact Spine 事前一致性
-        import hiki.produce as produce  # 延迟导入：缺依赖/key 在此暴露
-        report = await produce.run(src_path, out_dir=out_dir,
-                                   n_cand=QUALITY["n_cand"], refine_rounds=QUALITY["refine_rounds"])
-        job["report"] = report
-        if report.get("rejected") or report.get("deliverable") is False:
-            job["status"] = "rejected"
-            job["log"].append("done · rejected/不可交付")
-        else:
-            job["status"] = "done"
-            job["log"].append("done · 可交付")
-    except Exception as e:  # 失败隔离：不崩后端
-        job["status"] = "failed"
-        job["error"] = f"{type(e).__name__}: {e}"[:300]
-        job["log"].append(f"failed · {job['error']}")
+    best_of = max(1, int(os.environ.get("HIKI_WEB_BEST_OF", "2")))
+    job["best_of"] = best_of
+    async with _JOB_SEM:                                  # 并发闸:多本上传排队,不齐发(防APITimeout崩)
+        job["status"] = "running"
+        job["log"].append(f"start · {src_path.name} · best-of-{best_of} · 质量优先(Spine开,精修{QUALITY['refine_rounds']}轮,候选{QUALITY['n_cand']})")
         try:
-            out_dir.mkdir(parents=True, exist_ok=True)
-            (out_dir / "_crash.txt").write_text(traceback.format_exc(), encoding="utf-8")
-        except Exception:
-            pass
+            if QUALITY["spine"]:
+                os.environ["HIKI_SPINE"] = "1"
+            if run_fn is None:
+                import hiki.produce as produce          # 延迟导入:缺依赖/key 在此暴露
+                run_fn = produce.run
+            from hiki.batch import _should_retry
+            history, report = [], None
+            for attempt in range(1, best_of + 1):
+                report = await run_fn(src_path, out_dir=out_dir, n_cand=QUALITY["n_cand"],
+                                      refine_rounds=QUALITY["refine_rounds"], force=(attempt > 1))
+                reason = report.get("reject_why") or "；".join(report.get("交付门") or [])
+                history.append({"throw": attempt, "deliverable": report.get("deliverable"),
+                                "rejected": bool(report.get("rejected")), "reason": reason[:100],
+                                "cost_cny": report.get("cost_cny")})
+                job["log"].append(f"throw{attempt}/{best_of}: "
+                                  + ("可交付" if report.get("deliverable")
+                                     else ("源拒" if report.get("rejected") else "交付门拒→重掷")))
+                if not _should_retry(report):
+                    break
+            job["report"] = report
+            job["throws"] = len(history)
+            cls = _classify_bestof(history)
+            try:
+                out_dir.mkdir(parents=True, exist_ok=True)
+                (out_dir / "_bestof.json").write_text(json.dumps(
+                    {"best_of": best_of, "throws": len(history), "classification": cls,
+                     "history": history}, ensure_ascii=False, indent=2), encoding="utf-8")
+            except OSError:
+                pass
+            if report.get("rejected") or report.get("deliverable") is False:
+                job["status"] = "rejected"
+                job["log"].append(f"done · rejected · {cls}")
+            else:
+                job["status"] = "done"
+                job["log"].append(f"done · 可交付 · {cls}")
+        except Exception as e:                            # 失败隔离:不崩后端
+            job["status"] = "failed"
+            job["error"] = f"{type(e).__name__}: {e}"[:300]
+            job["log"].append(f"failed · {job['error']}")
+            try:
+                out_dir.mkdir(parents=True, exist_ok=True)
+                (out_dir / "_crash.txt").write_text(traceback.format_exc(), encoding="utf-8")
+            except Exception:
+                pass
     # 标记 stub 终态（list_books 若已发现真实目录会用真实值覆盖）
     stub = JOB_BOOKS.get(f"{slug}_full")
     if stub:

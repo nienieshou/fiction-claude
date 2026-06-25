@@ -24,6 +24,8 @@ def output_dirs() -> list[Path]:
         return []
     dirs = []
     for p in sorted(OUTPUT.iterdir()):
+        if p.name in ("_deliverable", "_rejected"):
+            continue                                  # 交付汇聚/拒收隔离目录,非书目(normalize 产物)
         if p.is_dir() and (p / "source").exists() or any((p / f).exists() for f in ARTIFACT_FILES):
             dirs.append(p)
         elif p.is_dir():

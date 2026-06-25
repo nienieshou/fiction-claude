@@ -13,7 +13,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config, event_audit
+from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config, event_audit, signals
 from .client import Client
 from .ingest import ingest
 from .slice_validate import (_process_scene, _fit_chapter, _truncate, _assemble,
@@ -70,10 +70,16 @@ def _source_id(ref: str) -> str:
     return m.group(0) if m else (_safe_filename(ref)[:12] or "源")
 
 
-def _book_filename(source_ref: str, grade: str, date: str, safe_title: str, deliverable: bool) -> str:
-    """成书科学命名：<源ID>_<档>_<YYYYMMDD>_《书名》[.不可交付].md —— 可追溯/可排序/状态显式。"""
-    suffix = "" if deliverable else ".不可交付"
-    return f"{_source_id(source_ref)}_{grade or 'X'}_{date}_《{safe_title}》{suffix}.md"
+def _book_filename(source_ref: str, safe_title: str) -> str:
+    """成书交付命名：<源ID><新书名>.txt —— 干净交付名；档/日期/状态剥离至 report.json，源ID 为对账锚。"""
+    return f"{_source_id(source_ref)}{safe_title}.txt"
+
+
+def _delivery_path(out_dir: Path, deliverable: bool, out_name: str) -> Path:
+    """交付件落盘路径：可交付汇聚 <out_dir 上级>/_deliverable/；不可交付隔离 <out_dir>/_rejected/。
+    靠位置区分交付资格，文件名本身不带状态(A2-a)。"""
+    base = (out_dir.parent / "_deliverable") if deliverable else (out_dir / "_rejected")
+    return base / out_name
 
 
 def _started_at(out_dir: Path, now: float) -> float:
@@ -1196,6 +1202,7 @@ def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: 
         "数值真矛盾": sig["spine_net_num"],
         "身份真矛盾": sig["spine_net_id"],
         "承重审计崩溃": sig["fact_audit_crashed"],
+        "开篇代入感": sig.get("immersion_score"),
     }
     ship_issues = gate.evaluate_ship_gate(ship_signals, gate_thr)
     return {"audit_struct": audit_struct, "audit_fore": audit_fore, "audit_mech": audit_mech,
@@ -1205,33 +1212,35 @@ def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: 
 
 async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, final: str,
                           deliverable: bool, ship_issues: list, report: dict,
-                          open_premise: str = "") -> dict:
+                          open_premise: str = "", immersion: dict | None = None) -> dict:
     """阶段9 finalize(B1-2): gen_title + 输出《书名》.md + craft审计 + 落 report.json。
     report 主体在 run() 组装(引用各相位局部);此处补 title/output/craft 字段并落盘后返回。"""
     tmeta = await gen_title(cli, bible, ending=final)
     title, tagline = tmeta.get("title", ""), tmeta.get("tagline", "")
     safe = _safe_filename(title, fallback=_safe_filename(src.stem))
-    book = f"# 《{title}》\n\n> {tagline}\n\n---\n\n{final}" if title else final
+    book = f"《{title}》\n\n{final}" if title else final   # 甲:纯文本头,无 markdown 记号
     (out_dir / "final.md").write_text(final, encoding="utf-8")
-    grade_letter = (report.get("grade") or {}).get("grade") or "X"   # 成书科学命名:源ID_档_日期_《书名》
-    out_name = _book_filename(out_dir.name, grade_letter, time.strftime("%Y%m%d"), safe, deliverable)
-    (out_dir / out_name).write_text(book, encoding="utf-8")
+    out_name = _book_filename(out_dir.name, safe)          # <源ID><新书名>.txt(干净交付名)
+    out_path = _delivery_path(out_dir, deliverable, out_name)   # 可交付→_deliverable/;不可交付→_rejected/
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(book, encoding="utf-8")
     if deliverable:
-        print(f"成品命名：{out_name} —— {tagline}")
+        print(f"成品命名：{out_name} —— {tagline}  → {out_path.parent}")
     else:
-        print(f"⛔ 交付门拦截：{'；'.join(ship_issues)} → {out_name}（重跑或拒收，绝不流向编辑）")
+        print(f"⛔ 交付门拦截：{'；'.join(ship_issues)} → _rejected/{out_name}（重跑或拒收，绝不流向编辑）")
     try:                                          # craft 仅 advisory，绝不为它丢成品/报告
         audit_craft = await audit.craft_audit(cli, final[:9000])
     except Exception as e:
         audit_craft = [f"(craft审计跳过:{type(e).__name__})"]
-    immersion = await audit.opening_immersion_audit(cli, final, open_premise)   # C: 开篇代入感(advisory)
+    if immersion is None:                          # 兜底:run() 已门前算好并传入;独立调用时才现算
+        immersion = await audit.opening_immersion_audit(cli, final, open_premise)
     imm_warn = (immersion.get("代入锚") == "warn" or immersion.get("premise清晰") == "warn"
                 or (isinstance(immersion.get("代入感分"), (int, float)) and immersion["代入感分"] < 60))
     if imm_warn:
         print(f"⚠ 开篇代入感审计: 代入锚={immersion.get('代入锚')} premise={immersion.get('premise清晰')} "
               f"代入感分={immersion.get('代入感分')} | {'；'.join(immersion.get('issues') or [])[:120]}")
     report.update({"title": title, "tagline": tagline, "alt_titles": tmeta.get("alts", []),
-                   "output_file": out_name, "audit_人+故事性_craft(advisory)": audit_craft or ["无"],
+                   "output_file": str(out_path), "audit_人+故事性_craft(advisory)": audit_craft or ["无"],
                    "开篇代入感审计(advisory)": immersion})
     if deliverable:                                    # 通过:总历时终点延到 Assemble 结束(含命名/审计)
         report["seconds"] = round(time.time() - _started_at(out_dir, time.time()), 1)
@@ -1398,11 +1407,15 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         except Exception as e:                       # 失败隔离:不崩整本
             print(f"事件状态账跳过(flaky): {type(e).__name__}: {e}")
 
+    # C: 开篇代入感审计——提到门前算(低分进门,见 gate.opening_immersion_min);算一次,复用到 finalize
+    open_premise = _open_premise(bible, plan)
+    immersion = await audit.opening_immersion_audit(cli, final, open_premise)   # 标注穿越/重生
     # 5+5.5) 37维审计 + 交付门(B1-3轻: 纯函数 _run_ship_gate,可测;阈值在 config)
     sig = {"dark_ratio": dark_rep["dark_ratio"], "climax_skipped": climax_skipped,
            "fact_table_ok": fact_table_ok, "ft_deaths_verified": ft_deaths_verified,
            "reenact_hits": reenact_hits, "intra_rep": intra_rep, "spine_net_num": spine_net_num,
-           "spine_net_id": spine_net_id, "fact_audit_crashed": fact_audit_crashed}
+           "spine_net_id": spine_net_id, "fact_audit_crashed": fact_audit_crashed,
+           "immersion_score": immersion.get("代入感分")}
     g = _run_ship_gate(bible, ordered, final, det, advisory, seam_found - len(seam_fixed), sig, gate_thr)
     audit_struct, audit_fore, audit_mech = g["audit_struct"], g["audit_fore"], g["audit_mech"]
     final_consistent, ship_issues, deliverable = g["final_consistent"], g["ship_issues"], g["deliverable"]
@@ -1445,9 +1458,18 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "calls": cli.calls, "cost_cny": round(cli.cost_cny, 2),
         "seconds": round(time.time() - started, 1),    # 此处=门拒终点(Evaluate);通过则 finalize 重算到 Assemble
     }
+    # 冻结信号向量(可合池):每本落同一套 → 喂质量代理飞轮。人评行直接拷 report["signals"]。
+    report["signals"] = signals.build_signal_vector(
+        deliverable=deliverable, grade=(grade or {}).get("grade"),
+        immersion_score=immersion.get("代入感分"), reenact_hits=len(reenact_hits),
+        seam_detected=seam_found, seam_residual=seam_found - len(seam_fixed),
+        dark_ratio=dark_rep["dark_ratio"], spine_num_contra=spine_net_num,
+        spine_id_contra=spine_net_id, ft_revival_residual=len(ft_deaths_verified),
+        too_short_chapters=len([d for d in det if d.startswith("过短")]),
+        final_consistent=final_consistent, intra_repeat_chapters=len(intra_rep))
     # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
     return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report,
-                                 _open_premise(bible, plan))      # C: 开篇代入感审计用(标注穿越/重生)
+                                 open_premise, immersion)         # C: 复用门前算好的 immersion(不重算)
 
 
 def _variety(beats: list[dict]) -> str:

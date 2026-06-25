@@ -54,6 +54,19 @@ def test_audit_crash_blocks():
     assert len(gate.evaluate_ship_gate({"承重审计崩溃": True}, D)) == 1
 
 
+def test_opening_immersion_floor_gate():
+    # editor-eval-2(2026-06-22): 买来 代入感30→人承重40(最低档,"第二章重复了")该拦;
+    # 其余 9 本代入感≥65→人承重≥50 安全。<40 = 读者无法代入的灾难地板,best-of-N 重掷救济。
+    assert gate.evaluate_ship_gate({}, D) == []                          # signal 缺失→默认不拦
+    assert gate.evaluate_ship_gate({"开篇代入感": None}, D) == []          # 审计解析失败→不拦
+    assert gate.evaluate_ship_gate({"开篇代入感": 40}, D) == []            # =40 不拦(< 才拦)
+    assert gate.evaluate_ship_gate({"开篇代入感": 65}, D) == []            # 安全本
+    assert len(gate.evaluate_ship_gate({"开篇代入感": 39}, D)) == 1        # <40 拦
+    assert len(gate.evaluate_ship_gate({"开篇代入感": 30}, D)) == 1        # 买来电平 拦
+    blk = {**D, "opening_immersion_min": 0}
+    assert gate.evaluate_ship_gate({"开篇代入感": 30}, blk) == []          # 可配回关闭(min=0)
+
+
 def test_config_thresholds_override():
     loose = {**D, "spine_net_min": 5}
     assert gate.evaluate_ship_gate({"数值真矛盾": 2, "身份真矛盾": 2}, loose) == []   # 4<5
