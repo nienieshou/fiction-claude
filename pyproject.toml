@@ -6,5 +6,5 @@ requires-python = ">=3.10"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]      # 测试用 `from hiki import ...`,无需 sys.path hack
+pythonpath = ["src", "."] # src→`from hiki import ...`; .→`from web.backend import ...`(CI 跑 `pytest` 不含 cwd)
 addopts = "-q"
