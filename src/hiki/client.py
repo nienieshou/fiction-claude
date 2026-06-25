@@ -10,7 +10,7 @@ import random
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from openai import RateLimitError, APIError, APIConnectionError, APITimeoutError
+from openai import RateLimitError, APIError, APIConnectionError, APITimeoutError, APIStatusError
 from . import config, budget
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +21,8 @@ _API = {"v4-pro": "deepseek-v4-pro", "v4-flash": "deepseek-v4-flash"}
 
 
 _warned_stages: set[str] = set()
+
+_FATAL_HINT = {401: "API key 无效", 402: "余额不足,充值后重试", 403: "权限不足"}
 
 
 def _model_for(stage: str) -> str:
@@ -71,7 +73,14 @@ class Client:
                     await asyncio.sleep(min(2 ** attempt, 10) * (0.5 + random.random()))
                 except RateLimitError:
                     await asyncio.sleep(min(2 ** attempt, 30) * (0.5 + random.random()))   # 429 指数退避+jitter 防同步重撞
-                except (APIError, APIConnectionError, APITimeoutError):  # 含连接/超时,否则单次闪断 abort 整跑
+                except APIStatusError as e:                    # 有响应的状态错误(4xx/5xx)
+                    if e.status_code in (401, 402, 403):       # 永久性:认证/余额/权限,重试无用→立即致命
+                        raise RuntimeError(
+                            f"{stage}: API 致命 {e.status_code}（{_FATAL_HINT.get(e.status_code, '不可重试')}）") from e
+                    if attempt == 5:                           # 其余(5xx 等)照旧重试
+                        raise
+                    await asyncio.sleep(min(2 ** attempt, 15) * (0.5 + random.random()))
+                except (APIError, APIConnectionError, APITimeoutError):  # 无响应:连接/超时,否则单次闪断 abort 整跑
                     if attempt == 5:
                         raise
                     await asyncio.sleep(min(2 ** attempt, 15) * (0.5 + random.random()))

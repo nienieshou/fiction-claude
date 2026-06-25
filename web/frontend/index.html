@@ -129,6 +129,7 @@ function statusInfo(b){
   if(b.status==="rejected")  return {t:"拒收",c:"#f85149",bg:"rgba(248,81,73,.12)"};
   if(b.status==="idle")      return {t:"待产·已清洗",c:"#8b949e",bg:"rgba(139,148,158,.12)"};
   if(b.status==="stalled")   return {t:"中断·可续跑",c:"#f0883e",bg:"rgba(240,136,62,.12)"};
+  if(b.status==="failed")    return {t:"失败·可续跑",c:"#f85149",bg:"rgba(248,81,73,.12)"};
   return {t:"进行中",c:"#58a6ff",bg:"rgba(88,166,255,.12)"};
 }
 // best-of-N 稿次徽章:运行中且重掷>1时显示"⟳N/M稿"(解释阶段条重置);否则空
@@ -253,7 +254,7 @@ function renderMain(){
           <div class="kpi"><div class="k">人工成品分</div><div class="v" style="color:${humanColor(b.human)}">${b.human==null?"—":b.human}</div></div>
           <div class="kpi"><div class="k">成本 / cap</div><div class="v" style="color:${capPct>90?'var(--red)':capPct>70?'var(--amber)':'var(--green)'}">¥${b.cost||0}<span style="font-size:11px;color:var(--t4)"> /${cap}</span></div></div>
         </div>
-        ${(b.status==="stalled"||b.status==="idle")
+        ${(b.status==="stalled"||b.status==="idle"||b.status==="failed")
           ? `<button class="dlbtn" style="color:var(--accent);border-color:var(--accent)" onclick="resumeBook('${b.id}')">▶ 续跑</button>` : ""}
         ${dlButton(b)}
       </div>
@@ -322,6 +323,7 @@ function certNote(b){
   if(b.status==="rejected") return b.grade==="Q"?"Q · 不可压缩":"承重瓶颈 · 最深仍不过";
   if(b.status==="idle") return "已清洗 · 待开始改写（无活跃任务）";
   if(b.status==="stalled") return "改写被中断 · 点「续跑」从已有产物继续";
+  if(b.status==="failed") return "改写崩溃(如余额不足) · 修因后点「续跑」重试";
   return "质量环进行 · 未终裁";
 }
 function dimRow(x){ const lbl=x.k==="承重"?"承重 · 瓶颈":x.k;
@@ -411,7 +413,7 @@ function spineHtml(groups){
 function dlButton(b){
   const cert=b.status==="certified", diag=b.status==="rejected"&&b.grade!=="Q";
   const active=cert||diag;
-  const label=cert?"下载成品":diag?"下载诊断":(b.grade==="Q"?"Q · 无成品":b.status==="idle"?"待产 · 无成品":b.status==="stalled"?"中断 · 无成品":"进行中");
+  const label=cert?"下载成品":diag?"下载诊断":(b.grade==="Q"?"Q · 无成品":b.status==="idle"?"待产 · 无成品":b.status==="stalled"?"中断 · 无成品":b.status==="failed"?"失败 · 无成品":"进行中");
   const col=cert?"var(--green)":diag?"var(--orange)":"var(--t4)";
   return `<div class="dlwrap"><button class="dlbtn" style="color:${col};border-color:${col}" ${active?`onclick="toggleMenu(event)"`:"disabled"}>${label} ▾</button>
     <div class="menu" id="dlmenu" style="display:none">${dlItems(b,cert,diag)}</div></div>`;

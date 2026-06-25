@@ -1,4 +1,5 @@
 import json
+import pytest
 from pathlib import Path
 
 
@@ -44,3 +45,54 @@ def test_output_dirs_skips_delivery_aggregate(tmp_path, monkeypatch):
     names = [p.name for p in paths.output_dirs()]
     assert "ZYGGY02079买来_reval" in names
     assert "somebook" not in names
+
+
+@pytest.fixture
+def fake_output(tmp_path, monkeypatch):
+    from web.backend import paths
+    out = tmp_path / "output"
+    out.mkdir()
+    monkeypatch.setattr(paths, "OUTPUT", out)
+    return out
+
+
+def test_dir_to_book_crash_is_failed(tmp_path):
+    from web.backend import adapters
+    d = tmp_path / "Xcrash_full"
+    d.mkdir()
+    (d / "bible.json").write_text("{}", encoding="utf-8")        # produce 已开产
+    (d / "_crash.txt").write_text("boom", encoding="utf-8")      # 但崩了,无 report.json
+    b = adapters.dir_to_book(d, {}, frozenset())
+    assert b["status"] == "failed"
+
+
+def test_dir_to_book_report_wins_over_stale_crash(tmp_path):
+    from web.backend import adapters
+    d = tmp_path / "Xok_full"
+    d.mkdir()
+    (d / "_crash.txt").write_text("old boom", encoding="utf-8")  # 崩后续跑成功,crash 残留
+    (d / "report.json").write_text('{"deliverable": true}', encoding="utf-8")
+    b = adapters.dir_to_book(d, {}, frozenset())
+    assert b["status"] == "certified"                            # report 优先,非 failed
+
+
+def test_resume_endpoint_allows_failed(fake_output, monkeypatch):
+    from fastapi.testclient import TestClient
+    from web.backend import app as appmod, runner
+    d = fake_output / "Xfail_full"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "bible.json").write_text("{}", encoding="utf-8")
+    (d / "_crash.txt").write_text("boom", encoding="utf-8")
+    (d / "source").mkdir()
+    (d / "source" / "clean.txt").write_text("x", encoding="utf-8")
+
+    async def fake_resume(slug):                                  # 不真跑 produce
+        return {"job_slug": slug, "resumed": True}
+    monkeypatch.setattr(runner, "resume", fake_resume)
+
+    client = TestClient(appmod.app)
+    books = client.get("/api/books").json()
+    xfail = next(b for b in books if b["id"] == "Xfail_full")
+    assert xfail["status"] == "failed"                           # 先钉死:该本确实是 failed(非 stalled)
+    r = client.post("/api/books/Xfail_full/resume")
+    assert r.status_code == 200                                  # 且 failed 被放行(旧码 failed→400)
