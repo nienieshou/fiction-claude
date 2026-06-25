@@ -89,6 +89,8 @@ def dir_to_book(d: Path, hidx: dict[str, float], active: frozenset[str] = frozen
         status = _status_from_report(report)
     elif slug in active:
         status = "running"
+    elif (d / "_crash.txt").exists():          # 崩溃(有 crash log,无 report)→failed,不是可续跑的"中断"
+        status = "failed"
     elif _produce_started(d):
         status = "stalled"
     else:

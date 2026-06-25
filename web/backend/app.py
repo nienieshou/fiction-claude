@@ -139,8 +139,8 @@ async def resume_book(book_id: str) -> dict:
     slug = sel["slug"]
     if slug in runner.active_slugs():
         return {"job_slug": slug, "already_running": True}
-    if sel["status"] not in ("stalled", "idle"):
-        raise HTTPException(400, f"仅可续跑 stalled/idle 任务，当前：{sel['status']}")
+    if sel["status"] not in ("stalled", "idle", "failed"):   # failed 充值/修因后可手动续跑(自动续跑仍只认 stalled)
+        raise HTTPException(400, f"仅可续跑 stalled/idle/failed 任务，当前：{sel['status']}")
     try:
         return await runner.resume(slug)
     except FileNotFoundError as e:
