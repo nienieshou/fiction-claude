@@ -43,6 +43,14 @@ def test_fatal_401_no_retry(monkeypatch):
     assert len(calls) == 1
 
 
+def test_fatal_403_no_retry(monkeypatch):
+    calls = []
+    c = _client_raising(monkeypatch, _status_error(403), calls)
+    with pytest.raises(RuntimeError, match="致命"):
+        asyncio.run(c.complete("draft", "sys", "user"))
+    assert len(calls) == 1
+
+
 def test_nonfatal_500_retries_then_raises(monkeypatch):
     calls = []
     c = _client_raising(monkeypatch, _status_error(500), calls)

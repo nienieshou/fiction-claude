@@ -91,6 +91,8 @@ def test_resume_endpoint_allows_failed(fake_output, monkeypatch):
     monkeypatch.setattr(runner, "resume", fake_resume)
 
     client = TestClient(appmod.app)
-    assert client.get("/api/books").json()                       # 触发 list(失败本应在内,status=failed)
+    books = client.get("/api/books").json()
+    xfail = next(b for b in books if b["id"] == "Xfail_full")
+    assert xfail["status"] == "failed"                           # 先钉死:该本确实是 failed(非 stalled)
     r = client.post("/api/books/Xfail_full/resume")
-    assert r.status_code == 200                                  # failed 被放行(不再 400)
+    assert r.status_code == 200                                  # 且 failed 被放行(旧码 failed→400)
