@@ -28,7 +28,7 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import adapters, fixtures, paths, runner
+from . import adapters, balance, fixtures, paths, runner
 from .contract import Book, Stats
 
 async def _auto_resume_stalled() -> None:
@@ -89,6 +89,11 @@ def get_stages() -> list[dict]:
 @app.get("/api/stats", response_model=Stats)
 def get_stats() -> dict:
     return adapters.stats(_books())
+
+
+@app.get("/api/balance")
+async def get_balance() -> dict:
+    return await balance.fetch_balance()
 
 
 @app.get("/api/books", response_model=list[Book])
