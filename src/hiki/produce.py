@@ -144,10 +144,10 @@ def _split_head(t: str, n: int = 1200) -> tuple[str, str]:
 
 async def _seam_pass(cli: Client, ch_texts: list[str], cap: int = 60):
     """章缝衔接检修（治人工头号缺陷：相邻章时空/动作倒退）。
-    detect(59对尾→头并发) → 定向重写断裂章的开头段(其余原样) → 采用守卫。
-    返回 (修后章文, 修复清单, 检出数)。"""
+    detect(59对尾→头并发) → 定向重写断裂章的开头段(其余原样) → 采用守卫 → 回读复检。
+    返回 (修后章文, 修复清单, 检出数, 修复未净清单)。修复未净=改写采用但重跑detect仍断裂。"""
     if len(ch_texts) < 2:
-        return ch_texts, [], 0
+        return ch_texts, [], 0, []
     sys_c, usr_c = prompts.SEAM_CHECK
 
     async def _check(i: int) -> dict:
@@ -167,7 +167,7 @@ async def _seam_pass(cli: Client, ch_texts: list[str], cap: int = 60):
             bad.append((i, (r.get("issue") or "").strip() or "时空/动作衔接断裂"))
     found = len(bad)
     if not bad:
-        return ch_texts, [], 0
+        return ch_texts, [], 0, []
     bad = bad[:cap]
     sys_f, usr_f = prompts.SEAM_FIX
     splits = {i: _split_head(ch_texts[i]) for i, _ in bad}
@@ -175,14 +175,19 @@ async def _seam_pass(cli: Client, ch_texts: list[str], cap: int = 60):
         cli.complete("draft", sys_f,
                      usr_f.format(prev=ch_texts[i - 1][-700:], issue=iss, head=splits[i][0]),
                      max_tokens=4000, temperature=0.4) for i, iss in bad])
-    fixed = []
+    adopted = []
     for (i, iss), t in zip(bad, res):
         head, rest = splits[i]
         t = _strip_markers((t or "").strip())
         if t and len(head) * 0.5 <= len(t) <= len(head) * 2.0:   # 守卫:开头没崩才采用
             ch_texts[i] = t + rest
-            fixed.append(f"第{i + 1}章:{iss[:18]}")
-    return ch_texts, fixed, found
+            adopted.append((i, iss))
+    rechecks = await asyncio.gather(*[_check(i) for i, _ in adopted])  # 回读复检:只查已采用章
+    fixed, unresolved = [], []
+    for (i, iss), rc in zip(adopted, rechecks):
+        label = f"第{i + 1}章:{iss[:18]}"
+        (unresolved if rc.get("ok") is False else fixed).append(label)
+    return ch_texts, fixed, found, unresolved
 
 
 def _trim_tail(t: str, look: int = 400) -> str:
