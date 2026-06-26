@@ -202,18 +202,6 @@ def _trim_tail(t: str, look: int = 400) -> str:
     return t
 
 
-def _hook_restate_ratio(ch: dict) -> float:
-    """end_hook 的 char-3gram 有多大比例落在本章 key_events 内。高=钩子疑复述本章已交代事件
-    (改写式章内重述根因: drafter 把该事件正文+结尾各演一遍)。0-LLM, 纯函数。"""
-    hk = _re.sub(r"\s", "", ch.get("end_hook") or "")
-    kev = _re.sub(r"\s", "", "".join(str(k) for k in (ch.get("key_events") or [])))
-    if len(hk) < 6 or len(kev) < 6:
-        return 0.0
-    g_hk = {hk[i:i + 3] for i in range(len(hk) - 3)}
-    g_kev = {kev[i:i + 3] for i in range(len(kev) - 3)}
-    return (len(g_hk & g_kev) / len(g_hk)) if g_hk else 0.0
-
-
 _FLASHBACK_RE = _re.compile(r"(三天前|三日前|几天前|数日前|一个时辰前|时间回到|回到.{0,4}(天|日|年)前|半(天|日)前)")
 
 
@@ -925,12 +913,6 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
             last["brief"] = (last.get("brief") or "") + (
                 f"；本章必须收在钩子上:{hk}(结尾留悬念/危机,不写圆满收场;"
                 f"铁律:若该钩子事件正文已演出,只让正文自然收束于此刻,绝不在正文先演一遍再于结尾重述一遍——同一事件全章只演一次)")
-    # 章尾钩疑复述 key_event(确定性 advisory, 0-LLM): 高比值=钩子复述本章已交代事件,drafter 易双演
-    # (改写式章内重述根因)。仅打印,不进门/报告/signals。词面度量,系统流型灵敏、纯语义改写召回弱(诚实局限)。
-    hook_restate = [(i, r) for i, ch in enumerate(plan["chapters"])
-                    if (r := _hook_restate_ratio(ch)) > 0.35]
-    if hook_restate:
-        print(f"章尾钩疑复述key_event(advisory): {[(f'第{i+1}章', f'{r:.0%}') for i, r in hook_restate]}")
     # R15 语义双版本治根: 高潮章场景2+的brief整个替换为纯收束(删高潮指令)+SUMMARIZE;非高潮章保留R13c前置标注
     climax_chs = intra_dup = 0
     for ch in plan["chapters"]:
