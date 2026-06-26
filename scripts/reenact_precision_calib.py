@@ -43,10 +43,12 @@ def chap_nums(hits: list[str]) -> set[int]:
 async def main():
     cli = Client()
     ok = True
+    total_hits = 0          # 防 _plane_check 异常(→[],[])导致空检出→门空真通过(评审Important)
     for tag, (md_p, plan_p, must_drop, must_keep) in BOOKS.items():
         ch = split_chapters(md_p.read_text(encoding="utf-8"))
         plan = json.loads(plan_p.read_text(encoding="utf-8"))
         kept, filtered = await produce._plane_check(cli, ch, plan)
+        total_hits += len(kept) + len(filtered)
         kept_n, filt_n = chap_nums(kept), chap_nums(filtered)
         detected = kept_n | filt_n
         print(f"\n[{tag}] 真重演 {len(kept)} 章{sorted(kept_n)} | 视角转述滤除 {len(filtered)} 章{sorted(filt_n)}")
@@ -72,7 +74,12 @@ async def main():
             print(f"   ~ FP未滤净(精度未尽,非致命) {sorted(drop_leak)}")
         if drop_undet:
             print(f"   · 一阶未检出(范围外,不判) {sorted(drop_undet)}")
-    print(f"\n总 calls={cli.calls}  cost=¥{cli.cost_cny:.2f}  验收={'通过' if ok else '不通过'}(致命=误杀真重演)")
+    if total_hits == 0:      # 检测器零产出(疑 _plane_check 异常被吞)→ 校准无效, 不得真通过
+        ok = False
+        verdict = "无效:检测器零产出(疑异常,非真通过)"
+    else:
+        verdict = "通过" if ok else "不通过"
+    print(f"\n总 calls={cli.calls}  cost=¥{cli.cost_cny:.2f}  hits={total_hits}  验收={verdict}(致命=误杀真重演)")
 
 
 if __name__ == "__main__":
