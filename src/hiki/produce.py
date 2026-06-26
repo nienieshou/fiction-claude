@@ -1402,7 +1402,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     spine_net_num, spine_net_id = fa["spine_net_num"], fa["spine_net_id"]
     ft_deaths_verified, fact_adv = fa["ft_deaths_verified"], fa["fact_adv"]
     # 4j) 控制面核对(B1-5 → _plane_check)
-    reenact_hits = await _plane_check(cli, ch_texts, plan)
+    reenact_hits, reenact_filtered = await _plane_check(cli, ch_texts, plan)
     final = _assemble(plan, ch_texts)
 
     # R14 章内自重复检测(确定性,0-LLM): 治整章双版本(ch59飞升写两遍/讨债两版类语义重演)。
@@ -1469,6 +1469,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "plan邻章查重": plan_dups or ["无"],
         "波次": str([(a + 1, b) for a, b in waves]),
         "控制面重演核对": reenact_hits or ["无"],
+        "控制面重演_视角转述滤除": reenact_filtered or ["无"],
         "邻章版本_检出": adj_found, "邻章版本_修复": adj_fixed or ["无"],
         "邻章版本_修复未净": adj_unresolved or ["无"],
         "事实表对账(advisory)": fact_adv or ["无"],
