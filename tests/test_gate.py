@@ -89,3 +89,17 @@ def test_human_calibrated_advisory_levels_pass():
                 {"事件重演": 4, "数值真矛盾": 4, "final_consistent": False},
                 {"事件重演": 3, "身份真矛盾": 3, "预告跳过": "x"}):
         assert gate.evaluate_ship_gate(sig, D) == []
+
+
+def test_early_repeat_caps_immersion():
+    # CPBGX00031: detector 误给 opening_immersion=90,但 ch1/ch2 同一"许安初访"重述。
+    # early_repeat>0 → 封顶到 cap(30) → 触发 opening_immersion_min(40)硬门。
+    assert gate.evaluate_ship_gate({"开篇代入感": 90}, D) == []                  # 无早段重复→90 安全
+    assert len(gate.evaluate_ship_gate({"开篇代入感": 90, "早段重复": 1}, D)) == 1  # 有→封顶30→拦
+    assert gate.evaluate_ship_gate({"开篇代入感": 90, "早段重复": 0}, D) == []     # =0 不封顶
+    # 封顶值高于 min 时不拦(cap 可配)
+    loose = {**D, "early_repeat_immersion_cap": 50}
+    assert gate.evaluate_ship_gate({"开篇代入感": 90, "早段重复": 2}, loose) == []  # 封顶50≥40
+    # 早段重复但 immersion 缺失/None → 不崩、不拦(保守)
+    assert gate.evaluate_ship_gate({"早段重复": 1}, D) == []
+    assert gate.evaluate_ship_gate({"开篇代入感": None, "早段重复": 1}, D) == []
