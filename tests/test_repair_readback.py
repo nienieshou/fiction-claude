@@ -83,3 +83,54 @@ def test_seam_empty_recheck_treated_as_resolved():
     })
     out, fixed, found, unresolved = _run(produce._seam_pass(cli, ["第一章正文", CH1]))
     assert len(fixed) == 1 and unresolved == []
+
+
+# ——— 邻章版本(_adj_dup_pass): detect/recheck 用 "dup" 键 ———
+CH1_DUP = "第二章\n" + "重演前章的内容" * 30
+
+
+def test_adj_verified_resolved_counts_as_fixed():
+    cli = FakeClient({
+        "chunk_extract": [
+            json.dumps({"dup": True, "issue": "互斥重演"}),  # detect
+            json.dumps({"dup": False}),                       # recheck → 已净
+        ],
+        "draft": [CH1_DUP],                                   # 改写≥原长0.7, 采用
+    })
+    out, fixed, found, unresolved = _run(produce._adj_dup_pass(cli, ["第一章正文内容", CH1_DUP]))
+    assert found == 1
+    assert len(fixed) == 1 and "第2章" in fixed[0]
+    assert unresolved == []
+    assert found - len(fixed) == 0
+
+
+def test_adj_adopted_but_unresolved_counts_as_residual():
+    cli = FakeClient({
+        "chunk_extract": [
+            json.dumps({"dup": True, "issue": "互斥重演"}),  # detect
+            json.dumps({"dup": True, "issue": "仍重演"}),    # recheck → 仍重演
+        ],
+        "draft": [CH1_DUP],
+    })
+    out, fixed, found, unresolved = _run(produce._adj_dup_pass(cli, ["第一章正文内容", CH1_DUP]))
+    assert found == 1
+    assert fixed == []
+    assert len(unresolved) == 1 and "第2章" in unresolved[0]
+    assert found - len(fixed) == 1
+
+
+def test_adj_fix_rejected_by_guard_no_recheck():
+    cli = FakeClient({
+        "chunk_extract": [json.dumps({"dup": True, "issue": "x"})],  # 只 detect
+        "draft": ["短"],                                              # <原长0.7, 拒绝
+    })
+    out, fixed, found, unresolved = _run(produce._adj_dup_pass(cli, ["第一章正文内容", CH1_DUP]))
+    assert found == 1 and fixed == [] and unresolved == []
+    assert cli.calls.count("chunk_extract") == 1
+
+
+def test_adj_no_dup_no_fix():
+    cli = FakeClient({"chunk_extract": [json.dumps({"dup": False})], "draft": []})
+    out, fixed, found, unresolved = _run(produce._adj_dup_pass(cli, ["第一章正文内容", CH1_DUP]))
+    assert found == 0 and fixed == [] and unresolved == []
+

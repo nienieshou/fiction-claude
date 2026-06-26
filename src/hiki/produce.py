@@ -208,9 +208,10 @@ _FLASHBACK_RE = _re.compile(r"(三天前|三日前|几天前|数日前|一个时
 async def _adj_dup_pass(cli: Client, ch_texts: list[str], cap: int = 12):
     """R11 邻章头部重演检修: 后章开头把前章已演事件重演成互斥版本(冥夙双救场/茶壶两版类)。
     M0(scripts/m0_adjdup_recall.py): 头部类召回1/1,净书误报7%且抽查多为真伤;修复=重写后章开头
-    承接前章(同 seam-fix 模式,采用守卫),深处互斥不在此环(归点修)。返回 (修后, 修复清单, 检出数)。"""
+    承接前章(同 seam-fix 模式,采用守卫,采用后回读复检),深处互斥不在此环(归点修)。
+    返回 (修后, 修复清单, 检出数, 修复未净清单)。"""
     if len(ch_texts) < 2:
-        return ch_texts, [], 0
+        return ch_texts, [], 0, []
     sys_c, usr_c = prompts.ADJ_DUP_CHECK
 
     async def _check(i: int) -> dict:
@@ -226,20 +227,26 @@ async def _adj_dup_pass(cli: Client, ch_texts: list[str], cap: int = 12):
     checks = await asyncio.gather(*[_check(i) for i in idxs])
     bad = [(i, (r.get("issue") or "互斥重演").strip()) for i, r in zip(idxs, checks)
            if r.get("dup") is True][:cap]
+    found = len(bad)
     if not bad:
-        return ch_texts, [], 0
+        return ch_texts, [], 0, []
     sys_f, usr_f = prompts.ADJ_DUP_FIX
-    fixed = []
     rewrites = await asyncio.gather(*[
         cli.complete("draft", sys_f, usr_f.format(issue=iss, prev=ch_texts[i - 1][-1500:],
                                                   text=ch_texts[i][:14000]),
                      max_tokens=8000, temperature=0.3) for i, iss in bad])
+    adopted = []
     for (i, iss), t in zip(bad, rewrites):
         t = _strip_markers((t or "").strip())
         if t and len(t) >= len(ch_texts[i]) * 0.7:   # 采用守卫
             ch_texts[i] = t
-            fixed.append(f"第{i + 1}章:{iss[:20]}")
-    return ch_texts, fixed, len(bad)
+            adopted.append((i, iss))
+    rechecks = await asyncio.gather(*[_check(i) for i, _ in adopted])  # 回读复检
+    fixed, unresolved = [], []
+    for (i, iss), rc in zip(adopted, rechecks):
+        label = f"第{i + 1}章:{iss[:20]}"
+        (unresolved if rc.get("dup") is True else fixed).append(label)
+    return ch_texts, fixed, found, unresolved
 
 
 def _wave_bounds(beats: list[dict], n_ch: int,
