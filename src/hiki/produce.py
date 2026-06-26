@@ -1360,14 +1360,14 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         print(f"内容过滤: 净化 {len(dark_rep['dark_fixed'])} 章 (暗黑比{dark_rep['dark_ratio']}"
               f"{'→暗黑饱和,标记拒收' if values_reject else ''})")
     # 4e) 章缝衔接检修(人工头号缺陷:相邻章时空/动作倒退,如'前章已开车,后章才拿钥匙')
-    ch_texts, seam_fixed, seam_found = await _seam_pass(cli, ch_texts)
+    ch_texts, seam_fixed, seam_found, seam_unresolved = await _seam_pass(cli, ch_texts)
     if seam_found:
-        print(f"章缝: 检出 {seam_found} 处断裂, 修复 {len(seam_fixed)} 处: {seam_fixed}")
+        print(f"章缝: 检出 {seam_found} 处断裂, 修复净 {len(seam_fixed)} 处, 未净 {len(seam_unresolved)} 处: {seam_fixed}")
     # 4e2) R11 邻章事件版本互斥检修(缺陷类演化: 整章重演→同章双版本→邻章双版本;
     #      M0限界: 只管后章**头部**重演(检出→重写开头,采用守卫),深处互斥归点修通道)
-    ch_texts, adj_fixed, adj_found = await _adj_dup_pass(cli, ch_texts)
+    ch_texts, adj_fixed, adj_found, adj_unresolved = await _adj_dup_pass(cli, ch_texts)
     if adj_found:
-        print(f"邻章版本: 检出 {adj_found} 对头部重演, 修复 {len(adj_fixed)} 对: {adj_fixed[:6]}")
+        print(f"邻章版本: 检出 {adj_found} 对头部重演, 修复净 {len(adj_fixed)} 对, 未净 {len(adj_unresolved)} 对: {adj_fixed[:6]}")
     # 4f) 结尾收束守卫(B1-5 → _ending_guard)
     eg = await _ending_guard(cli, ch_texts)
     ch_texts, ending_fixed, climax_skipped = eg["ch_texts"], eg["ending_fixed"], eg["climax_skipped"]
@@ -1452,12 +1452,14 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "波次": str([(a + 1, b) for a, b in waves]),
         "控制面重演核对": reenact_hits or ["无"],
         "邻章版本_检出": adj_found, "邻章版本_修复": adj_fixed or ["无"],
+        "邻章版本_修复未净": adj_unresolved or ["无"],
         "事实表对账(advisory)": fact_adv or ["无"],
         "事实表生死_verify后": [f"{r['who']}(第{r['revive_ch'] + 1}章)" for r in ft_deaths_verified] or ["无"],
         "残句(advisory)": audit.broken_prose(ch_texts) or ["无"],
         "时代锚(advisory)": audit.era_anachronism(
             ch_texts, str(bible.get("voice", "")) + str(bible.get("setting", ""))) or ["无"],
         "章缝_检出": seam_found, "章缝_修复": seam_fixed or ["无"],
+        "章缝_修复未净": seam_unresolved or ["无"],
         "早段重复(ch1-k)": early_rep["pairs"] or ["无"],
         "结尾守卫_补收束": ending_fixed or "无需",
         "倒叙哨兵(advisory)": flashbacks or ["无"], "预告跳空": climax_skipped or "无",
