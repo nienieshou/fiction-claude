@@ -202,6 +202,18 @@ def _trim_tail(t: str, look: int = 400) -> str:
     return t
 
 
+def _hook_restate_ratio(ch: dict) -> float:
+    """end_hook 的 char-3gram 有多大比例落在本章 key_events 内。高=钩子疑复述本章已交代事件
+    (改写式章内重述根因: drafter 把该事件正文+结尾各演一遍)。0-LLM, 纯函数。"""
+    hk = _re.sub(r"\s", "", ch.get("end_hook") or "")
+    kev = _re.sub(r"\s", "", "".join(str(k) for k in (ch.get("key_events") or [])))
+    if len(hk) < 6 or len(kev) < 6:
+        return 0.0
+    g_hk = {hk[i:i + 3] for i in range(len(hk) - 3)}
+    g_kev = {kev[i:i + 3] for i in range(len(kev) - 3)}
+    return (len(g_hk & g_kev) / len(g_hk)) if g_hk else 0.0
+
+
 _FLASHBACK_RE = _re.compile(r"(三天前|三日前|几天前|数日前|一个时辰前|时间回到|回到.{0,4}(天|日|年)前|半(天|日)前)")
 
 
