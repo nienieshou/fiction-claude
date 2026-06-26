@@ -121,11 +121,15 @@ async def continuity_check(cli: Client, text: str, bible: dict) -> dict:
 # 真值表证伪了旧的承重微观硬门：5 本里机器信号与人类承重/可追**不单调可分**——
 # 最可追本(隐婚 总76)含 6 处重演(全场最多)、4 数值矛盾;不可追本(武神60.8)仅 2 处重演。
 # 故承重微观计数(重演/spine薄网/final_consistent/预告跳过)降为 advisory,硬门只留"灾难级+定类硬伤"。
+# 2026-06-26: reenact 此前仍以 reenact_min=7 硬拦(eval5 时只升阈未真降级)。D2 精度修+池重测证实其
+# 信号噪(同书 polluted5→clean9)且会误拦认证本(CPBGX00031 clean9)→ 改 block_on_reenact=False 真降 advisory。
 SHIP_GATE_DEFAULTS = {
     "too_short_chapters": 3,         # 过短<70% 章数 ≥ → 拦(定类质量地板,非承重)
     "dark_ratio_max": 0.25,          # 暗黑饱和比 > → 拦(定类)
     "seam_residual_max": 8,          # 残缝 > → 拦(章缝;human-eval 未越线,保留)
-    "reenact_min": 7,                # 事件重演 ≥ → 拦。旧=1(误杀100%);human可追本含6处→只挡极端泛滥
+    "reenact_min": 7,                # 事件重演 ≥ 阈值 → 仅当 block_on_reenact 时拦(默认 advisory)
+    "block_on_reenact": False,       # 2026-06-26 降级: reenact 信号噪(同书 polluted5→clean9)+非判别(eval5
+                                     #   最可追本含最多重演)+误拦认证本(CPBGX00031 clean9)→默认 advisory 不拦
     "spine_net_min": 6,              # Spine薄网真矛盾(数值+身份) ≥ → 拦。旧=2;human可追本含4→留头寸
     "block_on_climax_skip": False,   # 预告跳过 是否硬拦。旧=硬拦;仅命中可追本(星厨74.8"基本连得上")→降advisory
     "block_on_final_inconsistent": False,  # final_consistent=否 是否硬拦。旧=硬拦;反相关(只命中隐婚/团宠两可追本)→降advisory
@@ -157,7 +161,7 @@ def evaluate_ship_gate(sig: dict, thr: dict | None = None) -> list[str]:
         issues.append(f"残缝{sig['残缝']}处(章缝修复采用不足)")
     if not sig.get("final_consistent", True) and t.get("block_on_final_inconsistent"):
         issues.append("final_consistent=false(连续性残留)")
-    if sig.get("事件重演", 0) >= t["reenact_min"]:
+    if sig.get("事件重演", 0) >= t["reenact_min"] and t.get("block_on_reenact"):
         issues.append(f"事件重演{sig['事件重演']}处(控制面核对)")
     if sig.get("章内双版本"):
         issues.append(f"章内双版本{sig['章内双版本']}(整章重演)")

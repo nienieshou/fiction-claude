@@ -27,7 +27,8 @@ ship_gate:
   too_short_chapters: 3            # 过短<70% 章数 ≥ → 拦(定类质量地板)
   dark_ratio_max: 0.25             # 暗黑饱和比 > → 拦(定类)
   seam_residual_max: 8             # 残缝 > → 拦(human-eval 未越线,保留)
-  reenact_min: 7                   # 事件重演 ≥ → 拦。旧=1(误杀100%);human可追本含6处
+  reenact_min: 7                   # 事件重演 ≥ 阈值 → 仅当 block_on_reenact 时拦
+  block_on_reenact: false          # 2026-06-26 降级: reenact 噪(同书 polluted5→clean9)+非判别+误拦认证本(CPBGX00031 clean9)→默认 advisory
   spine_net_min: 6                 # Spine薄网真矛盾(数值+身份) ≥ → 拦。旧=2;human可追本含4
   block_on_climax_skip: false      # 预告跳过 硬拦?旧=是;仅命中可追本→降advisory
   block_on_final_inconsistent: false  # final_consistent=否 硬拦?旧=是;反相关→降advisory

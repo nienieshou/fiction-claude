@@ -63,3 +63,29 @@
   - 古言/修仙残留AI感(人类点名)是**欠检**(题材盲的 _CLICHE 词表漏了那些AI腔),非过检→方向是"未来按评委标注扩词表",**绝非放松**。
   - 落地(commit 待填):去套话门旋钮(over_book_min/per_chapter_min/cap)入 config.decliche,默认不变(零行为)、供未来多评委数据调;+测试验证 config 生效。
   - **不做投机性放松**(1评委+机制在产清稿,松了风险掉质)。
+
+
+---
+
+## 附记 · reenact 真降 advisory（2026-06-26）
+
+eval5 行动项 A 当时把承重微观信号降 advisory，但 **reenact 实际只把 reenact_min 从 1 升到 7（仍硬拦），未真降级**。D2 重演精度修复（commit 338ed65：检出→裁决两段，剔除视角转述 FP）后，在当前 7 本生产池上重测 clean reenact，证据要求把 reenact 真正降为 advisory：
+
+| 书 | 交付 | polluted 重演 | clean 真重演 |
+|---|---|---|---|
+| CPBGX00031 | 认证 | 5 | **9** |
+| CPBGX00056 | 拒收 | 3 | 7 |
+| CPBGX00192 | 认证 | 3 | 2 |
+| CPBXN00188 | 认证 | 5 | 4 |
+| ZYGGY02079 | 认证 | 6 | 3 |
+| ZYGGY02252 | 认证 | 4 | 3 |
+| BPBXS00052 | 拒收 | 0 | 0 |
+
+三条证伪 reenact 作硬门：
+1. **信号噪**：CPBGX00031 同书 polluted 5 → clean 9（PLANE_CHECK 一阶 stochastic，跨跑 ±4）。±4 抖动的信号撑不起阈值 7 的硬门。
+2. **非判别**（eval5 已证）：最可追本（隐婚总76）含全场最多重演（6）；不可追本（武神60.8）仅 2。reenact 高 ≠ 质量差。
+3. **误拦认证本**：reenact_min=7 会硬拦 CPBGX00031（认证出货本，clean 9）——与 eval5 误拦可追本团宠（polluted 8）同类。
+
+**决策**：`block_on_reenact=False`（gate.py SHIP_GATE_DEFAULTS + config/pipeline.yaml），reenact 真降 advisory，与已降级的 final_consistent/climax_skip 家族对齐。clean reenact_hits 仍作客观信号入报告（控制面重演核对）+ 信号向量；重演泛滥的裁断归人工（决策 A：系统产信号，主观维人工）。`reenact_min=7` 保留为可配回硬拦的阈值（block_on_reenact=True 时生效）。
+
+注：spine_net_min=6 仍为硬门（本轮未动，其检测器未变，eval5 校准仍持）。reenact 是本轮唯一改动信号，故只重标它。

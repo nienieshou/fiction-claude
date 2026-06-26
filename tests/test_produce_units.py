@@ -73,14 +73,15 @@ def test_run_ship_gate_clean_deliverable():
     assert g["final_consistent"] is True
 
 
-def test_run_ship_gate_reenact_advisory_below_7():
-    # human-eval-5 重标: 少量重演(可追本含3-6处)降 advisory,不再硬拦;只 ≥7 才拦
-    sig = {**_clean_sig(), "reenact_hits": [f"第{i}章重演[...]" for i in range(6)]}  # 6<7
-    g = _run_ship_gate({}, [], "正文", [], [], 0, sig, gate.SHIP_GATE_DEFAULTS)
+def test_run_ship_gate_reenact_advisory_default():
+    # 2026-06-26 降级: reenact 降 advisory, 默认不拦(即便高位9, 如认证本 CPBGX00031 clean9);
+    # 信号噪(同书 polluted5→clean9)+非判别(eval5)→ 走 _run_ship_gate 整链亦不拦。可配 block_on_reenact 回硬拦。
+    sig9 = {**_clean_sig(), "reenact_hits": [f"第{i}章重演[...]" for i in range(9)]}  # 9, 默认仍不拦
+    g = _run_ship_gate({}, [], "正文", [], [], 0, sig9, gate.SHIP_GATE_DEFAULTS)
     assert g["deliverable"] is True and not any("事件重演" in i for i in g["ship_issues"])
-    sig7 = {**_clean_sig(), "reenact_hits": [f"第{i}章重演[...]" for i in range(7)]}  # 7→拦
-    g7 = _run_ship_gate({}, [], "正文", [], [], 0, sig7, gate.SHIP_GATE_DEFAULTS)
-    assert any("事件重演" in i for i in g7["ship_issues"])
+    blk = {**gate.SHIP_GATE_DEFAULTS, "block_on_reenact": True}
+    g_blk = _run_ship_gate({}, [], "正文", [], [], 0, sig9, blk)
+    assert any("事件重演" in i for i in g_blk["ship_issues"])      # 可配回硬拦
 
 
 def test_run_ship_gate_final_consistent_advisory_not_blocking():

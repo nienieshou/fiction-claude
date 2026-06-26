@@ -18,10 +18,13 @@ def test_threshold_boundaries():
     assert len(gate.evaluate_ship_gate({"残缝": 9}, D)) == 1
 
 
-def test_reenact_min_7_human_calibrated():
-    # human-eval-5: 可追本(隐婚)含6处重演→不拦;只挡极端泛滥≥7
-    assert gate.evaluate_ship_gate({"事件重演": 6}, D) == []           # 6<7
-    assert len(gate.evaluate_ship_gate({"事件重演": 7}, D)) == 1       # >=7
+def test_reenact_advisory_by_default():
+    # 2026-06-26 降级: reenact 信号噪(同书 polluted5→clean9)+非判别(eval5 最可追本含最多重演)
+    # +会误拦认证本(CPBGX00031 clean9)→ 默认 advisory 不拦(同 climax/final 家族); 可配 block_on_reenact 回硬拦。
+    assert gate.evaluate_ship_gate({"事件重演": 9}, D) == []            # 默认不拦, 即便高位
+    blk = {**D, "block_on_reenact": True}
+    assert len(gate.evaluate_ship_gate({"事件重演": 7}, blk)) == 1      # 可配回硬拦(reenact_min=7)
+    assert gate.evaluate_ship_gate({"事件重演": 6}, blk) == []          # 配回后仍 6<7 不拦
 
 
 def test_spine_net_min_6_human_calibrated():
@@ -75,19 +78,21 @@ def test_config_thresholds_override():
 
 
 def test_multi_signal_accumulates():
-    # 用重标后真正会拦的电平: 过短3✓ 残缝9✓ 重演7✓ spine6✓ 审计崩溃✓
+    # 默认真正会拦的电平: 过短3✓ 残缝9✓ spine6✓ 审计崩溃✓(重演已降 advisory 默认不拦)
     issues = gate.evaluate_ship_gate(
-        {"过短章数": 3, "残缝": 9, "事件重演": 7, "数值真矛盾": 3, "身份真矛盾": 3,
+        {"过短章数": 3, "残缝": 9, "数值真矛盾": 3, "身份真矛盾": 3,
          "承重审计崩溃": True}, D)
-    assert len(issues) == 5
+    assert len(issues) == 4
 
 
 def test_human_calibrated_advisory_levels_pass():
     # human-eval-5 的 5 本在重标后,其承重微观电平不再硬拦(降 advisory):
     # 隐婚 重演6/spine3/final否 · 团宠 重演4/spine4/final否 · 星厨 重演3/spine3/预告跳过
+    # + CPBGX00031 clean 重演9(认证本,2026-06-26 reenact 降级实证): 高位重演亦不拦
     for sig in ({"事件重演": 6, "数值真矛盾": 3, "final_consistent": False},
                 {"事件重演": 4, "数值真矛盾": 4, "final_consistent": False},
-                {"事件重演": 3, "身份真矛盾": 3, "预告跳过": "x"}):
+                {"事件重演": 3, "身份真矛盾": 3, "预告跳过": "x"},
+                {"事件重演": 9}):
         assert gate.evaluate_ship_gate(sig, D) == []
 
 
