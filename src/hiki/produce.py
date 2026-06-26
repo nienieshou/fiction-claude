@@ -922,7 +922,15 @@ async def _stage_plan(cli: Client, bible: dict, scenes: list, out_dir: Path, n_c
         hk = (ch.get("end_hook") or "").strip()
         if hk and ch["scenes"]:
             last = ch["scenes"][-1]
-            last["brief"] = (last.get("brief") or "") + f"；本章必须收在钩子上:{hk}(结尾留悬念/危机,不写圆满收场)"
+            last["brief"] = (last.get("brief") or "") + (
+                f"；本章必须收在钩子上:{hk}(结尾留悬念/危机,不写圆满收场;"
+                f"铁律:若该钩子事件正文已演出,只让正文自然收束于此刻,绝不在正文先演一遍再于结尾重述一遍——同一事件全章只演一次)")
+    # 章尾钩疑复述 key_event(确定性 advisory, 0-LLM): 高比值=钩子复述本章已交代事件,drafter 易双演
+    # (改写式章内重述根因)。仅打印,不进门/报告/signals。词面度量,系统流型灵敏、纯语义改写召回弱(诚实局限)。
+    hook_restate = [(i, r) for i, ch in enumerate(plan["chapters"])
+                    if (r := _hook_restate_ratio(ch)) > 0.35]
+    if hook_restate:
+        print(f"章尾钩疑复述key_event(advisory): {[(f'第{i+1}章', f'{r:.0%}') for i, r in hook_restate]}")
     # R15 语义双版本治根: 高潮章场景2+的brief整个替换为纯收束(删高潮指令)+SUMMARIZE;非高潮章保留R13c前置标注
     climax_chs = intra_dup = 0
     for ch in plan["chapters"]:
