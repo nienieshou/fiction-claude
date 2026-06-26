@@ -447,6 +447,30 @@ async def opening_immersion_audit(cli, opening_text: str, premise: str = "") -> 
             "premise清晰": r.get("premise清晰"), "issues": r.get("issues") or []}
 
 
+async def early_repeat_audit(cli, ch_texts: list[str], k: int = 3) -> dict:
+    """早段重复检测(填 signals.early_repeat):前 k 章是否同一事件被重述/失忆式重新初遇。
+    治 CPBGX00031 "第二章重复了"——开篇代入感审计只看单章给了90,漏过整章重演。
+    LLM-judge,返回 {"count": int, "pairs": [...]}。章数<2/解析失败/异常 → count=0(保守不误拦)。"""
+    from .gate import _safe_json
+    if len(ch_texts) < 2:
+        return {"count": 0, "pairs": []}
+    head = "\n\n".join(f"【第{i + 1}章】\n{t[:2500]}" for i, t in enumerate(ch_texts[:k]))
+    sys_p, usr_t = prompts.EARLY_REPEAT
+    try:
+        raw = await cli.complete("pk_final", sys_p, usr_t.format(text=head[:9000]),
+                                 json_mode=True, max_tokens=600, temperature=0.2)
+    except Exception:
+        return {"count": 0, "pairs": []}
+    r = _safe_json(raw)
+    if not isinstance(r, dict):
+        return {"count": 0, "pairs": []}
+    pairs = [str(p) for p in (r.get("pairs") or [])]
+    cnt = r.get("count")
+    if not isinstance(cnt, int) or isinstance(cnt, bool):
+        cnt = len(pairs)
+    return {"count": cnt, "pairs": pairs}
+
+
 _CJK_SLASH = re.compile(r"[一-鿿]/[一-鿿]")
 
 
