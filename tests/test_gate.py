@@ -78,11 +78,12 @@ def test_config_thresholds_override():
 
 
 def test_multi_signal_accumulates():
-    # 默认真正会拦的电平: 过短3✓ 残缝9✓ spine6✓ 审计崩溃✓(重演已降 advisory 默认不拦)
+    # 默认真正会拦的电平: 过短3✓ 残缝9✓ spine6✓ 审计崩溃✓; 重演9 在输入里但已降 advisory→不计入
     issues = gate.evaluate_ship_gate(
-        {"过短章数": 3, "残缝": 9, "数值真矛盾": 3, "身份真矛盾": 3,
+        {"过短章数": 3, "残缝": 9, "事件重演": 9, "数值真矛盾": 3, "身份真矛盾": 3,
          "承重审计崩溃": True}, D)
     assert len(issues) == 4
+    assert not any("事件重演" in i for i in issues)        # 高位重演默认不进门
 
 
 def test_human_calibrated_advisory_levels_pass():
