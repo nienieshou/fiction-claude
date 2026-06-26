@@ -1203,6 +1203,7 @@ def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: 
         "身份真矛盾": sig["spine_net_id"],
         "承重审计崩溃": sig["fact_audit_crashed"],
         "开篇代入感": sig.get("immersion_score"),
+        "早段重复": sig.get("早段重复", 0),
     }
     ship_issues = gate.evaluate_ship_gate(ship_signals, gate_thr)
     return {"audit_struct": audit_struct, "audit_fore": audit_fore, "audit_mech": audit_mech,
@@ -1410,12 +1411,14 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     # C: 开篇代入感审计——提到门前算(低分进门,见 gate.opening_immersion_min);算一次,复用到 finalize
     open_premise = _open_premise(bible, plan)
     immersion = await audit.opening_immersion_audit(cli, final, open_premise)   # 标注穿越/重生
+    early_rep = await audit.early_repeat_audit(cli, ch_texts)                    # 早段同事件重述(填 signals.early_repeat)
     # 5+5.5) 37维审计 + 交付门(B1-3轻: 纯函数 _run_ship_gate,可测;阈值在 config)
     sig = {"dark_ratio": dark_rep["dark_ratio"], "climax_skipped": climax_skipped,
            "fact_table_ok": fact_table_ok, "ft_deaths_verified": ft_deaths_verified,
            "reenact_hits": reenact_hits, "intra_rep": intra_rep, "spine_net_num": spine_net_num,
            "spine_net_id": spine_net_id, "fact_audit_crashed": fact_audit_crashed,
-           "immersion_score": immersion.get("代入感分")}
+           "immersion_score": immersion.get("代入感分"),
+           "早段重复": early_rep["count"]}
     g = _run_ship_gate(bible, ordered, final, det, advisory, seam_found - len(seam_fixed), sig, gate_thr)
     audit_struct, audit_fore, audit_mech = g["audit_struct"], g["audit_fore"], g["audit_mech"]
     final_consistent, ship_issues, deliverable = g["final_consistent"], g["ship_issues"], g["deliverable"]
@@ -1443,6 +1446,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         "时代锚(advisory)": audit.era_anachronism(
             ch_texts, str(bible.get("voice", "")) + str(bible.get("setting", ""))) or ["无"],
         "章缝_检出": seam_found, "章缝_修复": seam_fixed or ["无"],
+        "早段重复(ch1-k)": early_rep["pairs"] or ["无"],
         "结尾守卫_补收束": ending_fixed or "无需",
         "倒叙哨兵(advisory)": flashbacks or ["无"], "预告跳空": climax_skipped or "无",
         "修为钉回_plan": pw_fixed[:6] or ["无"],
@@ -1466,7 +1470,8 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         dark_ratio=dark_rep["dark_ratio"], spine_num_contra=spine_net_num,
         spine_id_contra=spine_net_id, ft_revival_residual=len(ft_deaths_verified),
         too_short_chapters=len([d for d in det if d.startswith("过短")]),
-        final_consistent=final_consistent, intra_repeat_chapters=len(intra_rep))
+        final_consistent=final_consistent, intra_repeat_chapters=len(intra_rep),
+        early_repeat=early_rep["count"])
     # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
     return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report,
                                  open_premise, immersion)         # C: 复用门前算好的 immersion(不重算)
