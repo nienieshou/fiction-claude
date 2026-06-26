@@ -8,3 +8,4 @@ requires-python = ">=3.10"
 testpaths = ["tests"]
 pythonpath = ["src", "."] # src→`from hiki import ...`; .→`from web.backend import ...`(CI 跑 `pytest` 不含 cwd)
 addopts = "-q"
+markers = ["api: 需要真实 DeepSeek API(默认不跑;用 -m api 显式选)"]
