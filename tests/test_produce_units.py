@@ -2,7 +2,8 @@
 (原 scripts/_test_r13_units.py 迁入 + B1-3 门 gather)"""
 from hiki import gate
 from hiki.produce import (_wave_bounds, _control_plane, _settle_facts, _run_ship_gate, _open_premise,
-                         _source_id, _book_filename, _delivery_path, _started_at, _spine_alive_baseline)
+                         _source_id, _book_filename, _delivery_path, _started_at, _spine_alive_baseline,
+                         _hook_restate_ratio)
 
 
 def test_spine_alive_baseline():
@@ -199,3 +200,22 @@ def test_delivery_path_routes_by_deliverable():
     # 不可交付 → 本子 _rejected/ 隔离
     r = _delivery_path(out_dir, False, "ZYGGY02252归隐田园：执子手共白头.txt")
     assert r == out_dir / "_rejected" / "ZYGGY02252归隐田园：执子手共白头.txt"
+
+
+def test_hook_restate_ratio_flags_restatement():
+    # end_hook 复述 key_event(系统流型高词面) → 高比值
+    ch = {"key_events": ["陆景尝试将两块石头放入合成栏，系统提示需要材料学知识才能合成"],
+          "end_hook": "合成栏中两块石头纹丝不动，系统提示：需要材料学知识解锁"}
+    assert _hook_restate_ratio(ch) > 0.4
+
+
+def test_hook_restate_ratio_low_for_forward_hook():
+    # 前瞻钩子(指向下一章新威胁,与本章已演事件词面几乎不重合) → 低比值
+    ch = {"key_events": ["陆景尝试将两块石头放入合成栏，系统提示需要材料学知识才能合成"],
+          "end_hook": "远处天际裂开一道黑色缝隙，一只血红巨眼缓缓睁开，锁定了城市"}
+    assert _hook_restate_ratio(ch) < 0.15
+
+
+def test_hook_restate_ratio_empty_short():
+    assert _hook_restate_ratio({"key_events": [], "end_hook": ""}) == 0.0
+    assert _hook_restate_ratio({"key_events": ["短"], "end_hook": "也短"}) == 0.0
