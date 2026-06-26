@@ -1160,12 +1160,15 @@ async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path,
             "ft_deaths_verified": ft_deaths_verified, "fact_adv": fact_adv}
 
 
-async def _plane_check(cli: Client, ch_texts: list[str], plan: dict) -> list[str]:
-    """4j 控制面核对: 章正文 vs 近3章 exclusion 清单(文本对事实清单),检版本互斥重演。→ reenact_hits。"""
+async def _plane_check(cli: Client, ch_texts: list[str], plan: dict) -> tuple[list[str], list[str]]:
+    """4j 控制面核对: 章正文 vs 近3章 exclusion 清单, 检版本互斥重演(高召回第一段)。
+    第二段裁决: 对每个 raw hit 判 真重演 vs 视角转述(存疑保留), 只把真重演喂闸门。
+    返回 (真重演清单, 视角转述滤除清单)。"""
     try:
         sys_pc, usr_pc = prompts.PLANE_CHECK
+        sys_aj, usr_aj = prompts.REENACT_ADJUDICATE
 
-        async def _pc(ci: int) -> list[str]:
+        async def _pc(ci: int) -> list[tuple[int, str]]:
             excl = []
             for j in range(max(0, ci - 3), ci):
                 for k in (plan["chapters"][j].get("key_events") or []):
@@ -1177,14 +1180,29 @@ async def _plane_check(cli: Client, ch_texts: list[str], plan: dict) -> list[str
                                      usr_pc.format(exclusion="\n".join(excl[-6:]), text=ch_texts[ci][:6000]),
                                      json_mode=True, max_tokens=300, temperature=0.1)
             r = gate._safe_json(raw) or {}
-            return [f"第{ci + 1}章重演[{str(x)[:40]}]" for x in (r.get("reenacted") or []) if str(x).strip()]
-        reenact_hits = [x for lst in await asyncio.gather(*[_pc(ci) for ci in range(len(ch_texts))]) for x in lst]
-        if reenact_hits:
-            print(f"控制面核对: {len(reenact_hits)} 处重演: {reenact_hits[:4]}")
-        return reenact_hits
+            return [(ci, str(x)[:40]) for x in (r.get("reenacted") or []) if str(x).strip()]
+
+        async def _adjudicate(ci: int, event: str) -> bool:
+            raw = await cli.complete("chunk_extract", sys_aj,
+                                     usr_aj.format(event=event, text=ch_texts[ci][:6000]),
+                                     json_mode=True, max_tokens=200, temperature=0.1)
+            r = gate._safe_json(raw) or {}
+            return r.get("reenact") is not False        # 存疑保留: 仅显式 false 判视角转述
+
+        raw_pairs = [p for lst in await asyncio.gather(*[_pc(ci) for ci in range(len(ch_texts))]) for p in lst]
+        if not raw_pairs:
+            return [], []
+        keeps = await asyncio.gather(*[_adjudicate(ci, ev) for ci, ev in raw_pairs])
+        reenact_hits, filtered = [], []
+        for (ci, ev), keep in zip(raw_pairs, keeps):
+            label = f"第{ci + 1}章重演[{ev}]"
+            (reenact_hits if keep else filtered).append(label)
+        if reenact_hits or filtered:
+            print(f"控制面核对: {len(reenact_hits)} 真重演 + {len(filtered)} 视角转述滤除")
+        return reenact_hits, filtered
     except Exception as e:
         print(f"控制面核对跳过:{type(e).__name__}")
-        return []
+        return [], []
 
 
 def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: list,
