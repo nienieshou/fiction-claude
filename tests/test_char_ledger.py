@@ -75,3 +75,62 @@ def test_revivals_ordered_by_death_ch_not_alpha():
     assert len(revs) == 2
     assert revs[0].who == "Z_char" and revs[0].death_ch == 3    # 早死先出, 虽字母序靠后
     assert revs[1].who == "A_char" and revs[1].death_ch == 20
+
+
+# ============ post_death_appearances ============
+
+def test_post_death_appearances_single():
+    """一个 who 死后出场一次 → 返回一条 (who, death_ch, appearance_ch)。"""
+    lg = RevivalLedger()
+    lg.record_death("张三", 5, source="plan")
+    lg.record_appearance("张三", 8, source="plan")
+    result = lg.post_death_appearances()
+    assert result == [("张三", 5, 8)]
+
+
+def test_post_death_appearances_multiple_for_same_who():
+    """同一 who 死后出场多次 → 每次各出一条, 按 appearance_ch 排序。"""
+    lg = RevivalLedger()
+    lg.record_death("李四", 2, source="plan")
+    lg.record_appearance("李四", 5, source="plan")
+    lg.record_appearance("李四", 9, source="plan")
+    lg.record_appearance("李四", 7, source="plan")
+    result = lg.post_death_appearances()
+    assert len(result) == 3
+    # 按 appearance_ch 升序
+    assert [t[2] for t in result] == [5, 7, 9]
+    assert all(t[0] == "李四" and t[1] == 2 for t in result)
+
+
+def test_post_death_appearances_same_scene_not_included():
+    """出场场景 == 最早死亡场景 → 不算死后出场。"""
+    lg = RevivalLedger()
+    lg.record_death("王五", 3, source="plan")
+    lg.record_appearance("王五", 3, source="plan")  # 同场景, 不算
+    result = lg.post_death_appearances()
+    assert result == []
+
+
+def test_post_death_appearances_uses_earliest_death():
+    """同一 who 两次死亡, 以最早 death_ch 为基准。"""
+    lg = RevivalLedger()
+    lg.record_death("赵六", 10, source="plan")
+    lg.record_death("赵六", 3, source="plan")   # 更早的死亡
+    lg.record_appearance("赵六", 5, source="plan")   # 在 ch=3 死后, ch=10 前 → 应算入
+    result = lg.post_death_appearances()
+    assert len(result) == 1
+    assert result[0] == ("赵六", 3, 5)
+
+
+def test_post_death_appearances_ordered_by_appearance_then_who():
+    """多人在同一 appearance_ch 出场 → 按 who 字母升序作 tiebreak。"""
+    lg = RevivalLedger()
+    lg.record_death("乙", 1, source="plan")
+    lg.record_death("甲", 1, source="plan")
+    lg.record_appearance("乙", 5, source="plan")
+    lg.record_appearance("甲", 5, source="plan")
+    result = lg.post_death_appearances()
+    assert len(result) == 2
+    # 同一 appearance_ch=5, 按 who 升序: "乙" vs "甲" (字符排序)
+    whos = [t[0] for t in result]
+    assert whos == sorted(whos)

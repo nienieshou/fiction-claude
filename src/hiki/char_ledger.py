@@ -79,6 +79,21 @@ class RevivalLedger:
         # 先算出每条 RevivalRecord, 再按 (death_ch, who) 排序输出 — 章序优先, who 做确定性 tiebreak
         return sorted(out, key=lambda r: (r.death_ch, r.who))
 
+    def post_death_appearances(self) -> list[tuple[str, int, int]]:
+        """返回每次死后出场事件: (who, death_ch, appearance_ch)。
+        针对每个 who 取其最早 death_ch, 然后返回该 who 所有 ch > death_ch 的出场记录。
+        按 appearance_ch 升序, 相同 appearance_ch 则按 who 升序 (确定性)。
+        与 revivals() 不同: 同一人多次死后出场各出一条 (用于 check_revival 一条/次语义)。"""
+        earliest_death: dict[str, int] = {}
+        for d in self._deaths:
+            if d.who not in earliest_death or d.ch < earliest_death[d.who]:
+                earliest_death[d.who] = d.ch
+        result: list[tuple[str, int, int]] = []
+        for a in self._apps:
+            if a.who in earliest_death and a.ch > earliest_death[a.who]:
+                result.append((a.who, earliest_death[a.who], a.ch))
+        return sorted(result, key=lambda t: (t[2], t[0]))
+
     def resolve_gating(self, verified: list[RevivalRecord]) -> list[RevivalRecord]:
         """按 source 优先级输出"进门"集合: 任一 gating 源(facts/plan)命中即进门;
         仅 roster 来源 = 仅叙事修复, 不进门。复现今天 P2 权威/P1 回退/P3 仅修复。"""
