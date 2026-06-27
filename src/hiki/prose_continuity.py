@@ -11,6 +11,7 @@ import re
 from . import prompts, textnum
 from .gate import _safe_json
 from .client import Client
+from .char_ledger import RevivalLedger
 
 _CH = textnum.MD_CH_PREFIX_RE
 
@@ -185,20 +186,42 @@ async def cluster_names(cli: Client, persons: set[str], full: str, ch_texts: lis
 def find_revivals(roster: dict, ch_texts: list[str]) -> list[dict]:
     """确定性：某人死亡后，在更后的章节里实质再出场(count≥2) → 死人复活。
     死亡有章号→从死亡章的下一章查起(治同窗复活漏检: ch28死/ch32活同在一个8章窗,旧版窗后起查必漏);
-    无章号→退回窗口粒度。"""
+    无章号→退回窗口粒度。内部经 RevivalLedger(roster源)检测; 输出 dict shape 逐位不变。"""
     win = roster["win"]
-    out = []
-    seen = set()
+    ledger = RevivalLedger()
+    # 首条死亡元数据 (clue/win): 供 output dict 重建; 保持原 seen-dedup "首条胜" 语义
+    first_meta: dict[str, dict] = {}          # who -> {clue, win}
+
+    for d in roster["deaths"]:
+        who = d["who"]
+        if who in first_meta:
+            continue
+        after = d["ch"] if d.get("ch") else (d["win"] + 1) * win   # ch是1-based→0-based下一章恰为ch
+        first_meta[who] = {"clue": d["clue"], "win": d["win"]}
+        # 死亡章写入 ledger: 用 after 作 death_ch, 使 ledger 的 a.ch > after ↔ 原 j >= after
+        ledger.record_death(who, after, d["clue"], source="roster")
+
+    # 出场写入 ledger: 1-based (j+1); count≥2 视为实质出场
+    for j, text in enumerate(ch_texts):
+        for who in first_meta:
+            if text.count(who) >= 2:
+                ledger.record_appearance(who, j + 1, source="roster")
+
+    # revival_map: who → 0-based revive_ch (ledger 返回 1-based j+1, 减1还原)
+    revival_map: dict[str, int] = {r.who: r.revive_ch - 1 for r in ledger.revivals()}
+
+    # 按原 roster 顺序产出 (seen 仅在找到复活时更新, 与原行为一致)
+    out: list[dict] = []
+    seen: set[str] = set()
     for d in roster["deaths"]:
         who = d["who"]
         if who in seen:
             continue
-        after = d["ch"] if d.get("ch") else (d["win"] + 1) * win   # ch是1-based→0-based下一章恰为ch
-        for j in range(after, len(ch_texts)):
-            if ch_texts[j].count(who) >= 2:
-                out.append({"who": who, "clue": d["clue"], "death_win": d["win"], "revive_ch": j})
-                seen.add(who)
-                break
+        if who in revival_map:
+            meta = first_meta[who]
+            out.append({"who": who, "clue": meta["clue"],
+                        "death_win": meta["win"], "revive_ch": revival_map[who]})
+            seen.add(who)
     return out
 
 
