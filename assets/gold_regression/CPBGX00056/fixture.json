@@ -1,0 +1,27 @@
+{
+  "slug": "CPBGX00056",
+  "role": "reject_guard",
+  "signal_schema_version": 1,
+  "signals": {
+    "schema_version": 1,
+    "deliverable": false,
+    "grade": "S",
+    "opening_immersion": 65,
+    "reenact_hits": 3,
+    "seam_detected": 28,
+    "seam_residual": 8,
+    "dark_ratio": 0.02,
+    "spine_num_contra": 1,
+    "spine_id_contra": 1,
+    "ft_revival_residual": 1,
+    "too_short_chapters": 1,
+    "final_consistent": true,
+    "intra_repeat_chapters": 0,
+    "early_repeat": null,
+    "opening_overload": null
+  },
+  "expected_deliverable": false,
+  "expected_ship_issues": [
+    "事实表死人复活1处(verify确认,修复未净)"
+  ]
+}

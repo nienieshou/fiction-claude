@@ -1,0 +1,25 @@
+{
+  "slug": "ZYGGY02252",
+  "role": "clean_guard",
+  "signal_schema_version": 1,
+  "signals": {
+    "schema_version": 1,
+    "deliverable": true,
+    "grade": "A",
+    "opening_immersion": 85,
+    "reenact_hits": 4,
+    "seam_detected": 13,
+    "seam_residual": 1,
+    "dark_ratio": 0.0,
+    "spine_num_contra": 3,
+    "spine_id_contra": 0,
+    "ft_revival_residual": 0,
+    "too_short_chapters": 0,
+    "final_consistent": false,
+    "intra_repeat_chapters": 0,
+    "early_repeat": null,
+    "opening_overload": null
+  },
+  "expected_deliverable": true,
+  "expected_ship_issues": []
+}
