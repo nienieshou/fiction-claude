@@ -53,7 +53,7 @@
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
 | E1 | **8 个 assets/ 目录缺 7**;产出-affecting 资产零 version/hash → prompt 改动不可 pin/回滚/二分归因 | ⬜ | 物化 assets/,资产带 version+content-hash,run 记 asset-set hash |
-| E2 | **无金标回归 harness**(「升级对金标回归不退化」不可执行);`assets/gold/` = 2 个 14 行 stub | ◐ | 立真金标库 + 确定性+廉价 LLM 复评,退化即 fail。Tier-A 门决策快照网已建(7 本金标,零 API 进 CI,docs:assets/gold_regression/);残: 装配层网(冻 fact_table 重跑计数,护 C1)+题材洞补本 |
+| E2 | **无金标回归 harness**(「升级对金标回归不退化」不可执行);`assets/gold/` = 2 个 14 行 stub | ◐ | 立真金标库 + 确定性+廉价 LLM 复评,退化即 fail。Tier-A 门决策快照网已建(7 本金标,零 API 进 CI,docs:assets/gold_regression/);残: 装配层网(冻 fact_table 重跑计数,护 C1)+题材洞补本+装配层网(C1 等价基线: signal_counts_from_fact_table + cross_check 语料 + fact_table 入库) |
 | E3 | **HFL/偏差校准器 = vaporware**:`hfl.jsonl` 只写不读,无 bias_model 训练/加载;spec 破 Goodhart 的稳定机制不存在 | ⬜ | 建 consumer 拟合 per-维偏差,版本化 + 应用到闸门分 |
 
 > E 与 system-review 的「测量危机」(Opus 承重 ±40)同根:没有可信测量+回归网,承重收益无法守住。
