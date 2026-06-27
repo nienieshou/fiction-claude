@@ -26,17 +26,17 @@
 | B3 | 跨阶段变量遮蔽(`cont`/`ec`/`sys_pv` 复用),已实锤让 3 本崩 | B1 拆函数后自然消除(局部死在函数边界) |
 | B4 | 8 参函数 + 闭包捕获 10+ 可变量,wave-draft 无法脱离 run() 测 | 引入 frozen DraftContext dataclass |
 
-## C. 检测器 sprawl（打地鼠的根）⬜
+## C. 检测器 sprawl（打地鼠的根）◐
 
-| | 项 | 备注 |
-|---|---|---|
-| C1 | **死人复活在 6 路径/3 数据模型重复检**,门里手写优先级裁权威(注释就是这串 bug 的 changelog) | 一个 `CharacterStateLedger` 吃多源带 provenance+confidence,其余变薄 adapter |
-| C2 | 修为单调 = 2 套引擎(audit 序数阶梯 vs prose_facts 数值+5%) | 统一 power-state 组件,可插拔比较器 |
-| C3 | 身份钉死 3 渲染器并存(id_map + spine_roster + plan-roster),迁移半截 | HIKI_SPINE 转正后删 id_map + ad-hoc roster |
-| C4 | 中文数字/章节正则在 4-5 模块复制且已分叉(config 含「卷」,mining 不含) | 建 `hiki/textnum.py` 单一来源 |
-| C5 | 「who/state 入账」循环 5 处重写,name 长度界不一(2-6/2-8/2-5) | ◐ 7 站点 `2<=len<=N` 收口 `src/hiki/names.py`(`is_person_name(nm,max_len)`/`is_item_name`),行为逐位保持(各站点传现状界 4/5/6/8 + 反相锚保留)。残(follow-up): **界统一**(人名 2-5 vs 2-6 分叉=provenance 缺口,需校准选 5/6)/ `safe_pairs` 谓词 |
-| C6 | ~半数 37 维 + 多扫描器是 advisory/哨兵,算了就扔(白烧 token) | 用 DIMENSIONS 单一注册表 gating=True/False 驱动 |
-| C7 | `point_repair` 重实现 produce 尾门(复活/收尾/连续性),手工同步 | 抽共享 gate 函数,两处都 call |
+| | 项 | 状态 | 备注 |
+|---|---|---|---|
+| C1 | **死人复活在 6 路径/3 数据模型重复检**,门里手写优先级裁权威(注释就是这串 bug 的 changelog) | ◐ | `RevivalLedger`(`char_ledger.py`) 收 P1/P2/P3 死亡/出场事件为单源(`record_death`/`record_appearance` + `revivals`/`post_death_appearances`),3路检测变薄 adapter,行为逐位保持(金标+装配+特征化网证等价)。残(follow-up): 门里手写优先级收口 `resolve_gating`(属 principled 改判)/C2修为/C3身份/C5 name谓词。**终审修复(I1)**: `post_death_appearances` 改引用"出场前最近死亡"(原误取最早死亡),恢复与旧 `dead[who]=i` 覆写语义的逐位等价。**已知可接受偏差(repair-only,零门影响)**: P3 `find_revivals` dedup(首条无复活+次条本可命中)与迁移前略异 |
+| C2 | 修为单调 = 2 套引擎(audit 序数阶梯 vs prose_facts 数值+5%) | ⬜ | 统一 power-state 组件,可插拔比较器(C2 分支待整入) |
+| C3 | 身份钉死 3 渲染器并存(id_map + spine_roster + plan-roster),迁移半截 | ⬜ | HIKI_SPINE 转正后删 id_map + ad-hoc roster |
+| C4 | 中文数字/章节正则在 4-5 模块复制且已分叉(config 含「卷」,mining 不含) | ✅ | `src/hiki/textnum.py` 单一来源(顺带修 mining/slice 漏卷) |
+| C5 | 「who/state 入账」循环 5 处重写,name 长度界不一(2-6/2-8/2-5) | ◐ | 7 站点 `2<=len<=N` 收口 `src/hiki/names.py`(`is_person_name(nm,max_len)`/`is_item_name`),行为逐位保持(各站点传现状界 4/5/6/8 + 反相锚保留)。残(follow-up): **界统一**(人名 2-5 vs 2-6 分叉=provenance 缺口,需校准选 5/6)/ `safe_pairs` 谓词 |
+| C6 | ~半数 37 维 + 多扫描器是 advisory/哨兵,算了就扔(白烧 token) | ⬜ | 用 DIMENSIONS 单一注册表 gating=True/False 驱动 |
+| C7 | `point_repair` 重实现 produce 尾门(复活/收尾/连续性),手工同步 | ⬜ | 抽共享 gate 函数,两处都 call |
 
 ## D. 配置驱动缺口（违 NFR-M2）◐
 

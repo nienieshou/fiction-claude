@@ -174,3 +174,6 @@ src/output/
 
 # Web Console 上传暂存区：去重未命中的新上传源落这里，非库内权威源，不入库。
 fictions_source/_uploads/
+
+# 会话临时目录
+scratchpad/

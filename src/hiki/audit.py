@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from . import ledger, prompts
+from .char_ledger import RevivalLedger
 
 
 @dataclass
@@ -329,11 +330,11 @@ def check_thread_stance(bible: dict, scenes: list[dict]) -> list[str]:
 
 
 def check_revival(scenes: list[dict]) -> list[str]:
-    """维14：死人复活（治 疯骡子 ch30死 ch31活）。某场景死亡/退场的人物，此后不得再出场。"""
-    dead: dict[str, int] = {}
-    issues = []
+    """维14：死人复活（治 疯骡子 ch30死 ch31活）。某场景死亡/退场的人物，此后不得再出场。
+    经 RevivalLedger(plan 源): present 提取逻辑不变, 判定/配对交由 ledger。"""
+    _ledger = RevivalLedger()
     for i, sc in enumerate(scenes):
-        present = set()
+        present: set[str] = set()
         for c in sc.get("first_appearances") or []:
             if isinstance(c, str):
                 present.add(c.strip())
@@ -344,12 +345,14 @@ def check_revival(scenes: list[dict]) -> list[str]:
         for a, b in ledger._rel_pairs(sc.get("relationships_formed")):
             present.add(a); present.add(b)
         for who in present:
-            if who in dead:
-                issues.append(f"场景{i}: 「{who}」已在场景{dead[who]}死亡/退场，却再次出场(死人复活)")
+            _ledger.record_appearance(who, i, source="plan")
         for c in (sc.get("deaths") or []):
             if isinstance(c, str) and c.strip():
-                dead[c.strip()] = i
-    return issues
+                _ledger.record_death(c.strip(), i, source="plan")
+    return [
+        f"场景{app_ch}: 「{who}」已在场景{death_ch}死亡/退场，却再次出场(死人复活)"
+        for who, death_ch, app_ch in _ledger.post_death_appearances()
+    ]
 
 
 def deterministic_audit(bible: dict, scenes: list[dict]) -> dict:
