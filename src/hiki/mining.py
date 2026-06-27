@@ -8,9 +8,11 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sys
 from collections import Counter
-from . import prompts, gate
+from . import prompts, gate, schemas
 from .client import Client
+from .llm_validate import complete_validated
 from .textnum import SOURCE_CH_RE as _CH_RE
 
 
@@ -40,10 +42,12 @@ def chunk_by_chapters(clean: str, n_chunks: int = 12, overlap_ch: int = 1) -> li
 
 async def _extract_one(cli: Client, chunk: str, idx: int) -> dict:
     sys_p, usr_t = prompts.EXTRACT_CHUNK
-    raw = await cli.complete("chunk_extract", sys_p, usr_t.format(chunk=chunk[:60000]),
-                             json_mode=True, max_tokens=8000, temperature=0.3)
-    r = gate._safe_json(raw) or {}
-    # 标记来源窗序，供场景排序
+    r = await complete_validated(cli, "chunk_extract", sys_p, usr_t.format(chunk=chunk[:60000]),
+                                 schema=schemas.EXTRACT_CHUNK, retries=2,
+                                 json_mode=True, max_tokens=8000, temperature=0.3)
+    if r is None:                                           # A3: 重试后仍无效 → 浮现丢失(不再静默 {})
+        print(f"⚠ chunk {idx} EXTRACT_CHUNK 重试后仍无效,该窗零贡献", file=sys.stderr)
+        return {}
     for sc in r.get("scene_cards", []):
         sc["_chunk"] = idx
     return r

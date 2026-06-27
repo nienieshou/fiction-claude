@@ -35,3 +35,20 @@ def test_verify_revivals_valid_true_keeps():
     revivals = [{"who": "李四", "clue": "坠崖", "revive_ch": 0}]
     out = asyncio.run(verify_revivals(cli, ["李四复活"], revivals))
     assert out == revivals
+
+
+# ===== A3 标杆2: _extract_one fail-closed =====
+from hiki.mining import _extract_one
+
+
+def test_extract_one_malformed_surfaces_loss_and_returns_empty(capsys):
+    cli = _FakeCli(["garbage", "still bad"])               # retries=2
+    r = asyncio.run(_extract_one(cli, "某章正文" * 10, idx=3))
+    assert r == {}                                         # 不静默崩, 返空
+    assert "chunk 3" in capsys.readouterr().err            # stderr 浮现丢失(不再静默)
+
+
+def test_extract_one_valid_marks_chunk():
+    cli = _FakeCli([json.dumps({"scene_cards": [{"summary": "x"}]})])
+    r = asyncio.run(_extract_one(cli, "正文", idx=5))
+    assert r["scene_cards"][0]["_chunk"] == 5              # happy: 标 _chunk 不变
