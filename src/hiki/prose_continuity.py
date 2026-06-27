@@ -11,6 +11,7 @@ import re
 from . import prompts, textnum
 from .gate import _safe_json
 from .client import Client
+from .names import is_person_name
 
 _CH = textnum.MD_CH_PREFIX_RE
 
@@ -36,7 +37,7 @@ async def extract_roster(cli: Client, ch_texts: list[str], win: int = 8) -> dict
     deaths: list[dict] = []
     for wi, r in enumerate(results):
         for nm in r.get("persons", []) or []:
-            if isinstance(nm, str) and 2 <= len(nm.strip()) <= 5:
+            if isinstance(nm, str) and is_person_name(nm.strip(), 5):
                 persons.add(nm.strip())
         for d in r.get("deaths", []) or []:
             if isinstance(d, str):               # LLM 偶吐 deaths:["名字"] 扁平形 → 容忍(第12个健壮类)
@@ -117,7 +118,7 @@ def _variant_scan(counts: dict, full: str, floor: int = 10, cap_per: int = 6) ->
     已知高频人物名(本就是别人)与功能字粘连碎片(确定性停用表)直接跳过。"""
     pairs = set()
     for c, cc in counts.items():
-        if cc < floor or not (2 <= len(c) <= 4):
+        if cc < floor or not is_person_name(c, 4):
             continue
         cands: dict[str, int] = {}
         for pos in range(len(c)):
@@ -142,7 +143,7 @@ async def cluster_names(cli: Client, persons: set[str], full: str, ch_texts: lis
     (灵器/雾海/青年/家父都来自源),不是生成漂移 → 确定性跳过;真漂移(白清梅/赢墨)源里没有。"""
     counts = {nm: full.count(nm) for nm in persons | set(extra_canon or ())}
     pairs: set = set()
-    ps = [p for p in counts if counts.get(p, 0) >= 3 and 2 <= len(p) <= 5]
+    ps = [p for p in counts if counts.get(p, 0) >= 3 and is_person_name(p, 5)]
     for i in range(len(ps)):                                   # 确定性 edit-1 候选
         for j in range(i + 1, len(ps)):
             a, b = ps[i], ps[j]
