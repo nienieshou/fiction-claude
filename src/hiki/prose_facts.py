@@ -171,6 +171,19 @@ def cross_check(facts: list[dict]) -> list[dict]:
     return findings
 
 
+def signal_counts_from_fact_table(ft: dict) -> dict:
+    """从 fact_table.json 纯导出三个交付门信号计数(0 LLM)。装配层单源/可测。
+    ft["findings"] 已含 verify_identity 的 real 标注 + ft["生死_verify后"](均在写盘前 in-place 完成)。
+    供金标装配层回归网复现; 亦为 C1 CharacterStateLedger 改造的等价基线。
+    注: 与 produce.py 的内联计数逻辑刻意并存为冻结契约, C1 改造时统一。"""
+    findings = ft.get("findings", [])
+    return {
+        "spine_num_contra": sum(1 for f in findings if f.get("cat") == "数值" and f.get("conf") == "低"),
+        "spine_id_contra": sum(1 for f in findings if f.get("cat") == "身份" and f.get("real")),
+        "ft_revival_residual": len(ft.get("生死_verify后", [])),
+    }
+
+
 def _ctx(ch_texts: list[str], ch, who: str, span: int = 45) -> str:
     """取所指章内实体名首次出现处 ±span 字的上下文(供身份真矛盾裁决)。"""
     if not (isinstance(ch, int) and 1 <= ch <= len(ch_texts)):
