@@ -181,6 +181,34 @@ def evaluate_ship_gate(sig: dict, thr: dict | None = None) -> list[str]:
     return issues
 
 
+def signal_vector_to_gate_input(sv: dict, extra: dict | None = None) -> dict:
+    """英文冻结信号向量(signals.build_signal_vector / report["signals"]) → 中文交付门输入
+    (evaluate_ship_gate 消费)。单一桥接,消除两套信号词汇的手工同步(C 邻接债)。
+
+    sv 不含的门字段(阵营串线/plan维14复活/事实表跑过/承重审计崩溃/预告跳过)默认良性,
+    可由 extra(取自完整 report)注入真值。章内双版本: sv 存计数,门只用真值性,透传即可。"""
+    e = extra or {}
+    intra = sv.get("intra_repeat_chapters")
+    return {
+        "阵营串线": e.get("阵营串线", 0),
+        "过短章数": sv.get("too_short_chapters", 0) or 0,
+        "暗黑比": sv.get("dark_ratio", 0) or 0,
+        "预告跳过": e.get("预告跳过"),
+        "plan维14复活": e.get("plan维14复活", 0),
+        "事实表跑过": e.get("事实表跑过", True),
+        "事实表复活残留": sv.get("ft_revival_residual", 0) or 0,
+        "残缝": sv.get("seam_residual", 0) or 0,
+        "final_consistent": sv.get("final_consistent", True),
+        "事件重演": sv.get("reenact_hits", 0) or 0,
+        "章内双版本": intra if intra else None,
+        "数值真矛盾": sv.get("spine_num_contra", 0) or 0,
+        "身份真矛盾": sv.get("spine_id_contra", 0) or 0,
+        "承重审计崩溃": e.get("承重审计崩溃", False),
+        "开篇代入感": sv.get("opening_immersion"),
+        "早段重复": sv.get("early_repeat", 0) or 0,
+    }
+
+
 def structural_lite(plan: dict, dna: dict) -> dict:
     """轻量结构指标：场景/钩子/爽点覆盖（plan/dna 派生，确定性）。"""
     scenes = [sc for ch in plan.get("chapters", []) for sc in ch["scenes"]]
