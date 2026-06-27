@@ -40,3 +40,9 @@ def test_snapshot_refuses_when_decision_mismatch():
     with pytest.raises(ValueError, match="决策不一致"):
         gold_snapshot.snapshot_one(
             _report(deliverable=True, too_short_chapters=4), "X", "snapshot")
+
+
+def test_main_repin_without_slug_exits():
+    """--repin 无 slug 时必须报错,防止意外重生全部夹具"""
+    with pytest.raises(SystemExit):
+        gold_snapshot.main(["--repin"])
