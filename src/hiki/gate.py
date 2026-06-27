@@ -130,7 +130,10 @@ SHIP_GATE_DEFAULTS = {
     "reenact_min": 7,                # 事件重演 ≥ 阈值 → 仅当 block_on_reenact 时拦(默认 advisory)
     "block_on_reenact": False,       # 2026-06-26 降级: reenact 信号噪(同书 polluted5→clean9)+非判别(eval5
                                      #   最可追本含最多重演)+误拦认证本(CPBGX00031 clean9)→默认 advisory 不拦
-    "spine_net_min": 6,              # Spine薄网真矛盾(数值+身份) ≥ → 拦。旧=2;human可追本含4→留头寸
+    "spine_net_min": 6,              # Spine薄网真矛盾(数值+身份) ≥ → 拦。旧=2;human可追本含4→留头寸。
+                                     #   2026-06-26 一致性核查(为何降 reenact 不降 spine): spine 虽同样非判别,但与 reenact
+                                     #   处境不同—认证本池实测最大5<阈值6(零误拦)、确定性检测无噪(reenact 同书±4),阈值留作
+                                     #   "挡极端泛滥"安全网且当前无积极伤害→保留硬门。reenact 是"主动误拦认证本+信号噪"故降。
     "block_on_climax_skip": False,   # 预告跳过 是否硬拦。旧=硬拦;仅命中可追本(星厨74.8"基本连得上")→降advisory
     "block_on_final_inconsistent": False,  # final_consistent=否 是否硬拦。旧=硬拦;反相关(只命中隐婚/团宠两可追本)→降advisory
     "intra_repeat_thr": 0.08,        # 章内12-gram双半重合 > → 判整章双版本(检测侧用,非门内)

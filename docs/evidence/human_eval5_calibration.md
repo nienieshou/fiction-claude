@@ -89,3 +89,25 @@ eval5 行动项 A 当时把承重微观信号降 advisory，但 **reenact 实际
 **决策**：`block_on_reenact=False`（gate.py SHIP_GATE_DEFAULTS + config/pipeline.yaml），reenact 真降 advisory，与已降级的 final_consistent/climax_skip 家族对齐。clean reenact_hits 仍作客观信号入报告（控制面重演核对）+ 信号向量；重演泛滥的裁断归人工（决策 A：系统产信号，主观维人工）。`reenact_min=7` 保留为可配回硬拦的阈值（block_on_reenact=True 时生效）。
 
 注：spine_net_min=6 仍为硬门（本轮未动，其检测器未变，eval5 校准仍持）。reenact 是本轮唯一改动信号，故只重标它。
+
+
+## 附记 · spine_net 一致性核查(2026-06-26, 保留硬门)
+
+reenact 降 advisory 后,对同属 eval5"非判别"结论的 spine_net 做一致性核查(0-LLM, 读当前 7 本池 report.json):
+
+| 认证本 | spine 合计(数值+身份) |
+|---|---|
+| CPBXN00188 | 5 |
+| CPBGX00192 | 3 |
+| ZYGGY02252 | 3 |
+| ZYGGY02079 | 2 |
+| CPBGX00031 | 1 |
+
+(拒收本 BPBXS00052=2, CPBGX00056=2, 与认证本分布重叠 → 确认 spine 同样非判别。)
+
+**决策: spine_net_min=6 保留硬门(不跟随 reenact 降级)。** 理由 = spine 与 reenact 处境不同:
+1. **零误拦**: 认证本 spine 实测最大=5 < 阈值6, 当前不误拦任何认证本(reenact_min=7 则会拦 clean9 的 CPBGX00031)。
+2. **确定性无噪**: spine 来自冻结事实表确定性核对(spine_num/id_contra), 不像 reenact 的 PLANE_CHECK 一阶 LLM 同书±4 抖动。
+3. **留作安全网**: 阈值6 设在实测最大5之上, 是"挡极端泛滥"的安全保留位, 无积极伤害。
+
+reenact 之所以必须降 = "主动误拦认证本 + 信号噪", spine 二者皆无, 故保留。两者证据基础同(eval5 非判别), 但伤害剖面不同 → 不机械地一起降。未来若某认证本 spine 越过6被误拦, 再重审。
