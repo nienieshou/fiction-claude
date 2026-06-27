@@ -13,6 +13,7 @@ from pathlib import Path
 from . import prompts, textnum
 from .gate import _safe_json
 from .client import Client
+from .char_ledger import RevivalLedger
 
 _CH_SPLIT = textnum.MD_CH_RE
 _CATS = {"生死", "体系", "时间轴", "身份", "数值"}
@@ -95,20 +96,21 @@ async def extract_facts(cli: Client, ch_texts: list[str]) -> list[dict]:
 def cross_check(facts: list[dict]) -> list[dict]:
     """代码跨章对比: 生死(高置信)/数值倒退(中)/身份多值(advisory)。保守宁缺毋滥。"""
     findings: list[dict] = []
-    deaths: dict[str, tuple[int, str]] = {}
+    _lg = RevivalLedger()
     for i, f in enumerate(facts, 1):
         for d in f.get("deaths") or []:
             who = (d.get("who") if isinstance(d, dict) else str(d) or "").strip()
-            if who and 2 <= len(who) <= 6 and who not in deaths:
+            if who and 2 <= len(who) <= 6:
                 clue = (d.get("clue") or "") if isinstance(d, dict) else ""
-                deaths[who] = (i, clue)
-    for who, (dch, clue) in deaths.items():
-        after = [i for i, f in enumerate(facts, 1)
-                 if i > dch and who in [str(p).strip() for p in (f.get("present") or [])]]
-        if after:
-            findings.append({"cat": "生死", "who": who, "ch_a": dch, "ch_b": after[0],
-                             "why": f"{who}第{dch}章死亡({clue}),第{after[0]}章仍在场行动",
-                             "conf": "高"})
+                _lg.record_death(who, i, clue, source="facts")
+        for p in f.get("present") or []:
+            who = str(p).strip()
+            if who:
+                _lg.record_appearance(who, i, source="facts")
+    for r in _lg.revivals():
+        findings.append({"cat": "生死", "who": r.who, "ch_a": r.death_ch, "ch_b": r.revive_ch,
+                         "why": f"{r.who}第{r.death_ch}章死亡({r.clue}),第{r.revive_ch}章仍在场行动",
+                         "conf": "高"})
     powers: dict[tuple[str, str], list[tuple[int, float]]] = {}
     for i, f in enumerate(facts, 1):
         for pair in f.get("power") or []:
