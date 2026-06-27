@@ -78,3 +78,26 @@ def test_cross_check_per_entity_cap_by_cat():
     facts += [{"numbers": [["安宁", "22岁"]]}, {"numbers": [["安宁", "24岁"]]}]
     f = cross_check(facts)
     assert [x for x in f if x["cat"] == "数值" and x["who"] == "安宁"]
+
+
+# ---------- 终审 I-2: 同章降序重复不报(复现旧掩盖, byte-identical) ----------
+
+def test_cross_check_intra_chapter_descending_dup_yields_no_finding():
+    """I-2终审: 同章降序(100→50)不报 — 旧 per-bucket (ch,v) sort 升序处理, 掩盖惯量下降。
+    新实现须在章内按解析值升序处理,复现此掩盖语义(byte-identical 承诺)。"""
+    facts = [{"power": [["X", "气血100卡"], ["X", "气血50卡"]]}]  # 同章, 降序
+    findings = cross_check(facts)
+    power_f = [f for f in findings if f.get("cat") == "数值" and f.get("who") == "X"]
+    assert power_f == []  # 旧行为: 升序处理 → 50先进, 100为新高, 无回退
+
+
+def test_cross_check_cross_chapter_drop_still_finds():
+    """I-2 sanity: 真跨章回退(ch1=100, ch2=50, >5%跌)仍报 — I-2修复不改跨章检测。"""
+    facts = [
+        {"power": [["X", "气血100卡"]]},
+        {"power": [["X", "气血50卡"]]},   # 跨章: 50 < 100*0.95=95 → 报
+    ]
+    findings = cross_check(facts)
+    power_f = [f for f in findings if f.get("cat") == "数值" and f.get("who") == "X"]
+    assert len(power_f) == 1
+    assert "倒退" in power_f[0]["why"]

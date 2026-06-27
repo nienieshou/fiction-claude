@@ -14,7 +14,7 @@ from . import prompts, textnum
 from .gate import _safe_json
 from .client import Client
 from .names import is_person_name
-from .char_ledger import RevivalLedger
+from .char_ledger import RevivalLedger, PowerLedger, numeric_comparator
 
 _CH_SPLIT = textnum.MD_CH_RE
 _CATS = {"生死", "体系", "时间轴", "身份", "数值"}
@@ -112,28 +112,36 @@ def cross_check(facts: list[dict]) -> list[dict]:
         findings.append({"cat": "生死", "who": r.who, "ch_a": r.death_ch, "ch_b": r.revive_ch,
                          "why": f"{r.who}第{r.death_ch}章死亡({r.clue}),第{r.revive_ch}章仍在场行动",
                          "conf": "高"})
-    powers: dict[tuple[str, str], list[tuple[int, float]]] = {}
+    _plg = PowerLedger(numeric_comparator(_num_of, lambda raw: _NUM.sub("#", raw).strip()))
+    _best_ch: dict = {}                            # (who, unit) -> chapter of running-best
+    _first_regr: dict = {}                         # (who, unit) -> first regression finding (break 等价)
     for i, f in enumerate(facts, 1):
-        for pair in f.get("power") or []:
+        # 同章内按解析值升序处理,复现旧 per-bucket (ch,v) sort 的掩盖语义(终审I-2)
+        def _pv(p):
+            if isinstance(p, (list, tuple)) and len(p) >= 2:
+                v = _num_of(str(p[1]))
+                return v if v is not None else float('-inf')
+            return float('-inf')
+        ch_powers = sorted(f.get("power") or [], key=_pv)
+        for pair in ch_powers:
             if not (isinstance(pair, (list, tuple)) and len(pair) >= 2):
                 continue
             who, val = str(pair[0]).strip(), str(pair[1])
             v = _num_of(val)
             if who and v is not None:
-                unit = _NUM.sub("#", val).strip()    # 同量纲才比(气血#卡 vs 气血#卡)
-                powers.setdefault((who, unit), []).append((i, v))
-    for (who, unit), seq in powers.items():
-        seq.sort()
-        hi: float | None = None
-        hich = 0
-        for ch, v in seq:
-            if hi is not None and v < hi * 0.95:
-                findings.append({"cat": "数值", "who": who, "ch_a": hich, "ch_b": ch,
-                                 "why": f"{who}「{unit.replace('#', 'X')}」第{hich}章{hi}→第{ch}章{v}倒退",
-                                 "conf": "中"})
-                break
-            if hi is None or v > hi:
-                hi, hich = v, ch
+                unit = _NUM.sub("#", val).strip()  # 同量纲才比(气血#卡 vs 气血#卡)
+                key = (who, unit)
+                cur_raw = _plg.current_best(who, val)
+                cur_v = _num_of(cur_raw) if cur_raw is not None else None
+                hich = _best_ch.get(key, 0)        # 回退时 ch_a = 当前 best 所在章
+                regressed = _plg.record(who, val, i)
+                if regressed and key not in _first_regr:  # break 等价: 仅首次回退产 finding
+                    _first_regr[key] = {"cat": "数值", "who": who, "ch_a": hich, "ch_b": i,
+                                        "why": f"{who}「{unit.replace('#', 'X')}」第{hich}章{cur_v}→第{i}章{v}倒退",
+                                        "conf": "中"}
+                if cur_v is None or v > cur_v:     # 新高才更新 best 章号
+                    _best_ch[key] = i
+    findings.extend(_first_regr.values())
     # identity 与 numbers 分开按来源类别走,不靠 _num_of 猜(中文数字会在'天一武堂'类名字里误触)
     id_findings: list[dict] = []
     for key, cat in (("identity", "身份"), ("numbers", "数值")):

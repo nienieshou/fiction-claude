@@ -30,8 +30,8 @@
 
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
-| C1 | **死人复活在 6 路径/3 数据模型重复检**,门里手写优先级裁权威(注释就是这串 bug 的 changelog) | ◐ | `RevivalLedger`(`char_ledger.py`) 收 P1/P2/P3 死亡/出场事件为单源(`record_death`/`record_appearance` + `revivals`/`post_death_appearances`),3路检测变薄 adapter,行为逐位保持(金标+装配+特征化网证等价)。残(follow-up): 门里手写优先级收口 `resolve_gating`(属 principled 改判)/C2修为/C3身份/C5 name谓词。**终审修复(I1)**: `post_death_appearances` 改引用"出场前最近死亡"(原误取最早死亡),恢复与旧 `dead[who]=i` 覆写语义的逐位等价。**已知可接受偏差(repair-only,零门影响)**: P3 `find_revivals` dedup(首条无复活+次条本可命中)与迁移前略异 |
-| C2 | 修为单调 = 2 套引擎(audit 序数阶梯 vs prose_facts 数值+5%) | ⬜ | 统一 power-state 组件,可插拔比较器(C2 分支待整入) |
+| C1 | **死人复活在 6 路径/3 数据模型重复检**,门里手写优先级裁权威(注释就是这串 bug 的 changelog) | ◐ | `RevivalLedger`(`char_ledger.py`) 收 P1/P2/P3 死亡/出场事件为单源(`record_death`/`record_appearance` + `revivals`/`post_death_appearances`),3路检测变薄 adapter,行为逐位保持(金标+装配+特征化网证等价)。残(follow-up): 门里手写优先级收口 `resolve_gating`(属 principled 改判)/C2修为/C3身份/C5 name谓词。**终审修复(I1)**: `post_death_appearances` 改引用"出场前最近死亡"(原误取最早死亡),恢复与旧 `dead[who]=i` 覆写语义的逐位等价。**已知可接受偏差(repair-only,零门影响)**: P3 `find_revivals` dedup(首条无复活+次条本可命中)与迁移前略异; commit 4e86e95 message 误述 verify/repair 已改(实际未改,保持dict消费) |
+| C2 | 修为单调 = 2 套引擎(audit 序数阶梯 vs prose_facts 数值+5%) | ✅ | `PowerLedger`(`char_ledger.py`)+ 可插拔比较器(序数/数值)收 `check_power_monotonic`/`fix_power_monotonic`/`cross_check`-power 3 adapter,域逻辑(`_power_rank`/`num_of`)adapter 注入(ledger 零 audit/prose 依赖),行为逐位保持(characterization + cross_check_corpus 证等价)。残(follow-up): principled 改判(阈值/判据)/ power-finding 列表序由"首现"→"首退"(内容等价,网不pin) |
 | C3 | 身份钉死 3 渲染器并存(id_map + spine_roster + plan-roster),迁移半截 | ⬜ | HIKI_SPINE 转正后删 id_map + ad-hoc roster |
 | C4 | 中文数字/章节正则在 4-5 模块复制且已分叉(config 含「卷」,mining 不含) | ✅ | `src/hiki/textnum.py` 单一来源(顺带修 mining/slice 漏卷) |
 | C5 | 「who/state 入账」循环 5 处重写,name 长度界不一(2-6/2-8/2-5) | ◐ | 7 站点 `2<=len<=N` 收口 `src/hiki/names.py`(`is_person_name(nm,max_len)`/`is_item_name`),行为逐位保持(各站点传现状界 4/5/6/8 + 反相锚保留)。残(follow-up): **界统一**(人名 2-5 vs 2-6 分叉=provenance 缺口,需校准选 5/6)/ `safe_pairs` 谓词 |
