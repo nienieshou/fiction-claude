@@ -30,7 +30,7 @@
 
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
-| C1 | **死人复活在 6 路径/3 数据模型重复检**,门里手写优先级裁权威(注释就是这串 bug 的 changelog) | ◐ | `RevivalLedger`(`char_ledger.py`) 收 P1/P2/P3 死亡/出场事件为单源(`record_death`/`record_appearance` + `revivals`/`post_death_appearances`),3路检测变薄 adapter,行为逐位保持(金标+装配+特征化网证等价)。残(follow-up): 门里手写优先级收口 `resolve_gating`(属 principled 改判)/C2修为/C3身份/C5 name谓词 |
+| C1 | **死人复活在 6 路径/3 数据模型重复检**,门里手写优先级裁权威(注释就是这串 bug 的 changelog) | ◐ | `RevivalLedger`(`char_ledger.py`) 收 P1/P2/P3 死亡/出场事件为单源(`record_death`/`record_appearance` + `revivals`/`post_death_appearances`),3路检测变薄 adapter,行为逐位保持(金标+装配+特征化网证等价)。残(follow-up): 门里手写优先级收口 `resolve_gating`(属 principled 改判)/C2修为/C3身份/C5 name谓词。**终审修复(I1)**: `post_death_appearances` 改引用"出场前最近死亡"(原误取最早死亡),恢复与旧 `dead[who]=i` 覆写语义的逐位等价。**已知可接受偏差(repair-only,零门影响)**: P3 `find_revivals` dedup(首条无复活+次条本可命中)与迁移前略异; commit 4e86e95 message 误述 verify/repair 已改(实际未改,保持dict消费) |
 | C2 | 修为单调 = 2 套引擎(audit 序数阶梯 vs prose_facts 数值+5%) | ⬜ | 统一 power-state 组件,可插拔比较器 |
 | C3 | 身份钉死 3 渲染器并存(id_map + spine_roster + plan-roster),迁移半截 | ⬜ | HIKI_SPINE 转正后删 id_map + ad-hoc roster |
 | C4 | 中文数字/章节正则在 4-5 模块复制且已分叉(config 含「卷」,mining 不含) | ⬜ | 建 `hiki/textnum.py` 单一来源 |

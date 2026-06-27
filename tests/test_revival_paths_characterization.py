@@ -213,3 +213,45 @@ def test_find_revivals_clue_preserved_in_output():
     revs = find_revivals(roster, ch_texts)
     assert len(revs) == 1
     assert revs[0]["clue"] == "被火烧死"
+
+
+# ============ P1 multi-death byte-identity lock (Fix 1 / I1) ============
+
+def test_check_revival_multi_death_cites_latest_death_before_reappearance():
+    """P1 锁定: 同一人死两次(场景0和2), 再现在场景1和3 →
+    场景1再现引用最近死亡=场景0; 场景3再现引用最近死亡=场景2。
+    验证 post_death_appearances() 修复后 issue 字符串与旧 dead[who]=i 覆写语义逐位对齐。"""
+    scenes = [
+        {"deaths": ["人物甲"]},               # 场景0: 第一次死亡
+        {"first_appearances": ["人物甲"]},    # 场景1: 再出场 (死后)
+        {"deaths": ["人物甲"]},               # 场景2: 第二次死亡
+        {"first_appearances": ["人物甲"]},    # 场景3: 再出场 (死后)
+    ]
+    issues = check_revival(scenes)
+    assert issues == [
+        "场景1: 「人物甲」已在场景0死亡/退场，却再次出场(死人复活)",
+        "场景3: 「人物甲」已在场景2死亡/退场，却再次出场(死人复活)",
+    ]
+
+
+# ============ P3 dedup edge — ACCEPTED DEVIATION ============
+
+def test_find_revivals_p3_dedup_first_entry_miss_second_skipped():
+    """P3 dedup 边缘(已接受偏差): 首条死亡 ch=None → after=(win+1)*win=8, 无章 index≥8;
+    次条死亡 ch=2 → after=2, ch[2] 满足 count≥2。post-migration: 首条 first_meta dedup 后次条被跳过 → []。
+    ACCEPTED DEVIATION: 迁移前 seen 仅在命中时更新, 次条可补命中; P3 仅叙事修复, 零门影响。"""
+    win = 8
+    roster = {
+        "win": win,
+        "deaths": [
+            {"who": "壬", "clue": "消失", "ch": None, "win": 0},  # after=(0+1)*8=8; 无 ch≥8
+            {"who": "壬", "clue": "死亡", "ch": 2, "win": 0},     # after=2; ch[2] count≥2, 但被 dedup 跳过
+        ],
+        "persons": set(),
+        "n_win": 1,
+    }
+    # 只有5章(索引0-4), 无章 index≥8; ch[2]="壬壬壬归来了" count≥2 但首条 death after=8 遮蔽
+    ch_texts = ["壬在第一章。", "壬消失了。", "壬壬壬归来了。", "其他。", "其他。"]
+    revs = find_revivals(roster, ch_texts)
+    # post-migration: 首条 None-ch 占位 first_meta, after=8 无章命中; 次条被跳过 → 无复活
+    assert revs == []  # ACCEPTED DEVIATION from pre-migration (see prose_continuity.py dedup guard comment)

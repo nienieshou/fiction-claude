@@ -195,7 +195,7 @@ def find_revivals(roster: dict, ch_texts: list[str]) -> list[dict]:
     for d in roster["deaths"]:
         who = d["who"]
         if who in first_meta:
-            continue
+            continue  # 接受偏差: 迁移前 seen 仅在命中时更新(首条无复活+次条本可命中时两者结果略异); P3 仅叙事修复, 零门影响
         after = d["ch"] if d.get("ch") else (d["win"] + 1) * win   # ch是1-based→0-based下一章恰为ch
         first_meta[who] = {"clue": d["clue"], "win": d["win"]}
         # 死亡章写入 ledger: 用 after 作 death_ch, 使 ledger 的 a.ch > after ↔ 原 j >= after

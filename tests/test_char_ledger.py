@@ -134,3 +134,16 @@ def test_post_death_appearances_ordered_by_appearance_then_who():
     # 同一 appearance_ch=5, 按 who 升序: "乙" vs "甲" (字符排序)
     whos = [t[0] for t in result]
     assert whos == sorted(whos)
+
+
+def test_post_death_appearances_multi_death_cites_latest_before_each_appearance():
+    """同一 who 死于 ch1 和 ch3, 出场在 ch2 和 ch4:
+    ch2 出场引用 ch1(ch3 > ch2, 仅 ch1 满足 < ch2); ch4 出场引用 ch3(ch3 是 ch4 前最近死亡)。
+    锁定 P1 逐位等价: 每次出场引用该出场前的最近死亡, 与旧 audit.check_revival dead[who]=i 覆写语义一致。"""
+    lg = RevivalLedger()
+    lg.record_death("测试人", 1, source="plan")
+    lg.record_death("测试人", 3, source="plan")
+    lg.record_appearance("测试人", 2, source="plan")
+    lg.record_appearance("测试人", 4, source="plan")
+    result = lg.post_death_appearances()
+    assert result == [("测试人", 1, 2), ("测试人", 3, 4)]

@@ -7,7 +7,7 @@ ledger 确定性地配对成 RevivalRecord。门裁决按 source 优先级显式
 后续 C2 修为 / C3 身份 / C5 name 谓词 往本模块加 sibling concern。
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # 门级来源优先级: facts(事实表权威) > plan(回退) > roster(仅叙事修复, 不进门)
 SOURCE_PRECEDENCE = ("facts", "plan", "roster")
@@ -81,17 +81,20 @@ class RevivalLedger:
 
     def post_death_appearances(self) -> list[tuple[str, int, int]]:
         """返回每次死后出场事件: (who, death_ch, appearance_ch)。
-        针对每个 who 取其最早 death_ch, 然后返回该 who 所有 ch > death_ch 的出场记录。
+        针对每次出场 a, 找 a.who 所有 death_ch < a.ch 的死亡中最大(最近)的那个作为引用死亡章。
+        这与旧 audit.check_revival `dead[who]=i` 的覆写语义对齐: 多死时引用"appearance 前最近一次死亡"。
         按 appearance_ch 升序, 相同 appearance_ch 则按 who 升序 (确定性)。
         与 revivals() 不同: 同一人多次死后出场各出一条 (用于 check_revival 一条/次语义)。"""
-        earliest_death: dict[str, int] = {}
+        deaths_by_who: dict[str, list[int]] = {}
         for d in self._deaths:
-            if d.who not in earliest_death or d.ch < earliest_death[d.who]:
-                earliest_death[d.who] = d.ch
+            deaths_by_who.setdefault(d.who, []).append(d.ch)
         result: list[tuple[str, int, int]] = []
         for a in self._apps:
-            if a.who in earliest_death and a.ch > earliest_death[a.who]:
-                result.append((a.who, earliest_death[a.who], a.ch))
+            if a.who in deaths_by_who:
+                before = [dch for dch in deaths_by_who[a.who] if dch < a.ch]
+                if not before:
+                    continue
+                result.append((a.who, max(before), a.ch))
         return sorted(result, key=lambda t: (t[2], t[0]))
 
     def resolve_gating(self, verified: list[RevivalRecord]) -> list[RevivalRecord]:
