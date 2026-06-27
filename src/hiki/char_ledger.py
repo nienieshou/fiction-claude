@@ -96,5 +96,7 @@ class RevivalLedger:
 
     def resolve_gating(self, verified: list[RevivalRecord]) -> list[RevivalRecord]:
         """按 source 优先级输出"进门"集合: 任一 gating 源(facts/plan)命中即进门;
-        仅 roster 来源 = 仅叙事修复, 不进门。复现今天 P2 权威/P1 回退/P3 仅修复。"""
+        仅 roster 来源 = 仅叙事修复, 不进门。复现今天 P2 权威/P1 回退/P3 仅修复。
+        当前未接入 produce.py——3 路(facts/plan/roster)各自分流进门, 合并属 principled 改判;
+        此函数是延后 follow-up 的对接缝(C1 残留任务, 非本期行为保持重构目标)。"""
         return [r for r in verified if r.sources & _GATING_SOURCES]
