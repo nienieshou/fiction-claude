@@ -21,3 +21,22 @@ class IngestMeta:
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False, indent=2)
+
+
+# ==================== A3: LLM 输出契约校验 ====================
+def validate(raw, required, types: dict | None = None) -> bool:
+    """轻量契约校验: raw 是 dict 且 required 键全在 + (可选)类型匹配。"""
+    if not isinstance(raw, dict):
+        return False
+    for k in required:
+        if k not in raw:
+            return False
+    for k, t in (types or {}).items():
+        if k in raw and not isinstance(raw[k], t):
+            return False
+    return True
+
+
+# 标杆 schema(键取自现状契约)
+REVIVAL_VERIFY = {"required": ("is_revival",), "types": {"is_revival": bool}}
+EXTRACT_CHUNK = {"required": ("scene_cards",)}   # 有 scene_cards 键=有效抽取(空列表合法); 无键=解析失败
