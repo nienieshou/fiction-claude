@@ -58,7 +58,9 @@ def _write_fixture(fx: dict) -> Path:
 
 def main(argv: list[str]) -> None:
     only = None
-    if len(argv) >= 2 and argv[0] == "--repin":
+    if argv and argv[0] == "--repin":
+        if len(argv) < 2 or not argv[1].strip():
+            sys.exit("--repin 需要一个 slug 参数,例如: python scripts/gold_snapshot.py --repin CPBXN00188")
         only = argv[1]
     for slug, (out_dir, role) in ROSTER.items():
         if only and slug != only:
