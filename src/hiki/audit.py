@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from . import ledger, prompts
-from .char_ledger import RevivalLedger
+from .char_ledger import RevivalLedger, PowerLedger, ordinal_comparator
 
 
 @dataclass
@@ -284,7 +284,12 @@ def check_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
     """维5：修为不可回退(战力崩坏)。用境界序粗判(R13c: 同步bible专属梯)。"""
     order = power_order_from_bible(bible)
     alias = _alias_map(bible)
-    cur: dict[str, int] = {}
+
+    def _rank_fn(raw: str) -> float | None:
+        r = _power_rank(raw, order)
+        return float(r) if r >= 0 else None
+
+    lg = PowerLedger(ordinal_comparator(_rank_fn))
     issues = []
     for i, sc in enumerate(scenes):
         for pair in sc.get("power_after") or []:
@@ -292,12 +297,8 @@ def check_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
             if not sp:
                 continue
             who, pw = alias.get(sp[0], sp[0]), sp[1]
-            r = _power_rank(pw, order)
-            if r < 0:
-                continue
-            if who in cur and r < cur[who]:
+            if lg.record(who, pw, i):
                 issues.append(f"场景{i}: 「{who}」修为回退到{pw}(战力崩坏)")
-            cur[who] = max(cur.get(who, -1), r)
     return issues
 
 
