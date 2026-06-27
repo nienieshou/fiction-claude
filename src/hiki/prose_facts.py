@@ -115,7 +115,14 @@ def cross_check(facts: list[dict]) -> list[dict]:
     _best_ch: dict = {}                            # (who, unit) -> chapter of running-best
     _first_regr: dict = {}                         # (who, unit) -> first regression finding (break 等价)
     for i, f in enumerate(facts, 1):
-        for pair in f.get("power") or []:
+        # 同章内按解析值升序处理,复现旧 per-bucket (ch,v) sort 的掩盖语义(终审I-2)
+        def _pv(p):
+            if isinstance(p, (list, tuple)) and len(p) >= 2:
+                v = _num_of(str(p[1]))
+                return v if v is not None else float('-inf')
+            return float('-inf')
+        ch_powers = sorted(f.get("power") or [], key=_pv)
+        for pair in ch_powers:
             if not (isinstance(pair, (list, tuple)) and len(pair) >= 2):
                 continue
             who, val = str(pair[0]).strip(), str(pair[1])

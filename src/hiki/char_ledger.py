@@ -8,6 +8,7 @@ ledger 确定性地配对成 RevivalRecord。门裁决按 source 优先级显式
 """
 from __future__ import annotations
 from dataclasses import dataclass
+from typing import Callable, Hashable, Optional
 
 # 门级来源优先级: facts(事实表权威) > plan(回退) > roster(仅叙事修复, 不进门)
 SOURCE_PRECEDENCE = ("facts", "plan", "roster")
@@ -106,7 +107,6 @@ class RevivalLedger:
 
 
 # ==================== C2: 修为/战力单调账本 ====================
-from typing import Callable, Hashable, Optional
 
 
 @dataclass(frozen=True)
@@ -161,7 +161,7 @@ class PowerLedger:
         regressed = best is not None and self._cmp.is_regression(v, best[0])
         if regressed:
             self._regressions.append(PowerRegression(who, ch, raw, best[1], self._cmp.mode))
-        if best is None or v > best[0]:
+        if best is None or v >= best[0]:
             self._best[k] = (v, raw)
         return regressed
 

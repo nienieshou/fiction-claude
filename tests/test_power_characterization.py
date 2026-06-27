@@ -251,3 +251,27 @@ def test_fix_power_monotonic_malformed_pair_passthrough():
     # 异型对原样透传
     assert ["叶凡", "筑基", "extra_field"] in scenes[1]["power_after"]
     assert "not_a_pair" in scenes[1]["power_after"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 终审 I-1: equal-rank 不同字符串 — 钉回后出现者(C2 final-review fix)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_fix_power_monotonic_equal_rank_distinct_strings_pin_back():
+    """I-1终审: 同rank但字符串不同 → 钉回必须是后出现的字符串。
+    金丹初期/金丹大圆满 均含'金丹'子串 → _power_rank 返回同一 rank。
+    旧 cur[who]=(r,p) 非回退时每次更新(含等rank);
+    修复后 record best 条件 >= 复现此语义: 后出现的等rank串成为 best_raw。
+    场景0:金丹初期 → 场景1:金丹大圆满(等rank,best_raw更新) → 场景2:练气(回退,钉回金丹大圆满)。"""
+    scenes = [
+        {"power_after": [["叶凡", "金丹初期"]]},
+        {"power_after": [["叶凡", "金丹大圆满"]]},   # 同 rank, best_raw 应更新到此
+        {"power_after": [["叶凡", "练气"]]},          # 真回退 → 钉回 金丹大圆满
+    ]
+    fixed = fix_power_monotonic(_bible(), scenes)
+    assert len(fixed) == 1
+    # 钉回字符串必须是后出现的等rank串 金丹大圆满, 非首次的 金丹初期
+    assert fixed == ["场景2:叶凡 练气→金丹大圆满"]
+    assert scenes[2]["power_after"] == [["叶凡", "金丹大圆满"]]
+    assert scenes[0]["power_after"] == [["叶凡", "金丹初期"]]   # 场景0 未被改写
+    assert scenes[1]["power_after"] == [["叶凡", "金丹大圆满"]]  # 场景1 未被改写

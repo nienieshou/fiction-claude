@@ -60,3 +60,24 @@ def test_numeric_keyed_by_unit():
     lg = PowerLedger(numeric_comparator(_value_fn, _unit_fn))
     lg.record("叶凡", "气血100卡", 1)
     assert lg.record("叶凡", "灵力10级", 2) is False    # 不同 unit, 独立桶, 不比
+
+
+# 终审 I-1: equal-rank 不同字符串 — >= 更新让 best_raw 升到后出现者
+def test_ordinal_equal_rank_distinct_strings_updates_best_raw():
+    """C2终审I-1: 同rank不同字符串 → >= 条件使 best_raw 更新到后出现字符串。
+    旧 cur[who]=(r,p) 每次非回退都更新; 修复后 record 在 v>=best[0] 时更新 best_raw。"""
+    # A_low 与 A_high 映射到相同 rank=1.0; B=0.0 更低(触发回退)
+    _RANK2 = {"A_low": 1, "A_high": 1, "B": 0}
+    def _rank2(raw):
+        r = _RANK2.get(raw, -1)
+        return float(r) if r >= 0 else None
+
+    lg = PowerLedger(ordinal_comparator(_rank2))
+    assert lg.record("X", "A_low", 1) is False     # 首次, 无回退
+    assert lg.record("X", "A_high", 2) is False    # 同 rank, 无回退; best_raw 应更新到 A_high
+    assert lg.current_best("X") == "A_high"        # >= 条件: 后出现的等rank串成为 best_raw
+    regressed = lg.record("X", "B", 3)
+    assert regressed is True
+    regs = lg.regressions()
+    assert len(regs) == 1
+    assert regs[0].best_raw == "A_high"            # 钉回目标是后出现的等rank串, 非 A_low
