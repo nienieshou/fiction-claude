@@ -11,8 +11,7 @@ import re
 from collections import Counter
 from . import prompts, gate
 from .client import Client
-
-_CH_RE = re.compile(r"^\s*第\s*[0-9零一二三四五六七八九十百千万两]+\s*[章节回]", re.M)
+from .textnum import SOURCE_CH_RE as _CH_RE
 
 
 # ============ ① 分块（按章界，窗间重叠防断裂）============

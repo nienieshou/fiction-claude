@@ -14,8 +14,7 @@ from pathlib import Path
 from . import prompts, gate, ledger, audit
 from .client import Client
 from .ingest import ingest
-
-_CH_RE = re.compile(r"^\s*第\s*[0-9零一二三四五六七八九十百千万两]+\s*[章节回]", re.M)
+from .textnum import SOURCE_CH_RE as _CH_RE
 
 
 def _slice_source(clean_txt: str, n_src: int) -> str:

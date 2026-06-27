@@ -8,11 +8,11 @@
 from __future__ import annotations
 import asyncio
 import re
-from . import prompts
+from . import prompts, textnum
 from .gate import _safe_json
 from .client import Client
 
-_CH = re.compile(r"^# 第", re.M)
+_CH = textnum.MD_CH_PREFIX_RE
 
 
 async def _roster_window(cli: Client, text: str) -> dict:
@@ -265,7 +265,7 @@ async def repair_revivals(cli: Client, ch_texts: list[str], revivals: list[dict]
     return ch_texts
 
 
-_CHNUM = re.compile(r"#\s*第\s*([0-9]+)\s*章")
+_CHNUM = textnum.CH_NUM_RE
 
 
 _DARK_KW = re.compile(r"羞辱|惨叫|品味|欣赏着|扒光|脱光|轮[奸流]|喂猪|当众.*脱|玩弄|凌辱|"
