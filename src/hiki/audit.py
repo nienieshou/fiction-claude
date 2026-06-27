@@ -259,7 +259,12 @@ def fix_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
     R13c: 优先用 bible 专属梯子;rank判不出(任一侧-1)绝不钉——宁漏勿错钉(钉反=主动造伤)。"""
     order = power_order_from_bible(bible)
     alias = _alias_map(bible)
-    cur: dict[str, tuple[int, str]] = {}
+
+    def _rank_fn(raw: str) -> float | None:
+        r = _power_rank(raw, order)
+        return float(r) if r >= 0 else None
+
+    lg = PowerLedger(ordinal_comparator(_rank_fn))
     fixed = []
     for i, sc in enumerate(scenes):
         new = []
@@ -267,14 +272,11 @@ def fix_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
             sp = _str_pair(pair)
             if sp:
                 who, p = alias.get(sp[0], sp[0]), sp[1]
-                r = _power_rank(p, order)
-                if r >= 0:
-                    cr, cs = cur.get(who, (-1, ""))
-                    if r < cr:                       # 回退 → 钉回当前最高
-                        new.append([sp[0], cs])
-                        fixed.append(f"场景{i}:{who} {p}→{cs}")
-                        continue
-                    cur[who] = (r, p)
+                if lg.record(who, p, i):                 # True = 回退
+                    cs = lg.current_best(who)            # record 未更新 best(回退时不升),故 cs=运行最高
+                    new.append([sp[0], cs])              # 钉回: 原始名 sp[0] 非 canonical who
+                    fixed.append(f"场景{i}:{who} {p}→{cs}")
+                    continue
             new.append(pair)
         sc["power_after"] = new
     return fixed
