@@ -8,8 +8,8 @@
 | 项 | 交付 | 状态 |
 |---|---|---|
 | **E2 金标回归网** | PR #6 | ✅ 已合并 master。Tier-A 门决策快照网(7本)进 CI。 |
-| **C4 textnum 单源** | PR #7 | ✅ CI 绿,待合并。中文数字+章节/卷正则收口,修 mining/slice 漏卷。 |
-| **E2.1 装配层网** | PR #7 | ✅ CI 绿,待合并。`signal_counts_from_fact_table` + fact_table 入库 + cross_check 语料(C1 等价基线)。 |
+| **C4 textnum 单源** | PR #7 | ✅ 已 rebase-merge 入 master(`54e02ba`)。中文数字+章节/卷正则收口,修 mining/slice 漏卷。 |
+| **E2.1 装配层网** | PR #7 | ✅ 已 rebase-merge 入 master。`signal_counts_from_fact_table` + fact_table 入库 + cross_check 语料(C1 等价基线)。 |
 
 ## 进行中
 
@@ -29,11 +29,10 @@
 
 ## Resume 指针(关机后从这里接)
 
-**当前分支**:`feat/c1-revival-ledger`(基于 `feat/techdebt-sweep` HEAD `7b8212d`,含 E2.1)。
-**未推送**:本分支有 2 个 commit(spec + plan),尚未 push。
+**当前分支**:`feat/c1-revival-ledger`(已 rebase 到 `master`@`54e02ba`,PR #7 已合并;`feat/techdebt-sweep` 已删)。
+**未推送**:本分支有 spec/plan/roadmap 的 doc commit,本地未 push(仅文档,可选择性 push 备份)。
 **下一步**:
-1. 若先合 PR #7(C4+E2.1)→ 合后把 `feat/c1-revival-ledger` rebase 到 master。
-2. 执行 C1:调 `superpowers:subagent-driven-development`,按 `docs/superpowers/plans/2026-06-27-c1-revival-ledger.md` 逐任务跑(Task 1 ledger → Task 2 P1/P3 补网 → Task 3/4/5 迁移 → Task 6 收口)。
-3. SDD 进度账本:`.superpowers/sdd/progress.md`(本地持久,resume 时先读它)。
+1. 直接执行 C1:调 `superpowers:subagent-driven-development`,按 `docs/superpowers/plans/2026-06-27-c1-revival-ledger.md` 逐任务跑(Task 1 ledger → Task 2 P1/P3 补网 → Task 3/4/5 迁移 → Task 6 收口)。
+2. SDD 进度账本:`.superpowers/sdd/progress.md`(本地持久,resume 时先读它)。
 
 **关键不变量(每步必守)**:`pytest tests/test_gold_regression.py tests/test_assembly_regression.py` 全绿 + 7 本 `ft_revival_residual` 零变化。
