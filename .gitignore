@@ -159,5 +159,18 @@ desktop.ini
 output/*
 !output/README.md
 
+# In-source generated outputs: src/output/ 是可重建产物而非源码;
+# 上面的 output/* 锚定根目录,挡不住 src 下同名树,这里单独补一条。
+src/output/
+
+# 散落的一次性任务/中间产物(撤跟踪保留本地,可重新生成或一次性使用)
+/_check.txt
+/_titles.txt
+/prose_check.json
+/repair_diff.txt
+/tasks_reval.yaml
+/b_validate_tasks.yaml
+/eval5_tasks.yaml
+
 # Web Console 上传暂存区：去重未命中的新上传源落这里，非库内权威源，不入库。
 fictions_source/_uploads/
