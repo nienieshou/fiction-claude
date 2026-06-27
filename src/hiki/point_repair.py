@@ -14,7 +14,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from . import prompts, gate, audit, prose_continuity, prose_facts
+from . import prompts, gate, audit, prose_continuity, prose_facts, textnum
 from .client import Client
 from .slice_validate import _strip_markers
 from .produce import _trim_tail, _book_filename, _delivery_path, _safe_filename
@@ -40,8 +40,8 @@ def _post_process(t: str) -> str:
     t = _EDIT_NOTE.sub("", t)
     return _trim_tail(t.strip())
 
-_CH_HEAD = re.compile(r"^# 第\d+章.*$", re.M)
-_CH_IN_TEXT = re.compile(r"第(\d+)章")
+_CH_HEAD = textnum.MD_CH_RE
+_CH_IN_TEXT = textnum.INLINE_CH_NUM_RE
 
 
 def _split_keep_headers(final_md: str) -> tuple[str, list[str], list[str]]:

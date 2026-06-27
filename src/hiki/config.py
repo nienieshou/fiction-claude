@@ -2,6 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Any
+from . import textnum
 
 _ROOT = Path(__file__).resolve().parents[2]   # claude/
 _CONFIG_DIR = _ROOT / "config"
@@ -17,7 +18,7 @@ _DEFAULTS: dict[str, Any] = {
     },
     "ingest": {
         "encodings": ["utf-8", "gbk", "gb18030"],
-        "chapter_regex": r"^\s*第\s*[0-9零一二三四五六七八九十百千万两]+\s*[章节卷回]",
+        "chapter_regex": textnum.SOURCE_CH_PATTERN,
         "junk_line_patterns": [
             r"作者[的有]?话", r"求(订阅|月票|推荐票|打赏|收藏)",
             r"(起点中文网|晋江文学城|笔趣阁|纵横中文网|番茄小说)",

@@ -6,13 +6,13 @@
 from __future__ import annotations
 import re
 from pathlib import Path
-from . import config
+from . import config, textnum
 from .schemas import IngestMeta
 
 _CFG = config.load("pipeline")["ingest"]
 _CHAPTER_RE = re.compile(_CFG["chapter_regex"])
 _JUNK_RE = re.compile("|".join(f"(?:{p})" for p in _CFG["junk_line_patterns"]))
-_FIRST_CH_RE = re.compile(r"第\s*[一1]\s*[章回]")
+_FIRST_CH_RE = textnum.FIRST_CH_RE
 
 
 def detect_encoding(raw: bytes) -> tuple[str, str]:

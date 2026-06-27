@@ -10,11 +10,11 @@ import json
 import re
 import sys
 from pathlib import Path
-from . import prompts
+from . import prompts, textnum
 from .gate import _safe_json
 from .client import Client
 
-_CH_SPLIT = re.compile(r"^# 第\d+章.*$", re.M)
+_CH_SPLIT = textnum.MD_CH_RE
 _CATS = {"生死", "体系", "时间轴", "身份", "数值"}
 # 语义可变量(随情节合法变化,跨章不同≠矛盾):钱包余额/不同合同/股价等。
 # 刻意排除 彩礼/年龄/婚龄/年限/走失年数 等应单值的设定不变量(不在此表)。
@@ -68,46 +68,13 @@ async def fact_audit(cli: Client, ch_texts: list[str]) -> dict:
 # ============ R8 A2': 事实表对账(LLM逐章抽取→代码跨章确定性对比) ============
 # 1M单pass"通读找矛盾"召回仅18%(深处不查)已证伪;局部抽取是模型强项,全局推理挪进代码。
 
-_NUM = re.compile(r"(\d+(?:\.\d+)?)")
-_CN_DIGIT = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
-             "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
-_CN_UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
-
-
-def _cn_to_num(s: str) -> float | None:
-    """中文数字解析(治'四十'被读成4、'二十三'读成2的实测误报)。
-    支持 十/百/千/万/亿 复合(四十=40、一万八千=18000、三十万=300000)。"""
-    total = 0          # 已结算的高位段(万/亿以上)
-    section = 0        # 当前段累积
-    num = 0            # 待乘的个位数字
-    found = False
-    for c in s:
-        if c in _CN_DIGIT:
-            num = _CN_DIGIT[c]
-            found = True
-        elif c in _CN_UNIT:
-            found = True
-            unit = _CN_UNIT[c]
-            if unit >= 10000:                     # 万/亿: 结算整段
-                section = (section + num) * unit
-                total += section
-                section = 0
-            else:                                 # 十/百/千: 段内累加
-                section += (num or 1) * unit
-            num = 0
-    return float(total + section + num) if found else None
-
-
-_UNIT_MUL = {"万": 1e4, "亿": 1e8, "千": 1e3, "百": 1e2}
-
-
-def _num_of(s: str) -> float | None:
-    m = _NUM.search(s)
-    if m:
-        v = float(m.group(1))
-        tail = s[m.end():m.end() + 1]              # 紧跟的量纲字:'30万'→30×1e4,与'三十万'(=300000)一致
-        return v * _UNIT_MUL.get(tail, 1.0)
-    return _cn_to_num(s)                           # 中文数字(婚龄'四年'/'四十分钟'类)
+# 数字解析单源 → textnum(C4); 别名保持接口兼容供内部调用及 tests/test_prose_facts.py
+_NUM = textnum.NUM
+_CN_DIGIT = textnum.CN_DIGIT
+_CN_UNIT = textnum.CN_UNIT
+_UNIT_MUL = textnum.UNIT_MUL
+_cn_to_num = textnum.cn_to_num
+_num_of = textnum.num_of
 
 
 async def extract_facts(cli: Client, ch_texts: list[str]) -> list[dict]:
