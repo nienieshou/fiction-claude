@@ -52,3 +52,12 @@ def test_extract_one_valid_marks_chunk():
     cli = _FakeCli([json.dumps({"scene_cards": [{"summary": "x"}]})])
     r = asyncio.run(_extract_one(cli, "正文", idx=5))
     assert r["scene_cards"][0]["_chunk"] == 5              # happy: 标 _chunk 不变
+
+
+def test_extract_one_partial_response_keeps_other_categories():
+    # 解析成功但缺 scene_cards、有 char_observations → 不丢数据(返回 r, 非 {})
+    cli = _FakeCli([json.dumps({"char_observations": [{"name": "甲"}], "places": ["山"]})])
+    r = asyncio.run(_extract_one(cli, "正文", idx=7))
+    assert r.get("char_observations") == [{"name": "甲"}]       # 其它类保留
+    assert r.get("places") == ["山"]
+    assert r != {}                                              # 未被当失败丢弃

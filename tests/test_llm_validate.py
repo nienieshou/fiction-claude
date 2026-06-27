@@ -34,9 +34,13 @@ def test_validate_non_dict():
     assert validate([1, 2], **REVIVAL_VERIFY) is False
 
 
-def test_validate_extract_chunk_empty_list_valid_but_missing_invalid():
-    assert validate({"scene_cards": []}, **EXTRACT_CHUNK) is True       # 空列表=合法抽取
-    assert validate({}, **EXTRACT_CHUNK) is False                       # 无键=解析失败
+def test_validate_extract_chunk_any_dict_valid_partial_keeps_data():
+    assert validate({"scene_cards": []}, **EXTRACT_CHUNK) is True            # 空列表合法
+    assert validate({}, **EXTRACT_CHUNK) is True                            # 空 dict = 解析成功(合法, 与旧一致)
+    assert validate({"char_observations": [1]}, **EXTRACT_CHUNK) is True    # partial(无scene_cards但有其它类)= 合法, 不丢数据
+    assert validate({"scene_cards": None}, **EXTRACT_CHUNK) is False        # scene_cards 在但非list → 无效(防 for sc in None 崩)
+    assert validate(None, **EXTRACT_CHUNK) is False                         # 解析失败
+    assert validate("garbage", **EXTRACT_CHUNK) is False                    # 非 dict
 
 
 # ---- complete_validated ----

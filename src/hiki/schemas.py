@@ -39,4 +39,4 @@ def validate(raw, required, types: dict | None = None) -> bool:
 
 # 标杆 schema(键取自现状契约)
 REVIVAL_VERIFY = {"required": ("is_revival",), "types": {"is_revival": bool}}
-EXTRACT_CHUNK = {"required": ("scene_cards",)}   # 有 scene_cards 键=有效抽取(空列表合法); 无键=解析失败
+EXTRACT_CHUNK = {"required": (), "types": {"scene_cards": list}}   # 数据契约: 任意解析成功的 dict 有效(partial 保数据); scene_cards 若在须为 list(防 null 崩); 仅 None/非dict=解析失败→重试浮现
