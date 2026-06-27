@@ -1,0 +1,27 @@
+{
+  "slug": "BPBXS00052",
+  "role": "reject_guard",
+  "signal_schema_version": 1,
+  "signals": {
+    "schema_version": 1,
+    "deliverable": false,
+    "grade": "A",
+    "opening_immersion": 82,
+    "reenact_hits": 0,
+    "seam_detected": 25,
+    "seam_residual": 2,
+    "dark_ratio": 0.07,
+    "spine_num_contra": 2,
+    "spine_id_contra": 0,
+    "ft_revival_residual": 0,
+    "too_short_chapters": 4,
+    "final_consistent": false,
+    "intra_repeat_chapters": 0,
+    "early_repeat": null,
+    "opening_overload": null
+  },
+  "expected_deliverable": false,
+  "expected_ship_issues": [
+    "4章过短<70%(二次扩写后仍稀薄)"
+  ]
+}

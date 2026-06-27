@@ -1,0 +1,25 @@
+{
+  "slug": "CPBGX00031",
+  "role": "snapshot",
+  "signal_schema_version": 1,
+  "signals": {
+    "schema_version": 1,
+    "deliverable": true,
+    "grade": "A",
+    "opening_immersion": 90,
+    "reenact_hits": 5,
+    "seam_detected": 30,
+    "seam_residual": 4,
+    "dark_ratio": 0.03,
+    "spine_num_contra": 0,
+    "spine_id_contra": 1,
+    "ft_revival_residual": 0,
+    "too_short_chapters": 1,
+    "final_consistent": true,
+    "intra_repeat_chapters": 0,
+    "early_repeat": null,
+    "opening_overload": null
+  },
+  "expected_deliverable": true,
+  "expected_ship_issues": []
+}
