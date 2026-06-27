@@ -56,7 +56,7 @@ class RevivalLedger:
 
     def revivals(self) -> list[RevivalRecord]:
         """同 who: 取最早 death_ch, 其后最早 appearance → 一条 RevivalRecord。
-        多源命中并 sources。确定性(按 who 排序输出)。"""
+        多源命中并 sources。确定性(按 (death_ch, who) 排序输出, 章序优先)。"""
         deaths_by_who: dict[str, list[DeathEvent]] = {}
         for d in self._deaths:
             deaths_by_who.setdefault(d.who, []).append(d)
@@ -65,10 +65,10 @@ class RevivalLedger:
             apps_by_who.setdefault(a.who, []).append(a)
 
         out: list[RevivalRecord] = []
-        for who in sorted(deaths_by_who):
+        for who in deaths_by_who:
             ds = sorted(deaths_by_who[who], key=lambda d: d.ch)
             death_ch = ds[0].ch
-            clue = next((d.clue for d in ds if d.clue), "")
+            clue = ds[0].clue   # 首个(最早章)死亡的 clue, 即便空 — 严格对齐旧 cross_check who-not-in-deaths 语义
             later = sorted(a.ch for a in apps_by_who.get(who, []) if a.ch > death_ch)
             if not later:
                 continue
@@ -76,7 +76,8 @@ class RevivalLedger:
             srcs = frozenset({d.source for d in ds}
                              | {a.source for a in apps_by_who.get(who, []) if a.ch > death_ch})
             out.append(RevivalRecord(who, death_ch, revive_ch, clue, srcs, "高"))
-        return out
+        # 先算出每条 RevivalRecord, 再按 (death_ch, who) 排序输出 — 章序优先, who 做确定性 tiebreak
+        return sorted(out, key=lambda r: (r.death_ch, r.who))
 
     def resolve_gating(self, verified: list[RevivalRecord]) -> list[RevivalRecord]:
         """按 source 优先级输出"进门"集合: 任一 gating 源(facts/plan)命中即进门;

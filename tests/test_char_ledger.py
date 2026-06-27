@@ -51,3 +51,27 @@ def test_resolve_gating_source_precedence():
     assert "A" in whos          # facts 权威
     assert "B" not in whos      # 仅 roster = 仅修复, 不进门
     assert "C" in whos          # plan 回退也算门级来源
+
+
+def test_clue_uses_first_death_even_if_empty():
+    """首个死亡 clue 为空时, 即便后续死亡有 clue, revivals 应取首个(空)。严格对齐旧 cross_check。"""
+    lg = RevivalLedger()
+    lg.record_death("赵六", 5, clue="", source="facts")          # 首死 clue 为空
+    lg.record_death("赵六", 8, clue="明确线索", source="facts")   # 后死 clue 非空
+    lg.record_appearance("赵六", 15, source="facts")
+    r = lg.revivals()[0]
+    assert r.clue == ""    # 首死 clue 为空, 严格取首死 — 即便后死有非空 clue
+
+
+def test_revivals_ordered_by_death_ch_not_alpha():
+    """两条复活按 death_ch 升序输出(非按角色名字母序)。"""
+    lg = RevivalLedger()
+    # "A_char" 字母序靠前, 但死于 ch=20; "Z_char" 字母序靠后, 死于 ch=3
+    lg.record_death("A_char", 20, clue="", source="facts")
+    lg.record_appearance("A_char", 25, source="facts")
+    lg.record_death("Z_char", 3, clue="", source="facts")
+    lg.record_appearance("Z_char", 10, source="facts")
+    revs = lg.revivals()
+    assert len(revs) == 2
+    assert revs[0].who == "Z_char" and revs[0].death_ch == 3    # 早死先出, 虽字母序靠后
+    assert revs[1].who == "A_char" and revs[1].death_ch == 20
