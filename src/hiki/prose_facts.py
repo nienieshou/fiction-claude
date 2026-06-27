@@ -13,6 +13,7 @@ from pathlib import Path
 from . import prompts, textnum
 from .gate import _safe_json
 from .client import Client
+from .names import is_person_name
 
 _CH_SPLIT = textnum.MD_CH_RE
 _CATS = {"生死", "体系", "时间轴", "身份", "数值"}
@@ -99,7 +100,7 @@ def cross_check(facts: list[dict]) -> list[dict]:
     for i, f in enumerate(facts, 1):
         for d in f.get("deaths") or []:
             who = (d.get("who") if isinstance(d, dict) else str(d) or "").strip()
-            if who and 2 <= len(who) <= 6 and who not in deaths:
+            if who and is_person_name(who, 6) and who not in deaths:
                 clue = (d.get("clue") or "") if isinstance(d, dict) else ""
                 deaths[who] = (i, clue)
     for who, (dch, clue) in deaths.items():

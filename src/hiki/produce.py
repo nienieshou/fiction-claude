@@ -18,6 +18,7 @@ from .client import Client
 from .ingest import ingest
 from .slice_validate import (_process_scene, _fit_chapter, _truncate, _assemble,
                              _load_gold, _json, _strip_markers)
+from .names import is_person_name, is_item_name
 
 
 import re as _re
@@ -319,7 +320,7 @@ def _settle_facts(settled: dict, facts: list[dict], start_ch: int) -> None:
         ch = start_ch + off + 1                      # 1-based
         for d in f.get("deaths") or []:
             who = (d.get("who") if isinstance(d, dict) else str(d) or "").strip()
-            if who and 2 <= len(who) <= 6:
+            if who and is_person_name(who, 6):
                 settled["deaths"].setdefault(who, ch)
         for pair in f.get("power") or []:
             if isinstance(pair, (list, tuple)) and len(pair) >= 2:
@@ -327,12 +328,12 @@ def _settle_facts(settled: dict, facts: list[dict], start_ch: int) -> None:
         for pair in f.get("items") or []:
             if isinstance(pair, (list, tuple)) and len(pair) >= 2:
                 name, state = str(pair[0]).strip(), str(pair[1]).strip()
-                if name and 2 <= len(name) <= 8 and any(k in state for k in _ITEM_TERMINAL):
+                if name and is_item_name(name) and any(k in state for k in _ITEM_TERMINAL):
                     settled.setdefault("items", {}).setdefault(name, (state[:12], ch))
         for pair in f.get("milestones") or []:       # M1.5: 不可逆人生里程碑账(治孕产/婚育时间线退步)
             if isinstance(pair, (list, tuple)) and len(pair) >= 2:
                 who, ev = str(pair[0]).strip(), str(pair[1]).strip()
-                if who and 2 <= len(who) <= 6 and ev:
+                if who and is_person_name(who, 6) and ev:
                     t = _milestone_type(ev)          # 按类型去重(措辞每章不同,'分娩'类只记首次)
                     settled.setdefault("milestones", {}).setdefault(who, {}).setdefault(t, (ev[:24], ch))
 
