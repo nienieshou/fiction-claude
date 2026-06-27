@@ -103,3 +103,71 @@ class RevivalLedger:
         当前未接入 produce.py——3 路(facts/plan/roster)各自分流进门, 合并属 principled 改判;
         此函数是延后 follow-up 的对接缝(C1 残留任务, 非本期行为保持重构目标)。"""
         return [r for r in verified if r.sources & _GATING_SOURCES]
+
+
+# ==================== C2: 修为/战力单调账本 ====================
+from typing import Callable, Hashable, Optional
+
+
+@dataclass(frozen=True)
+class PowerRegression:
+    who: str
+    ch: int
+    raw_value: str        # 触发回退的原始值串
+    best_raw: str         # 当时 running-best 的原始串(供修复钉回)
+    mode: str             # "ordinal" | "numeric"
+
+
+@dataclass(frozen=True)
+class Comparator:
+    """可插拔比较器: 三元 callables。key 分桶, parse→可比量(None=跳过), is_regression(new,best)。
+    域逻辑(_power_rank/num_of)由 adapter 注入, 故本模块不依赖 audit/prose。"""
+    key: Callable[[str, str], Hashable]
+    parse: Callable[[str], Optional[float]]
+    is_regression: Callable[[float, float], bool]
+    mode: str
+
+
+def ordinal_comparator(rank_fn: Callable[[str], Optional[float]]) -> Comparator:
+    """序数: key=who; parse=rank_fn(已把判不出映射为 None); 退=new<best(严格)。"""
+    return Comparator(key=lambda who, raw: who, parse=rank_fn,
+                      is_regression=lambda new, best: new < best, mode="ordinal")
+
+
+def numeric_comparator(value_fn: Callable[[str], Optional[float]],
+                       unit_fn: Callable[[str], str]) -> Comparator:
+    """数值: key=(who, unit_fn(raw)); parse=value_fn; 退=new<best*0.95(>5%跌)。"""
+    return Comparator(key=lambda who, raw: (who, unit_fn(raw)), parse=value_fn,
+                      is_regression=lambda new, best: new < best * 0.95, mode="numeric")
+
+
+class PowerLedger:
+    """修为单调账本(C2)。纯, 零 LLM/IO。per-key 追 running-best, 新值低于阈值即标回退。
+    两修为引擎(audit.check/fix_power_monotonic + prose_facts.cross_check power)共享此骨架,
+    差异全在注入的 comparator。"""
+
+    def __init__(self, comparator: Comparator) -> None:
+        self._cmp = comparator
+        self._best: dict = {}          # key -> (value: float, raw: str)
+        self._regressions: list[PowerRegression] = []
+
+    def record(self, who: str, raw_value: str, ch: int) -> bool:
+        raw = str(raw_value)
+        k = self._cmp.key(who, raw)
+        v = self._cmp.parse(raw)
+        if v is None:
+            return False
+        best = self._best.get(k)
+        regressed = best is not None and self._cmp.is_regression(v, best[0])
+        if regressed:
+            self._regressions.append(PowerRegression(who, ch, raw, best[1], self._cmp.mode))
+        if best is None or v > best[0]:
+            self._best[k] = (v, raw)
+        return regressed
+
+    def regressions(self) -> list[PowerRegression]:
+        return list(self._regressions)
+
+    def current_best(self, who: str, raw_value: str = "") -> str | None:
+        best = self._best.get(self._cmp.key(who, str(raw_value)))
+        return best[1] if best else None
