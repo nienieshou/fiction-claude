@@ -20,4 +20,4 @@
 
 ## Backlog（本期不做）
 - 题材洞: 末世(测 dark_ratio 门)/星际/七零 需新跑产物(¥)。
-- 装配层网: 冻结 `fact_table.json` 原始检出 → 离线重跑 spine/复活计数装配，护 C1 CharacterStateLedger 重构。
+- 装配层网: fact_table.json 已随金标入库, signal_counts_from_fact_table 纯导出三计数, test_assembly_regression 跨产物一致 + test_cross_check_corpus 钉 cross_check 契约(C1 等价基线)。残: 真·cross_check 输入重放需 producer 落盘逐章抽取(API 重跑金标)。
