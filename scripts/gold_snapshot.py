@@ -56,6 +56,24 @@ def _write_fixture(fx: dict) -> Path:
     return p
 
 
+def _copy_fact_table(out_dir: str, slug: str) -> Path:
+    d = GOLD / slug
+    d.mkdir(parents=True, exist_ok=True)
+
+    # Read fact_table.json from output dir
+    input_path = ROOT / "output" / out_dir / "fact_table.json"
+    raw = input_path.read_text(encoding="utf-8")
+
+    # Normalize via JSON round-trip
+    data = json.loads(raw)
+
+    # Write to assets/gold_regression/<slug>/fact_table.json
+    output_path = d / "fact_table.json"
+    output_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return output_path
+
+
 def main(argv: list[str]) -> None:
     only = None
     if argv and argv[0] == "--repin":
@@ -68,6 +86,8 @@ def main(argv: list[str]) -> None:
         fx = snapshot_one(_read_report(out_dir), slug, role)
         p = _write_fixture(fx)
         print(f"{'拒' if not fx['expected_deliverable'] else '放'}  {slug}  → {p.relative_to(ROOT)}")
+        ft_path = _copy_fact_table(out_dir, slug)
+        print(f"  fact_table → {ft_path.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
