@@ -8,11 +8,12 @@
 from __future__ import annotations
 import asyncio
 import re
-from . import prompts, textnum
+from . import prompts, textnum, schemas
 from .gate import _safe_json
 from .client import Client
 from .names import is_person_name
 from .char_ledger import RevivalLedger
+from .llm_validate import complete_validated
 
 _CH = textnum.MD_CH_PREFIX_RE
 
@@ -227,19 +228,18 @@ def find_revivals(roster: dict, ch_texts: list[str]) -> list[dict]:
 
 
 async def verify_revivals(cli: Client, ch_texts: list[str], revivals: list[dict]) -> list[dict]:
-    """detect→verify→repair：逐个核查疑似复活是否为真(确定死亡+本章在场活人),滤掉假阳性(如未真死的角色)。"""
+    """detect→verify→repair：逐个核查疑似复活是否为真。A3: 校验失败(畸形)→保留存疑(fail-closed)。"""
     sys_p, usr_t = prompts.PROSE_REVIVAL_VERIFY
-    checks = await asyncio.gather(*[
-        cli.complete("chunk_extract", sys_p,
-                     usr_t.format(who=r["who"], clue=r["clue"] or "已死亡",
-                                  text=ch_texts[r["revive_ch"]][:9000]),
-                     json_mode=True, max_tokens=500, temperature=0.1) for r in revivals])
-    out = []
-    for r, c in zip(revivals, checks):
-        v = _safe_json(c) or {}
-        if v.get("is_revival") is True:
-            out.append(r)
-    return out
+
+    async def _keep(r: dict) -> bool:
+        v = await complete_validated(
+            cli, "chunk_extract", sys_p,
+            usr_t.format(who=r["who"], clue=r["clue"] or "已死亡", text=ch_texts[r["revive_ch"]][:9000]),
+            schema=schemas.REVIVAL_VERIFY, retries=2, json_mode=True, max_tokens=500, temperature=0.1)
+        return v is None or v.get("is_revival") is True     # None=畸形→保留存疑; 否则按 is_revival
+
+    flags = await asyncio.gather(*[_keep(r) for r in revivals])
+    return [r for r, k in zip(revivals, flags) if k]
 
 
 async def verify_revival_beats(cli: Client, ch_texts: list[str], revivals: list[dict]) -> list[dict]:
