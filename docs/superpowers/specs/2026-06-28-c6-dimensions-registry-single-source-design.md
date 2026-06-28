@@ -34,7 +34,7 @@ class Dim:
 ```
 37 条沿用现位置参数(新字段走默认);仅给清晰 gating 维显式置 `gating=True, signals=(...)`。
 
-### ② 哪些维 gating(默认 config,保守只取干净 1:1 对应)
+### ② 哪些维 gating(默认 config,保守只取干净 1:1 对应;注: 维6/12 例外,共享 spine_net 求和阈值而非独立 1:1,均列入 gating=True 因任一分量即可贡献该硬门)
 | 维 | signals | 门分支(evaluate_ship_gate) |
 |---|---|---|
 | 2 阵营归属/随从匹配 | `("阵营串线",)` | `阵营串线>0` 硬拦 |
@@ -62,7 +62,7 @@ NON_DIM_GATE_FLOORS: tuple[str, ...] = (
 4. **signal 名有效**:每个 gating 维引用的 signal 键 ∈ `set(gate.signal_vector_to_gate_input({}).keys())`(防 typo/死信号名;该桥接输出含全部门输入键)。
 
 ## 验证
-- 新 `tests/test_dimensions_registry.py`(上述 4 类守卫)。
+- 新 `tests/test_dimensions_registry.py`(上述 4 类守卫 + `test_gate_branches_fully_covered_by_registry` 反向门→注册表完整性守卫,防单向漏检)。
 - `python -m pytest -q` 全量 + 金标/装配回归网绿(本切零运行时路径改动 → 天然等价)。
 - SDD:逐任务 TDD + 两段复核 + opus 终审。
 

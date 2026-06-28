@@ -15,6 +15,7 @@ def _benign_sig() -> dict:
 
 
 # 每个 gating signal → (触发值, 需附带的其他键覆盖)
+# 6 == gate SHIP_GATE_DEFAULTS["spine_net_min"]; 维6与12共享该"数值+身份求和"阈值(非独立硬门), 阈值若调此处需同步
 _TRIGGER = {
     "阵营串线": (1, {}),
     "数值真矛盾": (6, {}),
@@ -67,3 +68,24 @@ def test_non_dim_floors_disjoint_from_dim_signals():
     """非维地板与 gating 维 signal 不相交(地板本就非维)。"""
     dim_sigs = {s for d in audit.DIMENSIONS for s in d.signals}
     assert not (set(audit.NON_DIM_GATE_FLOORS) & dim_sigs)
+
+
+# 完整性守卫(opus 终审 Important): 枚举门所有输入键, 逐个置触发值, 断言"凡默认 config 下能产 issue
+# 的键, 必在 (gating维 signals ∪ NON_DIM_GATE_FLOORS) 内"。这是 test_gating_dim_id_set_pinned 的反向
+# (门→注册表)覆盖: 未来新增 gating 分支 / 翻 block_on_* / 加 dim 信号忘标注册表 → 此测失败报漂移。
+_TRIP_ALL = {
+    "阵营串线": 1, "过短章数": 99, "暗黑比": 1.0, "预告跳过": "x",
+    "plan维14复活": 1, "事实表跑过": False, "事实表复活残留": 1, "残缝": 99,
+    "final_consistent": False, "事件重演": 99, "章内双版本": 1,
+    "数值真矛盾": 99, "身份真矛盾": 99, "承重审计崩溃": True,
+    "开篇代入感": 0, "早段重复": 1,
+}
+
+
+def test_gate_branches_fully_covered_by_registry():
+    allowed = {s for d in audit.DIMENSIONS for s in d.signals} | set(audit.NON_DIM_GATE_FLOORS)
+    for key in gate.signal_vector_to_gate_input({}):
+        sig = _benign_sig()
+        sig[key] = _TRIP_ALL[key]
+        if gate.evaluate_ship_gate(sig):          # 该键单独触发能产硬拦
+            assert key in allowed, f"门键 {key} 默认硬拦但未在注册表 gating signals/非维地板 → 漂移!"
