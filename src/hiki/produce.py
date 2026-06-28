@@ -1222,7 +1222,8 @@ def _run_ship_gate(bible: dict, ordered: list, final: str, det: list, advisory: 
 
 async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, final: str,
                           deliverable: bool, ship_issues: list, report: dict,
-                          open_premise: str = "", immersion: dict | None = None) -> dict:
+                          open_premise: str = "", immersion: dict | None = None,
+                          craft_advisory: bool = True) -> dict:
     """阶段9 finalize(B1-2): gen_title + 输出《书名》.md + craft审计 + 落 report.json。
     report 主体在 run() 组装(引用各相位局部);此处补 title/output/craft 字段并落盘后返回。"""
     tmeta = await gen_title(cli, bible, ending=final)
@@ -1238,10 +1239,13 @@ async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, fi
         print(f"成品命名：{out_name} —— {tagline}  → {out_path.parent}")
     else:
         print(f"⛔ 交付门拦截：{'；'.join(ship_issues)} → _rejected/{out_name}（重跑或拒收，绝不流向编辑）")
-    try:                                          # craft 仅 advisory，绝不为它丢成品/报告
-        audit_craft = await audit.craft_audit(cli, final[:9000])
-    except Exception as e:
-        audit_craft = [f"(craft审计跳过:{type(e).__name__})"]
+    if craft_advisory:                            # C6②: config.advisories.craft_audit 关→跳过省token
+        try:                                      # craft 仅 advisory，绝不为它丢成品/报告
+            audit_craft = await audit.craft_audit(cli, final[:9000])
+        except Exception as e:
+            audit_craft = [f"(craft审计跳过:{type(e).__name__})"]
+    else:
+        audit_craft = ["(craft advisory 已关:config.advisories.craft_audit)"]
     if immersion is None:                          # 兜底:run() 已门前算好并传入;独立调用时才现算
         immersion = await audit.opening_immersion_audit(cli, final, open_premise)
     imm_warn = (immersion.get("代入锚") == "warn" or immersion.get("premise清晰") == "warn"
@@ -1486,7 +1490,8 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         early_repeat=early_rep["count"])
     # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
     return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report,
-                                 open_premise, immersion)         # C: 复用门前算好的 immersion(不重算)
+                                 open_premise, immersion,         # C: 复用门前算好的 immersion(不重算)
+                                 craft_advisory=config.advisory_on(_cfg, "craft_audit"))
 
 
 def _variety(beats: list[dict]) -> str:
