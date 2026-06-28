@@ -35,7 +35,7 @@
 | C3 | 身份钉死 3 渲染器并存(id_map + spine_roster + plan-roster),迁移半截 | ⬜ | HIKI_SPINE 转正后删 id_map + ad-hoc roster |
 | C4 | 中文数字/章节正则在 4-5 模块复制且已分叉(config 含「卷」,mining 不含) | ✅ | `src/hiki/textnum.py` 单一来源(顺带修 mining/slice 漏卷) |
 | C5 | 「who/state 入账」循环 5 处重写,name 长度界不一(2-6/2-8/2-5) | ◐ | 7 站点 `2<=len<=N` 收口 `src/hiki/names.py`(`is_person_name(nm,max_len)`/`is_item_name`),行为逐位保持(各站点传现状界 4/5/6/8 + 反相锚保留)。残(follow-up): **界统一**(人名 2-5 vs 2-6 分叉=provenance 缺口,需校准选 5/6)/ `safe_pairs` 谓词 |
-| C6 | ~半数 37 维 + 多扫描器是 advisory/哨兵,算了就扔(白烧 token) | ⬜ | 用 DIMENSIONS 单一注册表 gating=True/False 驱动 |
+| C6 | ~半数 37 维 + 多扫描器是 advisory/哨兵,算了就扔(白烧 token) | ◐ | 用 DIMENSIONS 单一注册表 gating=True/False 驱动。C6① 已落: DIMENSIONS 加 gating/signals 字段(如实标注 4 gating 维 {2,6,12,14}→门信号) + NON_DIM_GATE_FLOORS 常量 + 一致性守卫测(目录gating集=门实际硬拦, 防漂移)。纯元数据+测试零行为改动。残: 让门/扫描器读目录gating(②)/ config门控白烧advisory扫描器(③省token) |
 | C7 | `point_repair` 重实现 produce 尾门(复活/收尾/连续性),手工同步 | ◐ | C7.1 已落: ENDING_CHECK 检测抽 gate.ending_check, produce._ending_guard + point_repair 两处 call(消手工同步), 行为逐位保持。ending_check 已并入共享 gate.detect_retry(A3 wave3, 四检同环)。残: revival/continuity dedup(缠 produce 尾门 B1) |
 
 ## D. 配置驱动缺口（违 NFR-M2）◐
