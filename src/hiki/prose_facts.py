@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from . import prompts, textnum
 from .gate import _safe_json
+from .llm_validate import complete_validated
 from .client import Client
 from .names import is_person_name
 from .char_ledger import RevivalLedger, PowerLedger, numeric_comparator
@@ -219,18 +220,20 @@ async def verify_identity(cli: Client, findings: list[dict], ch_texts: list[str]
         usr = usr_t.format(who=f["who"], ca=f["ch_a"], va=va, cb=f["ch_b"], vb=vb,
                            ctx_a=_ctx(ch_texts, f["ch_a"], f["who"]),
                            ctx_b=_ctx(ch_texts, f["ch_b"], f["who"]))
-        real = False                                  # 默认 false(存疑不报)
-        for k in range(2):
-            raw = await cli.complete("chunk_extract", sys_p, usr,
-                                     json_mode=True, max_tokens=200, temperature=0.0 + 0.1 * k)
-            r = _safe_json(raw)
-            if isinstance(r, dict) and "real" in r:
-                real = bool(r["real"])
-                f["reason"] = str(r.get("reason", ""))[:30]
-                break
-        f["real"] = real
+        r = await complete_validated(cli, "chunk_extract", sys_p, usr,
+                                     schema=lambda r: isinstance(r, dict) and "real" in r,
+                                     retries=2, json_mode=True, max_tokens=200, temperature=0.0)
+        if r is not None:
+            f["real"] = bool(r["real"])               # LLM 成功裁决
+            f["reason"] = str(r.get("reason", ""))[:30]
+        else:
+            f["real"] = False                         # 解析耗尽: 保『存疑不报』+ 门字节同
+            f["verify_failed"] = True                 # 唯一新增: infra真失败 与 判定假 分开
 
     await asyncio.gather(*[_judge(f) for f in findings if f.get("cat") == "身份"])
+    nf = sum(1 for f in findings if f.get("cat") == "身份" and f.get("verify_failed"))
+    if nf:
+        print(f"⚠️ 身份验证LLM重试耗尽 {nf} 条(存疑默认不报,未进门)", file=sys.stderr)
     for f in findings:
         f.setdefault("real", True)                    # 非身份类默认真
     return findings
