@@ -116,6 +116,21 @@ async def continuity_check(cli: Client, text: str, bible: dict) -> dict:
     return {"consistent": None, "issues": ["(审计解析失败)"]}
 
 
+async def ending_check(cli: Client, prev_tail: str, tail: str) -> dict:
+    """ENDING_CHECK 检测(3-retry-on-empty)。共享: produce._ending_guard + point_repair 两处 call。
+    返回 ec dict({ok, problem, skipped, skipped_what} 等); 3 次仍无 "ok" 键 → {}。
+    调用方各自算 prev_tail/tail(point_repair 头+尾 blob vs produce last[-2500:], tail 差异是设计)。"""
+    sys_ec, usr_ec = prompts.ENDING_CHECK
+    for t in range(3):
+        raw = await cli.complete("chunk_extract", sys_ec,
+                                 usr_ec.format(prev_tail=prev_tail, tail=tail),
+                                 json_mode=True, max_tokens=400, temperature=0.1 + 0.1 * t)
+        ec = _safe_json(raw) or {}
+        if "ok" in ec:
+            return ec
+    return {}
+
+
 # 交付门阈值默认（人工 6+10 本校准;config/pipeline.yaml ship_gate 可覆盖,改动须回放验证)
 # 阈值经 human-eval-5(2026-06-15, docs/evidence/human_eval5_calibration.md)重标。
 # 真值表证伪了旧的承重微观硬门：5 本里机器信号与人类承重/可追**不单调可分**——
