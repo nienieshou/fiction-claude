@@ -36,7 +36,7 @@
 | C4 | 中文数字/章节正则在 4-5 模块复制且已分叉(config 含「卷」,mining 不含) | ✅ | `src/hiki/textnum.py` 单一来源(顺带修 mining/slice 漏卷) |
 | C5 | 「who/state 入账」循环 5 处重写,name 长度界不一(2-6/2-8/2-5) | ◐ | 7 站点 `2<=len<=N` 收口 `src/hiki/names.py`(`is_person_name(nm,max_len)`/`is_item_name`),行为逐位保持(各站点传现状界 4/5/6/8 + 反相锚保留)。残(follow-up): **界统一**(人名 2-5 vs 2-6 分叉=provenance 缺口,需校准选 5/6)/ `safe_pairs` 谓词 |
 | C6 | ~半数 37 维 + 多扫描器是 advisory/哨兵,算了就扔(白烧 token) | ⬜ | 用 DIMENSIONS 单一注册表 gating=True/False 驱动 |
-| C7 | `point_repair` 重实现 produce 尾门(复活/收尾/连续性),手工同步 | ⬜ | 抽共享 gate 函数,两处都 call |
+| C7 | `point_repair` 重实现 produce 尾门(复活/收尾/连续性),手工同步 | ◐ | C7.1 已落: ENDING_CHECK 检测抽 gate.ending_check, produce._ending_guard + point_repair 两处 call(消手工同步), 行为逐位保持。残: revival/continuity dedup(缠 produce 尾门 B1) |
 
 ## D. 配置驱动缺口（违 NFR-M2）◐
 

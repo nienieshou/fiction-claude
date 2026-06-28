@@ -152,19 +152,11 @@ async def run(out_dir: Path) -> dict:
     chs, dark_rep = await prose_continuity.content_filter(cli, chs)   # R12: 复检含内容扫描+净化
     if dark_rep.get("dark_ratio", 0) > 0.15:          # 点修语境收紧(末世0.05漏检了私刑弧的教训→
         issues2.append(f"暗黑残留(比{dark_rep['dark_ratio']})")       # 复检阈值比产线0.25更严)
-    sys_ec, usr_ec = prompts.ENDING_CHECK
     prev_tail = chs[-2][-800:] if len(chs) >= 2 else "（无）"
     # 末章头+尾都喂: 点修把补演的对峙加在末章开头,只看尾2500字会误判'仍跳过'(实测FP)
     last = chs[-1]
     tail_blob = last if len(last) <= 4500 else (last[:2000] + "\n……(中略)……\n" + last[-2000:])
-    ec = {}
-    for t in range(3):
-        raw = await cli.complete("chunk_extract", sys_ec,
-                                 usr_ec.format(prev_tail=prev_tail, tail=tail_blob),
-                                 json_mode=True, max_tokens=400, temperature=0.1 + 0.1 * t)
-        ec = gate._safe_json(raw) or {}
-        if "ok" in ec:
-            break
+    ec = await gate.ending_check(cli, prev_tail, tail_blob)
     if ec.get("skipped") is True:
         issues2.append(f"预告事件仍被跳过({(ec.get('skipped_what') or '').strip()})")
     bible = {}
