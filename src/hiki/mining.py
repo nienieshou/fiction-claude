@@ -223,9 +223,12 @@ async def score_scenes(cli: Client, scenes: list[dict], keep_n: int) -> list[dic
         f"{i}. [{sc.get('scene_type','')}/{sc.get('importance','')}] {sc.get('summary','')[:60]}"
         for i, sc in enumerate(scenes))
     sys_p, usr_t = prompts.SCENE_SCORE
-    raw = await cli.complete("scene_score", sys_p, usr_t.format(scenes=listed),
-                             json_mode=True, max_tokens=8000, temperature=0.2)
-    r = gate._safe_json(raw) or {}
+    r = await complete_validated(cli, "scene_score", sys_p, usr_t.format(scenes=listed),
+                                 schema=lambda r: isinstance(r, dict) and isinstance(r.get("scores"), list),
+                                 retries=2, json_mode=True, max_tokens=8000, temperature=0.2)
+    if r is None:
+        print("⚠️ 场景打分LLM重试耗尽,回退importance启发式(场景池可能次优)", file=sys.stderr)
+        r = {}
     score_map = {s["i"]: s.get("score", 0) for s in r.get("scores", []) if isinstance(s.get("i"), int)}
     ranked = sorted(range(len(scenes)),
                     key=lambda i: score_map.get(i, scenes[i].get("importance") == "高" and 70 or 40),
