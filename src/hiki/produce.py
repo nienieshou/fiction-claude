@@ -1045,17 +1045,8 @@ async def _ending_guard(cli: Client, ch_texts: list[str]) -> dict:
     """4f 结尾收束守卫: 末章断尾→补收束拍; 预告事件被时间跳跃跳过→计入门。→ {ch_texts,ending_fixed,climax_skipped}。
     (B1-5: 原内联;这里曾发生 cont 变量遮蔽崩 3 本的根因,独立 scope 根除该类。)"""
     ending_fixed, climax_skipped = "", ""
-    sys_ec, usr_ec = prompts.ENDING_CHECK
     prev_tail = ch_texts[-2][-800:] if len(ch_texts) >= 2 else "（无）"
-    for t in range(3):                            # retry-on-empty
-        raw = await cli.complete("chunk_extract", sys_ec,
-                                 usr_ec.format(prev_tail=prev_tail, tail=ch_texts[-1][-2500:]),
-                                 json_mode=True, max_tokens=400, temperature=0.1 + 0.1 * t)
-        ec = gate._safe_json(raw) or {}
-        if "ok" in ec:
-            break
-    else:
-        ec = {}
+    ec = await gate.ending_check(cli, prev_tail, ch_texts[-1][-2500:])
     if ec.get("skipped") is True:                 # 兑现跳空没法补写一场大战 → 交付门拦
         climax_skipped = (ec.get("skipped_what") or "预告事件").strip()
         print(f"结尾守卫: 预告事件被跳过({climax_skipped}) → 计入交付门")
