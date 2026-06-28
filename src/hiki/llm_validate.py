@@ -10,6 +10,6 @@ async def complete_validated(cli, stage, sys_p, usr, *, schema, retries: int = 3
     for t in range(retries):
         raw = await cli.complete(stage, sys_p, usr, temperature=base_t + 0.1 * t, **complete_kw)
         r = _safe_json(raw)
-        if validate(r, **schema):
+        if (schema(r) if callable(schema) else validate(r, **schema)):
             return r
     return None

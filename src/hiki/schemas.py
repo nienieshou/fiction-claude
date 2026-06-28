@@ -37,6 +37,11 @@ def validate(raw, required, types: dict | None = None) -> bool:
     return True
 
 
+def parsed(r) -> bool:
+    """解析出非空(dict 或 list)即有效——数据契约容 dict-or-list(如 LIFE_EVENTS)。_safe_json 返 dict|list|None。"""
+    return r is not None
+
+
 # 标杆 schema(键取自现状契约)
 REVIVAL_VERIFY = {"required": ("is_revival",), "types": {"is_revival": bool}}
 EXTRACT_CHUNK = {"required": (), "types": {"scene_cards": list}}   # 数据契约: 任意解析成功的 dict 有效(partial 保数据); scene_cards 若在须为 list(防 null 崩); 仅 None/非dict=解析失败→重试浮现

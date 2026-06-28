@@ -1,7 +1,7 @@
 """LLM 输出 schema 校验层(A3.1)。零真实 API(mock cli)。"""
 import asyncio
 import json
-from hiki.schemas import validate, REVIVAL_VERIFY, EXTRACT_CHUNK
+from hiki.schemas import validate, REVIVAL_VERIFY, EXTRACT_CHUNK, parsed
 from hiki.llm_validate import complete_validated
 
 
@@ -73,3 +73,30 @@ def test_complete_validated_temperature_ramps_on_retry():
     asyncio.run(complete_validated(cli, "s", "sys", "usr",
                                    schema=REVIVAL_VERIFY, retries=3, temperature=0.1))
     assert [round(c["temperature"], 2) for c in cli.calls] == [0.1, 0.2, 0.3]
+
+
+# ---- callable schema (A3 wave2) ----
+def test_schemas_parsed():
+    assert parsed({"a": 1}) is True
+    assert parsed([1, 2]) is True
+    assert parsed(None) is False
+
+
+def test_complete_validated_callable_schema_bare_list_valid():
+    cli = _FakeCli([json.dumps([{"x": 1}])])          # 裸 list → _safe_json 返 list → parsed True
+    r = asyncio.run(complete_validated(cli, "s", "sys", "usr", schema=parsed, retries=2))
+    assert r == [{"x": 1}]
+    assert len(cli.calls) == 1
+
+
+def test_complete_validated_callable_schema_retries_on_none():
+    cli = _FakeCli(["garbage", json.dumps({"life_events": []})])
+    r = asyncio.run(complete_validated(cli, "s", "sys", "usr", schema=parsed, retries=3))
+    assert r == {"life_events": []}
+    assert len(cli.calls) == 2
+
+
+def test_complete_validated_dict_schema_backward_compat():
+    cli = _FakeCli([json.dumps({"is_revival": True})])   # 既有 dict schema 仍走旧路
+    r = asyncio.run(complete_validated(cli, "s", "sys", "usr", schema=REVIVAL_VERIFY, retries=2))
+    assert r == {"is_revival": True}
