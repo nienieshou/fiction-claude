@@ -84,6 +84,8 @@ async def ending_check(cli: Client, prev_tail: str, tail: str) -> dict:
 ### 一个有意的微差(诚实标注)
 seam & handshake 经 `detect_retry` 新获 `isinstance(r, dict)` 守卫(adj_dup 现已有、原 ending 无)。dict 响应上**完全透明**;仅当 `_safe_json` 返非 dict(list)且 `key` 作其成员存在时行为变——极罕见且严格更安全(JSON list 非合法检测结果,旧码 `"ok" in [...]` 走元素成员判定属偶然)。同 C7.1 标注 for-else 等价的方式记录。
 
+**更强的正确性论据(opus 终审补)**:旧码该路径不仅是"静默放过"——`"ok" in [...]` 为真时旧码**返回该 list**,下游 `r.get("ok")` 对 list 调 `.get` → **AttributeError 沿 gather 抛出 → 整跑 abort**。新守卫把这个潜在崩溃转成有文档的保守 `{}`(+ stderr)。故微差是修复一个潜在崩溃,非仅治静默;happy-path(dict)永不触及,金标/装配网零影响。
+
 ## 验证
 
 - 新 `tests/test_detect_retry.py`(mock cli):含 key 的 dict → 返(1 调用);先畸形后有效 → 重试到有效;全畸形 → `{}` + stderr 浮现(capsys)+ N 调用;key/max_tokens/温度斜坡(0.1/0.2/0.3)透传;isinstance 守卫(list 响应 → 重试不误返)。

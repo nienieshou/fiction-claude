@@ -129,7 +129,7 @@ async def detect_retry(cli: Client, sys_p: str, usr: str, key: str, *,
         r = _safe_json(raw) or {}
         if isinstance(r, dict) and key in r:
             return r
-    print(f'⚠ {label} 校验重试{retries}次仍无效,按"未检出"计(可能漏检)', file=sys.stderr)
+    print(f'⚠ {label} 校验/复检重试{retries}次仍无效,按"未检出"计(可能漏检/修复未验)', file=sys.stderr)
     return {}
 
 
