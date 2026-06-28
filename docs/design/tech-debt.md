@@ -13,9 +13,9 @@
 |---|---|---|---|
 | A4 | `client.complete` 空响应静默返回 `""` → repair pass 经 `out or text` 假装修好;retry 仅覆盖 RateLimit/APIError(连接/超时闪断 abort 整跑,无 resume→全损) | ✅ | 空响应可重试+jitter+扩 connection/timeout。**根治:大部分 fail-open 由空响应触发** |
 | A2 | 裸 `except Exception` 把整个 Tier3 事实对账+Spine薄网吞成「advisory失败」→ 真死人复活/身份矛盾照出货;代码 bug(AttributeError)伪装成 advisory | ✅ | 拆分:解析类→advisory;非预期崩溃→`fact_audit_crashed` 进 ship_issue |
-| A1 | 空/截断响应被当「0 问题」(false-clean):`fact_audit`/`extract_facts` 抽取失败=该章无事实=矛盾漏检 | ◐ | 承重路径已修(`n_unaudited`>25%章→进门)。**每-pass(seam/adj_dup/handshake)的 checked-vs-unknown 仍待办**(A4 已缓解触发源) |
+| A1 | 空/截断响应被当「0 问题」(false-clean):`fact_audit`/`extract_facts` 抽取失败=该章无事实=矛盾漏检 | ◐ | 承重路径已修(`n_unaudited`>25%章→进门)。**每-pass 重试耗尽已 stderr 浮现(A3 wave3); 进 ship 信号的 unknown 计数仍待办**(A4 已缓解触发源) |
 | A5 | `grade_source` 解析失败默认 B 级 → Q 源拿免费全本 ¥draft | ✅ | 重试+失败即拒(Q/拒收),实测短路 |
-| A3 | **LLM 输出零 schema 校验**(违 A1/R2):全走 `_safe_json`→裸 dict→`.get()` 默认;缺字段当合法流下去 | ◐ | **A3.1 已落**: `schemas.validate(raw,required,types)` 谓词 + `src/hiki/llm_validate.complete_validated(...→dict\|None)`(validate→retry→终败None)。2 标杆改 fail-closed: `PROSE_REVIVAL_VERIFY`(畸形→保留存疑复活,治漏检)/`EXTRACT_CHUNK`(畸形→stderr 浮现丢失,非静默 `{}`)。happy-path 逐位保持(金标网守),fail-path mock 测。残: 其余 28 契约分波(Class A 硬回退/B 静默假阴/C 保护偏置)/ `_safe_json` 不搬; wave2: LIFE_EVENTS(_extract_life_one) 经 complete_validated(schemas.parsed 容 dict-or-list) — 失败 retry+stderr 浮现, 治静默丢生死事件, happy 逐位保持 |
+| A3 | **LLM 输出零 schema 校验**(违 A1/R2):全走 `_safe_json`→裸 dict→`.get()` 默认;缺字段当合法流下去 | ◐ | **A3.1 已落**: `schemas.validate(raw,required,types)` 谓词 + `src/hiki/llm_validate.complete_validated(...→dict\|None)`(validate→retry→终败None)。2 标杆改 fail-closed: `PROSE_REVIVAL_VERIFY`(畸形→保留存疑复活,治漏检)/`EXTRACT_CHUNK`(畸形→stderr 浮现丢失,非静默 `{}`)。happy-path 逐位保持(金标网守),fail-path mock 测。残: 其余 28 契约分波(Class A 硬回退/B 静默假阴/C 保护偏置)/ `_safe_json` 不搬; wave2: LIFE_EVENTS(_extract_life_one) 经 complete_validated(schemas.parsed 容 dict-or-list) — 失败 retry+stderr 浮现, 治静默丢生死事件, happy 逐位保持; wave3: seam/adj_dup/handshake/ending 四检共享环抽 gate.detect_retry(消4处copy-paste) — 重试耗尽 stderr 浮现"可能漏检"(治静默假阴), happy 逐位保持(门信号零变化) |
 
 ## B. 结构：god-function + 无断点续跑 ◐（B1-1 已落,方案见 `b1-run-refactor.md`）
 
@@ -36,7 +36,7 @@
 | C4 | 中文数字/章节正则在 4-5 模块复制且已分叉(config 含「卷」,mining 不含) | ✅ | `src/hiki/textnum.py` 单一来源(顺带修 mining/slice 漏卷) |
 | C5 | 「who/state 入账」循环 5 处重写,name 长度界不一(2-6/2-8/2-5) | ◐ | 7 站点 `2<=len<=N` 收口 `src/hiki/names.py`(`is_person_name(nm,max_len)`/`is_item_name`),行为逐位保持(各站点传现状界 4/5/6/8 + 反相锚保留)。残(follow-up): **界统一**(人名 2-5 vs 2-6 分叉=provenance 缺口,需校准选 5/6)/ `safe_pairs` 谓词 |
 | C6 | ~半数 37 维 + 多扫描器是 advisory/哨兵,算了就扔(白烧 token) | ⬜ | 用 DIMENSIONS 单一注册表 gating=True/False 驱动 |
-| C7 | `point_repair` 重实现 produce 尾门(复活/收尾/连续性),手工同步 | ◐ | C7.1 已落: ENDING_CHECK 检测抽 gate.ending_check, produce._ending_guard + point_repair 两处 call(消手工同步), 行为逐位保持。残: revival/continuity dedup(缠 produce 尾门 B1) |
+| C7 | `point_repair` 重实现 produce 尾门(复活/收尾/连续性),手工同步 | ◐ | C7.1 已落: ENDING_CHECK 检测抽 gate.ending_check, produce._ending_guard + point_repair 两处 call(消手工同步), 行为逐位保持。ending_check 已并入共享 gate.detect_retry(A3 wave3, 四检同环)。残: revival/continuity dedup(缠 produce 尾门 B1) |
 
 ## D. 配置驱动缺口（违 NFR-M2）◐
 

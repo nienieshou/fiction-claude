@@ -152,14 +152,9 @@ async def _seam_pass(cli: Client, ch_texts: list[str], cap: int = 60):
     sys_c, usr_c = prompts.SEAM_CHECK
 
     async def _check(i: int) -> dict:
-        for t in range(3):                       # retry-on-empty(flash偶发空响应,核心flaky类)
-            raw = await cli.complete("chunk_extract", sys_c,
-                                     usr_c.format(prev=ch_texts[i - 1][-700:], head=ch_texts[i][:900]),
-                                     json_mode=True, max_tokens=400, temperature=0.1 + 0.1 * t)
-            r = gate._safe_json(raw) or {}
-            if "ok" in r:
-                return r
-        return {}                                # 3次都空 → 认衔接正常(保守不误修)
+        return await gate.detect_retry(
+            cli, sys_c, usr_c.format(prev=ch_texts[i - 1][-700:], head=ch_texts[i][:900]),
+            "ok", max_tokens=400, label=f"SEAM 第{i + 1}章")
     idxs = list(range(1, len(ch_texts)))
     checks = await asyncio.gather(*[_check(i) for i in idxs])
     bad = []
@@ -216,14 +211,9 @@ async def _adj_dup_pass(cli: Client, ch_texts: list[str], cap: int = 12):
     sys_c, usr_c = prompts.ADJ_DUP_CHECK
 
     async def _check(i: int) -> dict:
-        for t in range(3):
-            raw = await cli.complete("chunk_extract", sys_c,
-                                     usr_c.format(prev=ch_texts[i - 1][-1800:], head=ch_texts[i][:2200]),
-                                     json_mode=True, max_tokens=300, temperature=0.1 + 0.1 * t)
-            r = gate._safe_json(raw) or {}
-            if isinstance(r, dict) and "dup" in r:
-                return r
-        return {}
+        return await gate.detect_retry(
+            cli, sys_c, usr_c.format(prev=ch_texts[i - 1][-1800:], head=ch_texts[i][:2200]),
+            "dup", max_tokens=300, label=f"ADJ_DUP 第{i + 1}章")
     idxs = list(range(1, len(ch_texts)))
     checks = await asyncio.gather(*[_check(i) for i in idxs])
     bad = [(i, (r.get("issue") or "互斥重演").strip()) for i, r in zip(idxs, checks)
@@ -733,17 +723,12 @@ async def _handshake_pass(cli: Client, plan: dict, beats: list[dict], scenes: li
         prev, cur = chs[j - 1], chs[j]
         sc0 = (cur.get("scenes") or [{}])[0]
         brief = ((sc0.get("brief") if isinstance(sc0, dict) else str(sc0)) or "")[:300]
-        for t in range(3):                           # retry-on-empty
-            raw = await cli.complete("chunk_extract", sys_h,
-                                     usr_h.format(prev_exit=prev.get("exit_state") or "（未知）",
-                                                  hook=prev.get("end_hook") or "（无）",
-                                                  start=cur.get("start_state") or "（未填）",
-                                                  brief=brief or "（无）"),
-                                     json_mode=True, max_tokens=300, temperature=0.1 + 0.1 * t)
-            r = gate._safe_json(raw) or {}
-            if "ok" in r:
-                return r
-        return {}                                    # 3次空 → 认衔接正常(保守不误修)
+        return await gate.detect_retry(
+            cli, sys_h, usr_h.format(prev_exit=prev.get("exit_state") or "（未知）",
+                                     hook=prev.get("end_hook") or "（无）",
+                                     start=cur.get("start_state") or "（未填）",
+                                     brief=brief or "（无）"),
+            "ok", max_tokens=300, label=f"HANDSHAKE 第{j + 1}章")
 
     idxs = list(range(1, len(chs)))
     checks = await asyncio.gather(*[_check(j) for j in idxs])
