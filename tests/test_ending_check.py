@@ -45,3 +45,9 @@ def test_ending_check_temperature_ramps():
     asyncio.run(gate.ending_check(cli, "p", "t"))
     assert [round(c["temperature"], 2) for c in cli.calls] == [0.1, 0.2, 0.3]
     assert cli.calls[0]["json_mode"] is True and cli.calls[0]["max_tokens"] == 400
+
+
+def test_ending_check_all_invalid_surfaces(capsys):
+    cli = _FakeCli(["x", "y", "z"])
+    assert asyncio.run(gate.ending_check(cli, "p", "t")) == {}
+    assert "ENDING_CHECK" in capsys.readouterr().err     # 收编后修其同款静默 bug

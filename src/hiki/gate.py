@@ -6,6 +6,7 @@
 from __future__ import annotations
 import json
 import re
+import sys
 from . import prompts
 from .client import Client
 
@@ -116,19 +117,29 @@ async def continuity_check(cli: Client, text: str, bible: dict) -> dict:
     return {"consistent": None, "issues": ["(审计解析失败)"]}
 
 
+async def detect_retry(cli: Client, sys_p: str, usr: str, key: str, *,
+                       max_tokens: int, label: str, retries: int = 3) -> dict:
+    """共享 LLM 检测环(N-retry-on-empty)。seam/adj_dup/handshake/ending 四处 call。
+    成功 = 解析出 dict 且含 key(各契约判定键 "ok"/"dup")→ 返该 dict。
+    retries 次仍无 → stderr 浮现(label 标 pass+对) + 返 {}(调用方按"未检出"消费,同现状保守不误修)。
+    调用方各自 format usr(prompt 形状各异),传自己的 key/max_tokens/label。"""
+    for t in range(retries):
+        raw = await cli.complete("chunk_extract", sys_p, usr,
+                                 json_mode=True, max_tokens=max_tokens, temperature=0.1 + 0.1 * t)
+        r = _safe_json(raw) or {}
+        if isinstance(r, dict) and key in r:
+            return r
+    print(f'⚠ {label} 校验重试{retries}次仍无效,按"未检出"计(可能漏检)', file=sys.stderr)
+    return {}
+
+
 async def ending_check(cli: Client, prev_tail: str, tail: str) -> dict:
-    """ENDING_CHECK 检测(3-retry-on-empty)。共享: produce._ending_guard + point_repair 两处 call。
-    返回 ec dict({ok, problem, skipped, skipped_what} 等); 3 次仍无 "ok" 键 → {}。
+    """ENDING_CHECK 检测,委托 detect_retry(A3 wave3 收编)。供 produce._ending_guard + point_repair 两处 call。
+    返回 ec dict({ok, problem, skipped, skipped_what} 等); 重试耗尽 → stderr 浮现 + {}。
     调用方各自算 prev_tail/tail(point_repair 头+尾 blob vs produce last[-2500:], tail 差异是设计)。"""
     sys_ec, usr_ec = prompts.ENDING_CHECK
-    for t in range(3):
-        raw = await cli.complete("chunk_extract", sys_ec,
-                                 usr_ec.format(prev_tail=prev_tail, tail=tail),
-                                 json_mode=True, max_tokens=400, temperature=0.1 + 0.1 * t)
-        ec = _safe_json(raw) or {}
-        if "ok" in ec:
-            return ec
-    return {}
+    return await detect_retry(cli, sys_ec, usr_ec.format(prev_tail=prev_tail, tail=tail),
+                              "ok", max_tokens=400, label="ENDING_CHECK")
 
 
 # 交付门阈值默认（人工 6+10 本校准;config/pipeline.yaml ship_gate 可覆盖,改动须回放验证)
