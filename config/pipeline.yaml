@@ -55,3 +55,6 @@ ingest:
 admission:
   grades: [S, A, B, C, D, Q]
   # thresholds: 待 M1 校准
+
+advisories:                 # C6②: 白烧 advisory 开关(不影响 gating)
+  craft_audit: true         # 门后 craft 人/故事性评审(~2500tk/本, 纯报告); 量产精简可关

@@ -40,3 +40,9 @@ def load(name: str) -> dict[str, Any]:
     except ImportError:
         pass
     return _DEFAULTS if name == "pipeline" else {}
+
+
+def advisory_on(cfg: dict, name: str, default: bool = True) -> bool:
+    """C6②: advisory 扫描器是否启用(config.advisories.<name>, 缺省 default)。
+    advisory 开关单一来源, 不影响 gating。"""
+    return (cfg.get("advisories") or {}).get(name, default)
