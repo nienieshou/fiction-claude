@@ -1123,6 +1123,9 @@ async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path,
                 spine_net_id = sum(1 for f in ft["findings"] if f.get("cat") == "身份" and f.get("real"))
             ft["spine_net"] = {"数值真矛盾": spine_net_num, "身份真矛盾": spine_net_id}
         fact_adv = [f["why"] for f in ft["findings"] if f.get("conf") in ("高", "中")]
+        nf_verify = sum(1 for f in ft["findings"] if f.get("cat") == "身份" and f.get("verify_failed"))
+        if nf_verify:
+            fact_adv.append(f"身份验证LLM耗尽{nf_verify}条(存疑未进门)")
         (out_dir / "fact_table.json").write_text(json.dumps(ft, ensure_ascii=False, indent=2), encoding="utf-8")
         fact_table_ok = True
     except json.JSONDecodeError as e:                 # 解析类=flaky LLM,容忍为 advisory
