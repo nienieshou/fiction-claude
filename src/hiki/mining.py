@@ -60,11 +60,14 @@ async def map_extract(cli: Client, chunks: list[str]) -> list[dict]:
 
 async def _extract_life_one(cli: Client, chunk: str, roster: str = "（本段出现的所有人物）") -> dict:
     sys_p, usr_t = prompts.LIFE_EVENTS
-    raw = await cli.complete("chunk_extract", sys_p, usr_t.format(chunk=chunk[:60000], roster=roster),
-                             json_mode=True, max_tokens=1500, temperature=0.2)
-    r = gate._safe_json(raw)
-    # flaky LLM 偶尔直接吐裸数组 [...] 而非 {"life_events":[...]} → 容忍两种,绝不崩整本
-    events = r if isinstance(r, list) else (r.get("life_events") or [] if isinstance(r, dict) else [])
+    r = await complete_validated(cli, "chunk_extract", sys_p,
+                                 usr_t.format(chunk=chunk[:60000], roster=roster),
+                                 schema=schemas.parsed, retries=2, json_mode=True,
+                                 max_tokens=1500, temperature=0.2)
+    if r is None:                              # A3: 解析失败(重试后)→ 浮现丢失(非静默)
+        print("⚠ LIFE_EVENTS 重试后仍无效,该段生死事件零贡献", file=sys.stderr)
+        return {"life_events": []}
+    events = r if isinstance(r, list) else (r.get("life_events") or [])   # 容 dict-or-list(现状归一)
     return {"life_events": [e for e in events if isinstance(e, dict)]}
 
 

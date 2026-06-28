@@ -61,3 +61,32 @@ def test_extract_one_partial_response_keeps_other_categories():
     assert r.get("char_observations") == [{"name": "甲"}]       # 其它类保留
     assert r.get("places") == ["山"]
     assert r != {}                                              # 未被当失败丢弃
+
+
+# ===== A3 标杆3: _extract_life_one fail-closed + dict-or-list =====
+from hiki.mining import _extract_life_one
+
+
+def test_extract_life_malformed_surfaces_and_empty(capsys):
+    cli = _FakeCli(["garbage", "still bad"])           # retries=2
+    r = asyncio.run(_extract_life_one(cli, "正文" * 5))
+    assert r == {"life_events": []}
+    assert "LIFE_EVENTS" in capsys.readouterr().err     # 浮现(不静默)
+
+
+def test_extract_life_valid_dict():
+    cli = _FakeCli([json.dumps({"life_events": [{"who": "甲", "type": "死亡"}]})])
+    r = asyncio.run(_extract_life_one(cli, "正文"))
+    assert r["life_events"] == [{"who": "甲", "type": "死亡"}]
+
+
+def test_extract_life_valid_bare_list_keeps_data():
+    cli = _FakeCli([json.dumps([{"who": "乙", "type": "复活"}])])   # 裸 list(flaky LLM)
+    r = asyncio.run(_extract_life_one(cli, "正文"))
+    assert r["life_events"] == [{"who": "乙", "type": "复活"}]      # 不丢可解析数据
+
+
+def test_extract_life_filters_non_dict_elements():
+    cli = _FakeCli([json.dumps([{"who": "甲"}, "noise", 123])])
+    r = asyncio.run(_extract_life_one(cli, "正文"))
+    assert r["life_events"] == [{"who": "甲"}]            # 非 dict 元素滤除(现状不变)
