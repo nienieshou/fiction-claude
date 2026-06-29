@@ -37,3 +37,30 @@ def test_extract_partial_no_scenes_raises():
     with pytest.raises(RuntimeError, match="EXTRACT 失败"):
         asyncio.run(slice_validate._extract_dna(cli, "切片源文本"))
     assert cli.calls == 2                       # schema 拒 → 重试耗尽
+
+
+def test_craft_advisory_off_skips_burn(monkeypatch):
+    calls = {"n": 0}
+
+    async def _fake_craft(cli, final):
+        calls["n"] += 1
+        return ["craft-ran"]
+
+    monkeypatch.setattr(slice_validate.audit, "craft_audit", _fake_craft)
+    out = asyncio.run(slice_validate._craft_advisory(object(), "成品文",
+                                                     {"advisories": {"craft_audit": False}}))
+    assert out == ["(craft advisory 已关:config.advisories.craft_audit)"]
+    assert calls["n"] == 0                       # 关时绝不 await craft_audit
+
+
+def test_craft_advisory_default_on_runs(monkeypatch):
+    calls = {"n": 0}
+
+    async def _fake_craft(cli, final):
+        calls["n"] += 1
+        return ["craft-ran"]
+
+    monkeypatch.setattr(slice_validate.audit, "craft_audit", _fake_craft)
+    out = asyncio.run(slice_validate._craft_advisory(object(), "成品文", {}))   # 缺 advisories → 默认开
+    assert out == ["craft-ran"]
+    assert calls["n"] == 1

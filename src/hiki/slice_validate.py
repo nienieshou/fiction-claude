@@ -11,7 +11,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from . import prompts, gate, ledger, audit
+from . import prompts, gate, ledger, audit, config
 from .llm_validate import complete_validated
 from .client import Client
 from .ingest import ingest
@@ -35,6 +35,13 @@ async def _extract_dna(cli: Client, slice_src: str) -> dict:
     if dna is None:
         raise RuntimeError("EXTRACT 失败:抽取 JSON 解析/重试均无效(flaky 截断或无场景),请重跑。")
     return dna
+
+
+async def _craft_advisory(cli: Client, final: str, cfg: dict) -> list:
+    """C6: craft 人/故事性评审(~2500tk, 纯 advisory)。config 可关省 token, 默认开。"""
+    if config.advisory_on(cfg, "craft_audit"):
+        return await audit.craft_audit(cli, final)
+    return ["(craft advisory 已关:config.advisories.craft_audit)"]
 
 
 _HEADER_RE = re.compile(r"^\s*(#+.*|.*场景[：:].*|---+|===+)\s*$", re.M)
@@ -176,6 +183,7 @@ async def run(src: Path, n_src: int, n_out: int, n_cand: int, refine_rounds: int
     print(f"源 {meta.approx_wan_zi}万字/{meta.chapter_count}章 → 切片前 {n_src} 章({len(slice_src)}字)")
 
     cli = Client()
+    cfg = config.load("pipeline") or {}
     # 1) 提取
     dna = await _extract_dna(cli, slice_src)
     voice = dna.get("voice", "网文白话")
@@ -280,7 +288,7 @@ async def run(src: Path, n_src: int, n_out: int, n_cand: int, refine_rounds: int
     audit_struct = {k: v for k, v in audit.deterministic_audit(bible, ordered).items() if v}
     audit_fore = audit.foreshadow_advisory(ordered)
     audit_mech = audit.mechanical_audit(final)
-    audit_craft = await audit.craft_audit(cli, final)
+    audit_craft = await _craft_advisory(cli, final, cfg)
     report = {
         "source": src.name, "wan_zi": meta.approx_wan_zi, "out_chapters": n_out,
         "scenes": n_scenes, "candidates_per_scene": n_cand,
