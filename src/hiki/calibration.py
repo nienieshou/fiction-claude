@@ -211,3 +211,42 @@ def signals_hash(signals):
     """冻结信号向量稳定指纹(json canonical, sort_keys)→ 幂等去重键之一。"""
     blob = json.dumps(signals, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def build_hfl_row(*, scorer, slug, dims, comments, report, round_, output_dir,
+                  ingested_at, date=None):
+    """构造 schema-正确的 hfl 行: auto_signals 逐字 = report['signals'](→ frozen)。纯; 校验失败 ValueError。
+    output_dir 由调用方显式传(读 report.json 的 slug 目录, str)。ingested_at 调用方注入(不取时钟)。"""
+    schema = _dims_schema(dims)
+    if _truth_space(scorer) == GROUND_TRUTH and schema != "standard4":
+        raise ValueError(f"ground-truth scorer {scorer!r} 要求 standard4 dims, 得 {sorted(dims)}")
+    if schema not in RUBRIC_WEIGHTS:
+        raise ValueError(f"未知 dims schema: {sorted(dims)}")
+    for d, v in dims.items():
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not (0 <= v <= 100):
+            raise ValueError(f"dim {d}={v!r} 非法(须 0-100 数值, 非 bool)")
+    sig = report.get("signals")
+    if not isinstance(sig, dict) or "schema_version" not in sig:
+        raise ValueError("report 缺合法 signals(须 dict 且含 schema_version)——不可拟合不准入")
+    commit = report.get("engine_commit", "unknown")
+    return {
+        "date": date, "scorer": scorer, "round": round_,
+        "title": report.get("title") or slug, "source": report.get("source") or slug,
+        "slug": slug, "dims": dims, "total": rubric_total(dims, schema),
+        "comments": comments, "auto_signals": sig,
+        "version": commit, "engine_commit": commit,
+        "output_dir": str(output_dir), "signals_hash": signals_hash(sig),
+        "ingested_at": ingested_at,
+    }
+
+
+def hfl_dup_key(raw):
+    """对 RAW JSON 行(非 HflRow)的幂等键: (scorer, slug, round, signals_hash(auto_signals))。"""
+    return (raw.get("scorer"), raw.get("slug"), raw.get("round"),
+            signals_hash(raw.get("auto_signals") or {}))
+
+
+def find_duplicate(existing_raw_rows, new_row):
+    """new_row 的 dup_key 是否已在 existing_raw_rows(raw dict 列表)中。"""
+    keys = {hfl_dup_key(r) for r in existing_raw_rows}
+    return hfl_dup_key(new_row) in keys

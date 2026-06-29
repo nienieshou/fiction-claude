@@ -200,3 +200,75 @@ def test_signals_hash_stable_orderless_sensitive():
     assert len(calibration.signals_hash(a)) == 16
     c = {"schema_version": 1, "deliverable": True, "seam_detected": 26}  # 改一值
     assert calibration.signals_hash(a) != calibration.signals_hash(c)
+
+
+def _mk_report(signals=None, **extra):
+    rep = {"title": "T", "source": "SRC", "engine_commit": "deadbeef"}
+    rep["signals"] = signals if signals is not None else {
+        "schema_version": 1, "deliverable": True, "seam_detected": 25}
+    rep.update(extra)
+    return rep
+
+
+def test_build_hfl_row_happy_frozen_roundtrip(tmp_path):
+    rep = _mk_report()
+    row = calibration.build_hfl_row(
+        scorer="网文编辑", slug="S1", dims={"拉力": 60, "笔力": 70, "人": 60, "承重": 30},
+        comments="c", report=rep, round_="editor-eval-3", output_dir=str(tmp_path / "S1"),
+        ingested_at="2026-06-29T00:00:00Z", date="2026-06-29")
+    assert row["auto_signals"] == rep["signals"]          # 逐字内联冻结向量
+    assert row["total"] == 56.5                            # 派生
+    assert row["engine_commit"] == "deadbeef" and row["version"] == "deadbeef"
+    assert row["signals_hash"] == calibration.signals_hash(rep["signals"])
+    assert row["output_dir"] == str(tmp_path / "S1") and row["date"] == "2026-06-29"
+    # 经 load_hfl 往返 → signal_compat=="frozen"
+    import json
+    p = tmp_path / "h.jsonl"
+    p.write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+    rows, errs = calibration.load_hfl(p)
+    assert errs == [] and rows[0].signal_compat == "frozen" and rows[0].truth_space == "editor"
+
+
+def test_build_hfl_row_rejects_story4_for_editor():
+    import pytest
+    with pytest.raises(ValueError):
+        calibration.build_hfl_row(
+            scorer="网文编辑", slug="S", dims={"故事性": 80, "笔力": 60, "人": 60, "承重": 40},
+            comments="", report=_mk_report(), round_="r", output_dir="d", ingested_at="t")
+
+
+def test_build_hfl_row_rejects_bad_dims_and_missing_signals():
+    import pytest
+    rep = _mk_report()
+    for bad in ({"拉力": 60, "笔力": 70, "人": 60, "承重": 130},      # >100
+                {"拉力": 60, "笔力": 70, "人": 60, "承重": True},      # bool
+                {"拉力": 60, "笔力": 70, "人": 60, "承重": "x"}):       # 非数值
+        with pytest.raises(ValueError):
+            calibration.build_hfl_row(scorer="网文编辑", slug="S", dims=bad, comments="",
+                                      report=rep, round_="r", output_dir="d", ingested_at="t")
+    # report 缺合法 signals
+    with pytest.raises(ValueError):
+        calibration.build_hfl_row(scorer="网文编辑", slug="S",
+                                  dims={"拉力": 60, "笔力": 70, "人": 60, "承重": 30}, comments="",
+                                  report={"signals": {"deliverable": True}},  # 无 schema_version
+                                  round_="r", output_dir="d", ingested_at="t")
+
+
+def test_build_hfl_row_unknown_commit_when_report_lacks_it():
+    rep = _mk_report()
+    del rep["engine_commit"]
+    row = calibration.build_hfl_row(scorer="网文编辑", slug="S",
+                                    dims={"拉力": 60, "笔力": 70, "人": 60, "承重": 30}, comments="",
+                                    report=rep, round_="r", output_dir="d", ingested_at="t")
+    assert row["engine_commit"] == "unknown" and row["version"] == "unknown"
+
+
+def test_dup_key_over_raw_rows():
+    base = {"scorer": "网文编辑", "slug": "S1", "round": "r1",
+            "auto_signals": {"schema_version": 1, "seam_detected": 25}}
+    same = dict(base)
+    rerun = {**base, "auto_signals": {"schema_version": 1, "seam_detected": 26}}  # 重跑→signals 变
+    assert calibration.find_duplicate([base], same) is True
+    assert calibration.find_duplicate([base], rerun) is False   # 重跑不判重
+    # 缺 auto_signals → 空 dict 指纹(稳定, 不崩)
+    assert calibration.hfl_dup_key({"scorer": "x"})[3] == calibration.signals_hash({})
