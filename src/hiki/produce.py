@@ -1295,8 +1295,8 @@ def _detect_intra_repeats(ch_texts: list[str], thr: float) -> list[tuple[int, fl
 
 async def _refit_short_chapters(cli: Client, ch_texts: list[str], target_chars: int) -> list[str]:
     """扩写 flaky 残留: <0.7×target 的章再 _fit 一次(过短≥3章会被交付门拦)。"""
-    short = [i for i, t in enumerate(ch_texts) if len(t) < target_chars * 0.7]
-    if short:
+    short = [i for i, t in enumerate(ch_texts) if len(t) < target_chars * 0.7]   # 扩写flaky残留→再试一次
+    if short:                                                            # (过短≥3章会被交付门拦)
         refit = await asyncio.gather(*[_fit_chapter(cli, ch_texts[i], target_chars) for i in short])
         for i, t in zip(short, refit):
             ch_texts[i] = t
@@ -1316,7 +1316,7 @@ async def _fix_pov_outliers(cli: Client, ch_texts: list[str], p: dict) -> list[s
                          max_tokens=8000, temperature=0.3) for i in outliers])
         for i, t in zip(outliers, fixed):
             t = _strip_markers(t)
-            if t and _first_person_ratio(t) < 0.5:
+            if t and _first_person_ratio(t) < 0.5:    # 修成功才采用
                 ch_texts[i] = t
     return ch_texts
 
