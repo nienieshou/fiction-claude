@@ -184,3 +184,19 @@ def test_format_report_is_pure_string():
     assert "LOW" in out and "承重=30" in out
     assert "divergent" in out and "DIV" in out
     assert "0 条可拟合对齐" in out          # matched==0 → 结论行
+
+
+def test_rubric_total_standard4_and_story4():
+    # standard4: .30*60+.25*70+.25*60+.20*30 = 56.5 (对齐 hfl 行 47 极品全能小村医)
+    assert calibration.rubric_total({"拉力": 60, "笔力": 70, "人": 60, "承重": 30}, "standard4") == 56.5
+    # story4: 同权重不同 slot-1 标签
+    assert calibration.rubric_total({"故事性": 80, "笔力": 60, "人": 60, "承重": 40}, "story4") == 62.0
+
+
+def test_signals_hash_stable_orderless_sensitive():
+    a = {"schema_version": 1, "deliverable": True, "seam_detected": 25}
+    b = {"seam_detected": 25, "deliverable": True, "schema_version": 1}  # 乱序
+    assert calibration.signals_hash(a) == calibration.signals_hash(b)    # 键序无关
+    assert len(calibration.signals_hash(a)) == 16
+    c = {"schema_version": 1, "deliverable": True, "seam_detected": 26}  # 改一值
+    assert calibration.signals_hash(a) != calibration.signals_hash(c)

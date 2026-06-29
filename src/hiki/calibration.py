@@ -1,4 +1,4 @@
-"""E3 Slice1: HFL 校准数据审计 + 对齐 harness(纯函数, 0 LLM/0 网络/只读)。
+"""E3 Slice1: HFL 校准数据审计 + 对齐 harness(读/分类 + 行构造/校验(全纯, 无 I/O; 文件写入由 CLI 持有))。
 
 见 docs/superpowers/specs/2026-06-29-e3-calibration-audit-harness-design.md。
 只读 assets/hfl.jsonl + assets/gold_regression,产兼容性报告/假阳性透镜/溯源分歧审计。
@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter
 from dataclasses import dataclass
@@ -16,6 +17,11 @@ GROUND_TRUTH = "editor"
 STANDARD4 = frozenset({"拉力", "笔力", "人", "承重"})
 STORY4 = frozenset({"故事性", "笔力", "人", "承重"})
 CHENGZHONG_FLOOR = 50
+# rubric 权重(单源; slot-1=.30: 拉力(editor standard4)/故事性(ops story4) 同槽不同标签)
+RUBRIC_WEIGHTS = {
+    "standard4": {"拉力": 0.30, "笔力": 0.25, "人": 0.25, "承重": 0.20},
+    "story4":    {"故事性": 0.30, "笔力": 0.25, "人": 0.25, "承重": 0.20},
+}
 # hfl 旧 auto_signals 键 → 冻结向量键(仅用于溯源分歧比对, 非建模)
 LEGACY_TO_FROZEN = {
     "代入感分": "opening_immersion", "控制面重演": "reenact_hits",
@@ -193,3 +199,15 @@ def format_report(compat, fa, prov):
     else:
         L.append(f"结论: {prov['n_provenance_matched']} 条 provenance-matched 对齐可用。")
     return "\n".join(L)
+
+
+def rubric_total(dims, schema):
+    """按 schema 权重算加权总分(四维须全 present 且数值)。schema∈RUBRIC_WEIGHTS。"""
+    w = RUBRIC_WEIGHTS[schema]
+    return round(sum(float(dims[d]) * wt for d, wt in w.items()), 2)
+
+
+def signals_hash(signals):
+    """冻结信号向量稳定指纹(json canonical, sort_keys)→ 幂等去重键之一。"""
+    blob = json.dumps(signals, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:16]
