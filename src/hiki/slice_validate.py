@@ -12,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 from . import prompts, gate, ledger, audit
+from .llm_validate import complete_validated
 from .client import Client
 from .ingest import ingest
 from .textnum import SOURCE_CH_RE as _CH_RE
@@ -25,11 +26,15 @@ def _slice_source(clean_txt: str, n_src: int) -> str:
     return clean_txt.strip()
 
 
-def _json(s: str) -> dict:
-    s = s.strip()
-    if s.startswith("```"):
-        s = s.split("```", 2)[1].lstrip("json").strip()
-    return json.loads(s)
+async def _extract_dna(cli: Client, slice_src: str) -> dict:
+    """EXTRACT 抽取(健壮): 重试解析, 终败干净报错(非裸 JSONDecodeError)。"""
+    sys_e, usr_e = prompts.EXTRACT
+    dna = await complete_validated(cli, "extract", sys_e, usr_e.format(source=slice_src[:40000]),
+                                   schema=lambda r: isinstance(r, dict) and isinstance(r.get("scenes"), list) and bool(r["scenes"]),
+                                   retries=2, json_mode=True, max_tokens=8000, temperature=0.3)
+    if dna is None:
+        raise RuntimeError("EXTRACT 失败:抽取 JSON 解析/重试均无效(flaky 截断或无场景),请重跑。")
+    return dna
 
 
 _HEADER_RE = re.compile(r"^\s*(#+.*|.*场景[：:].*|---+|===+)\s*$", re.M)
@@ -172,9 +177,7 @@ async def run(src: Path, n_src: int, n_out: int, n_cand: int, refine_rounds: int
 
     cli = Client()
     # 1) 提取
-    sys_e, usr_e = prompts.EXTRACT
-    dna = _json(await cli.complete("extract", sys_e, usr_e.format(source=slice_src[:40000]),
-                                   json_mode=True, max_tokens=8000, temperature=0.3))
+    dna = await _extract_dna(cli, slice_src)
     voice = dna.get("voice", "网文白话")
     bible = dna.get("bible", {})
     p = bible.get("protagonist", {})

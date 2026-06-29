@@ -17,7 +17,7 @@ from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_fact
 from .client import Client
 from .ingest import ingest
 from .slice_validate import (_process_scene, _fit_chapter, _truncate, _assemble,
-                             _load_gold, _json, _strip_markers)
+                             _load_gold, _strip_markers)
 from .names import is_person_name, is_item_name
 
 
