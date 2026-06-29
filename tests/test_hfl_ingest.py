@@ -52,3 +52,19 @@ def test_ingest_preview_does_not_write(tmp_path):
     r = _run(d, hfl, "--round", "test-round")   # 无 --write
     assert r.returncode == 0
     assert not hfl.exists() or hfl.read_text(encoding="utf-8").strip() == ""
+
+
+def test_intra_batch_dedup_single_invocation(tmp_path):
+    """同一次 invocation 内两张评委卡对同 slug 同分(→同 signals_hash)→ 只写 1 行(第 2 张 intra-batch 去重)。"""
+    d = _setup_eval(tmp_path)
+    # 第二张评委卡: 同 rater/slug/dims → 同 (scorer,slug,round,signals_hash)
+    (d / "scorecard_ed2.yaml").write_text(
+        "rater: 网文编辑\ndate: 2026-06-29\nscores:\n"
+        "  S1: {拉力: 60, 笔力: 70, 人: 60, 承重: 30, 追读: 高, 最致命: 衔接, 点评: ok}\n",
+        encoding="utf-8")
+    hfl = tmp_path / "hfl.jsonl"
+    r = _run(d, hfl, "--round", "test-round", "--write")
+    assert r.returncode == 0, r.stderr
+    rows, errs = calibration.load_hfl(hfl)
+    assert errs == [] and len(rows) == 1, f"intra-batch 去重失败: 写了 {len(rows)} 行"
+    assert "重复" in r.stderr   # 第 2 张触发幂等跳过(stderr 浮现)
