@@ -47,3 +47,25 @@ def test_load_hfl_failclosed_and_blanks(tmp_path):
     assert len(rows) == 1 and rows[0].signal_compat == "none"
     assert {e["line_no"] for e in errors} == {3, 4}
     assert all("error" in e and "raw" in e for e in errors)
+
+
+def test_compat_report_counts(tmp_path):
+    import json
+    lines = [
+        json.dumps({"scorer": "网文编辑", "slug": "A", "version": "v1",
+                    "dims": {"拉力": 1, "笔力": 1, "人": 1, "承重": 1},
+                    "auto_signals": {"deliverable": True}}, ensure_ascii=False),
+        json.dumps({"scorer": "网文编辑", "slug": "B", "version": "v1",
+                    "dims": {"拉力": 1, "笔力": 1, "人": 1, "承重": 1},
+                    "auto_signals": {"deliverable": True}}, ensure_ascii=False),
+        json.dumps({"scorer": "fable", "version": "r7", "dims": {},
+                    "auto_signals": {"schema_version": 1}}, ensure_ascii=False),
+    ]
+    p = tmp_path / "h.jsonl"
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rows, errors = calibration.load_hfl(p)
+    rep = calibration.compat_report(rows, errors)
+    assert rep["n_rows"] == 3 and rep["n_errors"] == 0 and rep["n_ground_truth"] == 2
+    assert rep["by_truth_space"] == {"editor": 2, "proxy": 1}
+    assert rep["buckets"]["editor|standard4|legacy|v1"] == 2
+    assert rep["buckets"]["proxy|other|frozen|r7"] == 1

@@ -97,3 +97,18 @@ def load_hfl(path):
             deliverable=deliv if isinstance(deliv, bool) else None,
         ))
     return rows, errors
+
+
+def compat_report(rows, errors):
+    """兼容性报告: 按 (truth_space, dims_schema, signal_compat, version) 分桶计数。纯聚合。"""
+    buckets = Counter((r.truth_space, r.dims_schema, r.signal_compat, r.version) for r in rows)
+    return {
+        "n_rows": len(rows),
+        "n_errors": len(errors),
+        "n_ground_truth": sum(1 for r in rows if r.truth_space == GROUND_TRUTH),
+        "by_truth_space": dict(Counter(r.truth_space for r in rows)),
+        "buckets": {
+            f"{ts}|{ds}|{sc}|{ver}": n
+            for (ts, ds, sc, ver), n in sorted(buckets.items(), key=lambda kv: (-kv[1], str(kv[0])))
+        },
+    }
