@@ -69,3 +69,34 @@ def test_compat_report_counts(tmp_path):
     assert rep["by_truth_space"] == {"editor": 2, "proxy": 1}
     assert rep["buckets"]["editor|standard4|legacy|v1"] == 2
     assert rep["buckets"]["proxy|other|frozen|r7"] == 1
+
+
+def _editor_row(slug, cz, deliv, total=60.0):
+    import json
+    return json.dumps({"scorer": "网文编辑", "slug": slug, "title": f"T-{slug}", "version": "v1",
+                       "dims": {"拉力": 60, "笔力": 60, "人": 60, "承重": cz},
+                       "total": total, "auto_signals": {"deliverable": deliv}}, ensure_ascii=False)
+
+
+def test_false_accept_lens(tmp_path):
+    import json
+    lines = [
+        _editor_row("LOW", 30, True),        # 命中: deliverable=True ∧ 承重<50
+        _editor_row("EDGE", 50, True),       # 不命中: 50 不 <50
+        _editor_row("HIGH", 70, True),       # 不命中: 承重≥floor
+        _editor_row("REJECT", 20, False),    # 不命中: deliverable=False
+        json.dumps({"scorer": "fable", "slug": "PX", "dims": {"承重": 10},
+                    "auto_signals": {"deliverable": True}}, ensure_ascii=False),  # 非 editor 不计入
+    ]
+    p = tmp_path / "h.jsonl"
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rows, _ = calibration.load_hfl(p)
+    fa = calibration.false_accept_lens(rows)
+    assert fa["floor"] == 50
+    assert fa["n_editor_with_deliverable"] == 4          # 4 个 editor 带 deliverable(PX 是 fable)
+    assert [f["slug"] for f in fa["flagged"]] == ["LOW"]
+    assert fa["flagged"][0]["title"] == "T-LOW" and fa["flagged"][0]["承重"] == 30
+    assert abs(fa["rate"] - 0.25) < 1e-9
+
+    fa70 = calibration.false_accept_lens(rows, floor=70)
+    assert {f["slug"] for f in fa70["flagged"]} == {"LOW", "EDGE"}  # 70 下 30/50 均命中

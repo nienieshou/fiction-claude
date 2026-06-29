@@ -99,6 +99,21 @@ def load_hfl(path):
     return rows, errors
 
 
+def false_accept_lens(rows, floor=CHENGZHONG_FLOOR):
+    """ground-truth(editor)行中 deliverable==True ∧ 承重<floor → 假阳性候选。
+    仅看 hfl 行自身 deliverable, 不依赖 gold。"""
+    editors = [r for r in rows if r.truth_space == GROUND_TRUTH and r.deliverable is not None]
+    flagged = []
+    for r in editors:
+        cz = r.dims.get("承重")
+        if r.deliverable is True and isinstance(cz, (int, float)) and not isinstance(cz, bool) and cz < floor:
+            flagged.append({"slug": r.slug, "title": r.title, "承重": cz,
+                            "total": r.total, "version": r.version, "auto_signals": r.auto_signals})
+    n = len(editors)
+    return {"flagged": flagged, "n_editor_with_deliverable": n,
+            "rate": (len(flagged) / n) if n else 0.0, "floor": floor}
+
+
 def compat_report(rows, errors):
     """兼容性报告: 按 (truth_space, dims_schema, signal_compat, version) 分桶计数。纯聚合。"""
     buckets = Counter((r.truth_space, r.dims_schema, r.signal_compat, r.version) for r in rows)
