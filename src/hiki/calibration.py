@@ -165,3 +165,31 @@ def provenance_divergence(rows, gold_vectors):
         books.append({"slug": r.slug, "shared_keys": shared, "diffs": diffs, "status": status})
     return {"books": books, "n_overlap": len(books), "n_divergent": n_div,
             "n_inconclusive": n_inc, "n_provenance_matched": 0}
+
+
+def format_report(compat, fa, prov):
+    """三段人读摘要(纯字符串, 供脚本打印)。"""
+    L = []
+    L.append("=== HFL 校准数据审计 (E3 Slice1) ===")
+    L.append(f"总行 {compat['n_rows']} | 解析错误 {compat['n_errors']} | ground-truth(editor) {compat['n_ground_truth']}")
+    L.append("truth_space: " + ", ".join(f"{k}={v}" for k, v in sorted(compat["by_truth_space"].items())))
+    L.append("兼容性桶 (truth_space|dims|signal|version):")
+    for k, v in compat["buckets"].items():
+        L.append(f"  {v:3d}  {k}")
+    L.append("")
+    L.append(f"=== 假阳性透镜 (editor: deliverable=True ∧ 承重<{fa['floor']}) ===")
+    L.append(f"editor 带 deliverable {fa['n_editor_with_deliverable']} | 命中 {len(fa['flagged'])} | 分歧率 {fa['rate']:.0%}")
+    for f in fa["flagged"]:
+        L.append(f"  ⚠ {f['slug']} 「{f['title']}」 承重={f['承重']} total={f['total']} (v={f['version']})")
+    L.append("")
+    L.append("=== 溯源分歧审计 (editor ∩ gold by slug) ===")
+    L.append(f"重叠 {prov['n_overlap']} | divergent {prov['n_divergent']} | "
+             f"inconclusive {prov['n_inconclusive']} | provenance_matched {prov['n_provenance_matched']}")
+    for b in prov["books"]:
+        L.append(f"  {b['status']:12s} {b['slug']}  diffs={b['diffs']}")
+    L.append("")
+    if prov["n_provenance_matched"] == 0:
+        L.append("结论: 0 条可拟合对齐 → Slice1b(评分时落冻结 report['signals']+scorer) 是 Slice2 建模硬前置。")
+    else:
+        L.append(f"结论: {prov['n_provenance_matched']} 条 provenance-matched 对齐可用。")
+    return "\n".join(L)

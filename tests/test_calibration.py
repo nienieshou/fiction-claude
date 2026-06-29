@@ -167,3 +167,20 @@ def test_load_gold_signal_vectors_skips_non_dict_signals(tmp_path):
         json.dumps({"signals": None}), encoding="utf-8")
     gv = calibration.load_gold_signal_vectors(tmp_path)
     assert set(gv) == {"OK"}                               # signals 非 dict → 跳过
+
+
+def test_format_report_is_pure_string():
+    compat = {"n_rows": 3, "n_errors": 1, "n_ground_truth": 2,
+              "by_truth_space": {"editor": 2, "proxy": 1},
+              "buckets": {"editor|standard4|legacy|v1": 2, "proxy|other|frozen|r7": 1}}
+    fa = {"flagged": [{"slug": "LOW", "title": "甲", "承重": 30, "total": 56.5, "version": "v1",
+                       "auto_signals": {}}],
+          "n_editor_with_deliverable": 2, "rate": 0.5, "floor": 50}
+    prov = {"books": [{"slug": "DIV", "shared_keys": ["seam_detected"],
+                       "diffs": {"seam_detected": [29, 25]}, "status": "divergent"}],
+            "n_overlap": 1, "n_divergent": 1, "n_inconclusive": 0, "n_provenance_matched": 0}
+    out = calibration.format_report(compat, fa, prov)
+    assert isinstance(out, str)
+    assert "LOW" in out and "承重=30" in out
+    assert "divergent" in out and "DIV" in out
+    assert "0 条可拟合对齐" in out          # matched==0 → 结论行
