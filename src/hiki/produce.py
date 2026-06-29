@@ -1262,6 +1262,37 @@ async def _stage_finalize(cli: Client, src: Path, out_dir: Path, bible: dict, fi
     return report
 
 
+def _collect_valid_names(p: dict, bible: dict) -> set[str]:
+    """收集冻结 canon 名(主角名/别名按 、// 拆 + 各角色名/别名), 供 continuity 归一守卫。"""
+    valid_names: set[str] = set()
+    for nm in [p.get("name", "")] + (p.get("aliases") or []):
+        for part in str(nm).replace("、", "/").split("/"):
+            if part.strip():
+                valid_names.add(part.strip())
+    for c in bible.get("characters", []):
+        if c.get("name"):
+            valid_names.add(c["name"].strip())
+        for a in c.get("aliases") or []:
+            if isinstance(a, str) and a.strip():
+                valid_names.add(a.strip())
+    return valid_names
+
+
+def _intra_repeat(t: str, thr: float = 0.08) -> float:
+    s = _re.sub(r"\s", "", t or "")
+    if len(s) < 800:
+        return 0.0
+    h = len(s) // 2
+    g1 = {s[i:i + 12] for i in range(0, h - 12, 3)}
+    g2 = {s[i:i + 12] for i in range(h, len(s) - 12, 3)}
+    return (len(g1 & g2) / max(1, min(len(g1), len(g2)))) if g1 and g2 else 0.0
+
+
+def _detect_intra_repeats(ch_texts: list[str], thr: float) -> list[tuple[int, float]]:
+    """R14 章内自重复(0-LLM): 每章 12-gram 两半重合 > thr → (章idx, 比率)。"""
+    return [(i, r) for i, t in enumerate(ch_texts) if (r := _intra_repeat(t)) > thr]
+
+
 async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
               refine_rounds: int = 5, min_grade: str | None = None,
               out_dir: Path | None = None, force: bool = False) -> dict:
@@ -1327,17 +1358,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         over_book_min=int(_dc.get("over_book_min", 8)), per_chapter_min=int(_dc.get("per_chapter_min", 2)))
     if decliche_done:
         print(f"去套话门: 重写 {len(decliche_done)} 章")
-    valid_names = set()
-    for nm in [p.get("name", "")] + (p.get("aliases") or []):
-        for part in str(nm).replace("、", "/").split("/"):
-            if part.strip():
-                valid_names.add(part.strip())
-    for c in bible.get("characters", []):
-        if c.get("name"):
-            valid_names.add(c["name"].strip())
-        for a in c.get("aliases") or []:
-            if isinstance(a, str) and a.strip():
-                valid_names.add(a.strip())
+    valid_names = _collect_valid_names(p, bible)
     # 4b) 人名一致：靠 REDUCE 别名合并 + 下面 continuity_check(LLM, 安全归一到canon)。
     #     确定性编辑距离归一在中文里误报灾难性(强大→强森) → 已弃用。
     final = _assemble(plan, ch_texts)
@@ -1390,15 +1411,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
 
     # R14 章内自重复检测(确定性,0-LLM): 治整章双版本(ch59飞升写两遍/讨债两版类语义重演)。
     # 12-gram 章内两半重合>8%=同章把同一事件演两遍(读者可见killer);final_consistent兜底不可靠(ch59漏放)。
-    def _intra_repeat(t: str, thr: float = 0.08) -> float:
-        s = _re.sub(r"\s", "", t or "")
-        if len(s) < 800:
-            return 0.0
-        h = len(s) // 2
-        g1 = {s[i:i + 12] for i in range(0, h - 12, 3)}
-        g2 = {s[i:i + 12] for i in range(h, len(s) - 12, 3)}
-        return (len(g1 & g2) / max(1, min(len(g1), len(g2)))) if g1 and g2 else 0.0
-    intra_rep = [(i, r) for i, t in enumerate(ch_texts) if (r := _intra_repeat(t)) > gate_thr["intra_repeat_thr"]]
+    intra_rep = _detect_intra_repeats(ch_texts, gate_thr["intra_repeat_thr"])
     if intra_rep:
         print(f"章内自重复(整章双版本): {[(f'第{i+1}章', f'{r:.0%}') for i, r in intra_rep]}")
 
