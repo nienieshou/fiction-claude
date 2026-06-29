@@ -32,6 +32,21 @@
 | **C3 id_map 删除** | **阻塞(产品决策)** | 删 legacy `id_map` 渲染器依赖「HIKI_SPINE(Fact Spine 特性)是否转默认」的决策,非代码。注:`_spine_block`(名钉死)与 `_spine_roster`(身份钉死)是**两个不同**渲染器(非同数据异格式),不可合;共享 `_pin_block` 已是单源。 |
 | **B1 wave3 sig/report dict** | **延后(高churn/高风险)** | `run()` 末 `sig`(~11 locals)+ `report`(~51 行/~40 locals)dict 组装。抽 helper 需 dataclass 式重构(40 参比内联糟);`run()` 非金标/装配网端到端覆盖 → 等价无网兜底。维护性收益 vs 风险不划算,留待真有动机时另设计。 |
 
+## ⚠ sweep 范围外、仍开放(本路线图只覆盖 C/A3/E2/B1;完整账见 `tech-debt.md`)
+
+> 上面"剩余"表只列了 sweep 范围内紧邻的两项(C3/B1 wave3),易被误读成"全系统只剩两项"。下列是本次 sweep **没瞄准**、台账里仍 ◐/⬜ 的开放债(2026-06-29 对代码核实):
+
+| 项 | 现状(实测) | 性质 |
+|---|---|---|
+| **E1 资产版本化** | `assets/` 仅 `gold/`+`gold_regression/`(2 目录),无 `prompts/`、无 version/hash | ⬜ |
+| **E3 校准飞轮** | `hfl.jsonl` 有数据且 web 展示,但**无 `bias_model` 拟合/加载**(校准 consumer 整缺) | ⬜ **真瓶颈**(与测量危机同根) |
+| **A3 残** | `_safe_json` 仍 **40 调用点**;schema 校验只覆盖少数承重契约,余裸 `dict.get()` | ◐ 主体未清 |
+| **D3b** | 内联 `max_tokens`/`temperature` 实测 **53 行**(入 models.yaml routing) | ◐ 机械 |
+| **C6③** | 目录 gating 注册表已建,**门还没读它**(仍手写) | ◐ 收口剩半步 |
+| **B2 残** | refine resume 缺(mine/plan/draft resume 已有) | ◐ 边际 |
+
+> A1 可下调:承重路径已闭合(`n_unaudited`>25%章入交付门,`produce.py:1065`),仅剩边际 per-pass 计数。
+
 ## 收尾说明(2026-06-29)
 
 sweep 达成既定目标:**检测器 sprawl 单源化**(C4/C5/C6/C7)、**LLM 契约静默失败硬化**(A3.1/wave2-5)、**承重 Ledger 化**(C1/C2)、**god-function 显著瘦身**(B1 wave2)。剩余两项一为产品决策阻塞(C3),一为高风险低收益(B1 wave3),故停在干净点。

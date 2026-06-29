@@ -15,7 +15,7 @@
 | A2 | 裸 `except Exception` 把整个 Tier3 事实对账+Spine薄网吞成「advisory失败」→ 真死人复活/身份矛盾照出货;代码 bug(AttributeError)伪装成 advisory | ✅ | 拆分:解析类→advisory;非预期崩溃→`fact_audit_crashed` 进 ship_issue |
 | A1 | 空/截断响应被当「0 问题」(false-clean):`fact_audit`/`extract_facts` 抽取失败=该章无事实=矛盾漏检 | ◐ | 承重路径已修(`n_unaudited`>25%章→进门)。**每-pass 重试耗尽已 stderr 浮现(A3 wave3); 进 ship 信号的 unknown 计数仍待办**(A4 已缓解触发源) |
 | A5 | `grade_source` 解析失败默认 B 级 → Q 源拿免费全本 ¥draft | ✅ | 重试+失败即拒(Q/拒收),实测短路 |
-| A3 | **LLM 输出零 schema 校验**(违 A1/R2):全走 `_safe_json`→裸 dict→`.get()` 默认;缺字段当合法流下去 | ◐ | **A3.1 已落**: `schemas.validate(raw,required,types)` 谓词 + `src/hiki/llm_validate.complete_validated(...→dict\|None)`(validate→retry→终败None)。2 标杆改 fail-closed: `PROSE_REVIVAL_VERIFY`(畸形→保留存疑复活,治漏检)/`EXTRACT_CHUNK`(畸形→stderr 浮现丢失,非静默 `{}`)。happy-path 逐位保持(金标网守),fail-path mock 测。残: 其余 28 契约分波(Class A 硬回退/B 静默假阴/C 保护偏置)/ `_safe_json` 不搬; wave2: LIFE_EVENTS(_extract_life_one) 经 complete_validated(schemas.parsed 容 dict-or-list) — 失败 retry+stderr 浮现, 治静默丢生死事件, happy 逐位保持; wave3: seam/adj_dup/handshake/ending 四检共享环抽 gate.detect_retry(消4处copy-paste) — 重试耗尽 stderr 浮现"可能漏检"(治静默假阴), happy 逐位保持(门信号零变化); A3 wave4 已落: verify_identity._judge 换 complete_validated 共享重试 + 解析耗尽标 verify_failed(落盘 fact_table.json) + stderr 浮现 + 报告 advisory。门字节保持(耗尽仍 real=False, spine_id_contra 不变); 仅 HIKI_SPINE 开时激活。残: extract_facts 逐章失败 per-chapter 浮现(已被 n_unaudited>25% 聚合门覆盖, 边际低)。A3 wave5 已落: score_scenes(唯一 0 重试站点) 换 complete_validated(0→2试) + 耗尽 stderr 浮现, 保留 importance 启发式回退(失软不崩)。happy 首试 temp0.2 字节同; 不动门。核实 _plan_macro/reduce_bible 均已响亮崩(RuntimeError), 不动。 |
+| A3 | **LLM 输出零 schema 校验**(违 A1/R2):全走 `_safe_json`→裸 dict→`.get()` 默认;缺字段当合法流下去 | ◐ | **A3.1 已落**: `schemas.validate(raw,required,types)` 谓词 + `src/hiki/llm_validate.complete_validated(...→dict\|None)`(validate→retry→终败None)。2 标杆改 fail-closed: `PROSE_REVIVAL_VERIFY`(畸形→保留存疑复活,治漏检)/`EXTRACT_CHUNK`(畸形→stderr 浮现丢失,非静默 `{}`)。happy-path 逐位保持(金标网守),fail-path mock 测。残: 其余 28 契约分波(Class A 硬回退/B 静默假阴/C 保护偏置)/ `_safe_json` 不搬; wave2: LIFE_EVENTS(_extract_life_one) 经 complete_validated(schemas.parsed 容 dict-or-list) — 失败 retry+stderr 浮现, 治静默丢生死事件, happy 逐位保持; wave3: seam/adj_dup/handshake/ending 四检共享环抽 gate.detect_retry(消4处copy-paste) — 重试耗尽 stderr 浮现"可能漏检"(治静默假阴), happy 逐位保持(门信号零变化); A3 wave4 已落: verify_identity._judge 换 complete_validated 共享重试 + 解析耗尽标 verify_failed(落盘 fact_table.json) + stderr 浮现 + 报告 advisory。门字节保持(耗尽仍 real=False, spine_id_contra 不变); 仅 HIKI_SPINE 开时激活。残: extract_facts 逐章失败 per-chapter 浮现(已被 n_unaudited>25% 聚合门覆盖, 边际低)。A3 wave5 已落: score_scenes(唯一 0 重试站点) 换 complete_validated(0→2试) + 耗尽 stderr 浮现, 保留 importance 启发式回退(失软不崩)。happy 首试 temp0.2 字节同; 不动门。核实 _plan_macro/reduce_bible 均已响亮崩(RuntimeError), 不动。 **2026-06-29 核**: `_safe_json` 实测仍 **40 调用点**(gate.py),schema 校验仅覆盖少数承重契约,其余仍裸 `dict.get()`——A3 主体债未清。 |
 
 ## B. 结构：god-function + 无断点续跑 ◐（B1-1 已落,方案见 `b1-run-refactor.md`）
 
@@ -44,7 +44,7 @@
 |---|---|---|---|
 | D1 | **交付门 cutoff 全硬编码**(残缝>8、spine_net≥2、dark>0.25...)——最重要决策零 config | ✅ | `config/pipeline.yaml ship_gate` + `gate.evaluate_ship_gate(signals, thr)` 纯函数;2304 组合证行为等价;`scripts/_test_gate.py` 沉淀(门首次可测,顺带补 F1) |
 | D2 | `chars_per_chapter=3500` 硬编码 ~6 处 | ✅ | run() 读 `output.chars_per_chapter`→`target_chars`,全部 6 处替换 |
-| D3 | wave 切点 `[8,20,33,46]`、N/caps 内联 | ◐ | `production` 块:scene_per_chapter/peak_divisor/n_peak_bonus/wave_fallback_cuts/wave_min_chapters 入 config(`_wave_bounds` 参数化+测试)。残:max_tokens/temperature 斜坡(D3b,~40 call sites,入 models.yaml routing 更合适) |
+| D3 | wave 切点 `[8,20,33,46]`、N/caps 内联 | ◐ | `production` 块:scene_per_chapter/peak_divisor/n_peak_bonus/wave_fallback_cuts/wave_min_chapters 入 config(`_wave_bounds` 参数化+测试)。残:max_tokens/temperature 斜坡(D3b,**实测 53 call sites**〔2026-06-29 核,原估 ~40 已涨〕,入 models.yaml routing 更合适) |
 | D4 | prompts 全内联(无 `assets/prompts/` 版本化) | ⬜ | **并入 E（assets 支柱）**:非机械搬运,需 version+hash+loader 设计,半做反增 churn |
 | D5 | model 路由 typo 静默回落 flash | ✅ | `_model_for` 未知 stage stderr 告警(once);本质修在 E 的 stage-routing 校验 |
 
@@ -52,9 +52,9 @@
 
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
-| E1 | **8 个 assets/ 目录缺 7**;产出-affecting 资产零 version/hash → prompt 改动不可 pin/回滚/二分归因 | ⬜ | 物化 assets/,资产带 version+content-hash,run 记 asset-set hash |
+| E1 | **8 个 assets/ 目录缺 7**;产出-affecting 资产零 version/hash → prompt 改动不可 pin/回滚/二分归因 | ⬜ | 物化 assets/,资产带 version+content-hash,run 记 asset-set hash。**2026-06-29 核**:assets/ 现仅 `gold/`+`gold_regression/`(2 目录,E2 沉淀),仍缺 `prompts/` 等 ~6;资产零 version/hash 未动 |
 | E2 | **无金标回归 harness**(「升级对金标回归不退化」不可执行);`assets/gold/` = 2 个 14 行 stub | ◐ | 立真金标库 + 确定性+廉价 LLM 复评,退化即 fail。Tier-A 门决策快照网已建(7 本金标,零 API 进 CI,docs:assets/gold_regression/);残: 装配层网(冻 fact_table 重跑计数,护 C1)+题材洞补本+装配层网(C1 等价基线: signal_counts_from_fact_table + cross_check 语料 + fact_table 入库) |
-| E3 | **HFL/偏差校准器 = vaporware**:`hfl.jsonl` 只写不读,无 bias_model 训练/加载;spec 破 Goodhart 的稳定机制不存在 | ⬜ | 建 consumer 拟合 per-维偏差,版本化 + 应用到闸门分 |
+| E3 | **HFL/偏差校准器 = vaporware**:`hfl.jsonl` 只写不读,无 bias_model 训练/加载;spec 破 Goodhart 的稳定机制不存在 | ⬜ | 建 consumer 拟合 per-维偏差,版本化 + 应用到闸门分。**2026-06-29 核**:`hfl.jsonl` 现 web 已读作人评索引展示(`adapters.py`),但 `bias_model` 拟合/加载仍不存在——校准 consumer 整缺(故"只写不读"应订正为"读了只展示,无校准消费") |
 
 > E 与 system-review 的「测量危机」(Opus 承重 ±40)同根:没有可信测量+回归网,承重收益无法守住。
 
