@@ -21,7 +21,7 @@
 
 | | 项 | 状态 | 备注 |
 |---|---|---|---|
-| B1 | `run()` = 528 行 god-function,9 阶段内联,违反自己的 A1「阶段=纯函数」 | ◐ | **B1-1** mine/plan · **B1-2** finalize · **B1-3轻** gate · **B1-4** draft(+resume) · **B1-5** refine inline 块抽函数(`_ending_guard`[那个崩3本的 cont 遮蔽 bug-site,独立scope根除]/`_fact_audit_repair`/`_plane_check`,+4 monkeypatch测+真数据验)。**run() 528→188 行(−64%)**;剩 B1-6 BookCtx 收口(可选,收编残余 8 参) |
+| B1 | `run()` = 528 行 god-function,9 阶段内联,违反自己的 A1「阶段=纯函数」 | ◐ | **B1-1** mine/plan · **B1-2** finalize · **B1-3轻** gate · **B1-4** draft(+resume) · **B1-5** refine inline 块抽函数(`_ending_guard`[那个崩3本的 cont 遮蔽 bug-site,独立scope根除]/`_fact_audit_repair`/`_plane_check`,+4 monkeypatch测+真数据验)。**run() 528→188 行(−64%)**;剩 B1-6 BookCtx 收口(可选,收编残余 8 参)。B1 wave2 已落: run() 再外提 4 干净块 —— 2纯(_collect_valid_names/_detect_intra_repeats, +真单测) + 2async(_refit_short_chapters/_fix_pov_outliers, 字节移动+字符级复核)。run ~230→~190。刻意不抽 sig/report dict(40参比内联糟, 待 dataclass 式另波)。 |
 | B2 | **无 resume/幂等**(spec 头条「全量断点续跑」是空头支票) | ◐ | mine/plan resume(零API验)+ **draft 逐章 resume**(`draft/ch_NN.md`,full+partial 单测:只重画缺章、智能结算)。`force=True` 绕过。剩 refine resume |
 | B3 | 跨阶段变量遮蔽(`cont`/`ec`/`sys_pv` 复用),已实锤让 3 本崩 | B1 拆函数后自然消除(局部死在函数边界) |
 | B4 | 8 参函数 + 闭包捕获 10+ 可变量,wave-draft 无法脱离 run() 测 | 引入 frozen DraftContext dataclass |

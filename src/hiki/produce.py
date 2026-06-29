@@ -1293,6 +1293,34 @@ def _detect_intra_repeats(ch_texts: list[str], thr: float) -> list[tuple[int, fl
     return [(i, r) for i, t in enumerate(ch_texts) if (r := _intra_repeat(t)) > thr]
 
 
+async def _refit_short_chapters(cli: Client, ch_texts: list[str], target_chars: int) -> list[str]:
+    """扩写 flaky 残留: <0.7×target 的章再 _fit 一次(过短≥3章会被交付门拦)。"""
+    short = [i for i, t in enumerate(ch_texts) if len(t) < target_chars * 0.7]
+    if short:
+        refit = await asyncio.gather(*[_fit_chapter(cli, ch_texts[i], target_chars) for i in short])
+        for i, t in zip(short, refit):
+            ch_texts[i] = t
+        print(f"控字: {len(short)} 章过短二次扩写")
+    return ch_texts
+
+
+async def _fix_pov_outliers(cli: Client, ch_texts: list[str], p: dict) -> list[str]:
+    """POV: 把误用人称的离群章统一回全书主人称(治整章第一人称误用)。"""
+    person, outliers = _pov_outliers(ch_texts)
+    if outliers:
+        print(f"POV: 第{person}人称书，{len(outliers)}个离群章定向重写: {outliers}")
+        sys_pv, usr_pv = prompts.POV_FIX
+        fixed = await asyncio.gather(*[
+            cli.complete("draft", sys_pv, usr_pv.format(person=person, name=p.get("name", "他"),
+                                                        text=ch_texts[i]),
+                         max_tokens=8000, temperature=0.3) for i in outliers])
+        for i, t in zip(outliers, fixed):
+            t = _strip_markers(t)
+            if t and _first_person_ratio(t) < 0.5:
+                ch_texts[i] = t
+    return ch_texts
+
+
 async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
               refine_rounds: int = 5, min_grade: str | None = None,
               out_dir: Path | None = None, force: bool = False) -> dict:
@@ -1329,28 +1357,12 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
 
     # 4) 后端：双向控字 + 硬截断 + POV统一 + 人名归一(双名守卫+近似名) + advisory连续性
     ch_texts = await asyncio.gather(*[_fit_chapter(cli, t, target_chars) for t in ch_texts])
-    short = [i for i, t in enumerate(ch_texts) if len(t) < target_chars * 0.7]   # 扩写flaky残留→再试一次
-    if short:                                                            # (过短≥3章会被交付门拦)
-        refit = await asyncio.gather(*[_fit_chapter(cli, ch_texts[i], target_chars) for i in short])
-        for i, t in zip(short, refit):
-            ch_texts[i] = t
-        print(f"控字: {len(short)} 章过短二次扩写")
+    ch_texts = await _refit_short_chapters(cli, ch_texts, target_chars)
     # 末章给1.6×上限(治断尾: 硬截断会把结局收束拍切掉,Fable预评坐实'最后一句是高潮中断')
     ch_texts = [_truncate(t, int(target_chars * (1.6 if i == len(ch_texts) - 1 else 1.15)))
                 for i, t in enumerate(ch_texts)]
     # 4a) POV：把误用人称的离群章统一回全书主人称(治整章第一人称误用)
-    person, outliers = _pov_outliers(ch_texts)
-    if outliers:
-        print(f"POV: 第{person}人称书，{len(outliers)}个离群章定向重写: {outliers}")
-        sys_pv, usr_pv = prompts.POV_FIX
-        fixed = await asyncio.gather(*[
-            cli.complete("draft", sys_pv, usr_pv.format(person=person, name=p.get("name", "他"),
-                                                        text=ch_texts[i]),
-                         max_tokens=8000, temperature=0.3) for i in outliers])
-        for i, t in zip(outliers, fixed):
-            t = _strip_markers(t)
-            if t and _first_person_ratio(t) < 0.5:    # 修成功才采用
-                ch_texts[i] = t
+    ch_texts = await _fix_pov_outliers(cli, ch_texts, p)
     # 4a2) Tier2 套话硬重写门(D: 旋钮入 config,human-eval-5 校准默认不变)
     _dc = _cfg.get("decliche") or {}
     ch_texts, decliche_done = await _decliche_chapters(
