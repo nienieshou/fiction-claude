@@ -100,3 +100,49 @@ def test_false_accept_lens(tmp_path):
 
     fa70 = calibration.false_accept_lens(rows, floor=70)
     assert {f["slug"] for f in fa70["flagged"]} == {"LOW", "EDGE"}  # 70 下 30/50 均命中
+
+
+def test_load_gold_signal_vectors(tmp_path):
+    import json
+    (tmp_path / "S1").mkdir()
+    (tmp_path / "S1" / "fixture.json").write_text(
+        json.dumps({"slug": "S1", "signals": {"deliverable": True, "seam_detected": 25}}), encoding="utf-8")
+    (tmp_path / "S2").mkdir()
+    (tmp_path / "S2" / "fixture.json").write_text(
+        json.dumps({"slug": "S2", "signals": {"deliverable": False}}), encoding="utf-8")
+    gv = calibration.load_gold_signal_vectors(tmp_path)
+    assert set(gv) == {"S1", "S2"} and gv["S1"]["seam_detected"] == 25
+
+
+def test_provenance_divergence_classifies(tmp_path):
+    import json
+    # gold 冻结向量(直接构造,不落盘)
+    gold = {
+        "DIV": {"deliverable": False, "seam_detected": 25, "dark_ratio": 0.07},
+        "INC": {"deliverable": True, "seam_detected": 29},
+        "NOGOLD_IGNORED": {"deliverable": True},
+    }
+    lines = [
+        # DIV: 共享 deliverable(True vs False)+ seam(29 vs 25) → divergent
+        json.dumps({"scorer": "网文编辑", "slug": "DIV", "dims": {"承重": 30},
+                    "auto_signals": {"deliverable": True, "章缝检出": 29, "暗黑比": 0.07}}, ensure_ascii=False),
+        # INC: 共享 deliverable(True==True)+ seam(29==29),全等且无溯源 → inconclusive
+        json.dumps({"scorer": "网文编辑", "slug": "INC", "dims": {"承重": 70},
+                    "auto_signals": {"deliverable": True, "章缝检出": 29}}, ensure_ascii=False),
+        # slug 不在 gold → 不入 overlap
+        json.dumps({"scorer": "网文编辑", "slug": "MISSING", "dims": {"承重": 60},
+                    "auto_signals": {"deliverable": True}}, ensure_ascii=False),
+        # 非 editor → 不入 overlap
+        json.dumps({"scorer": "fable", "slug": "DIV", "dims": {"承重": 50},
+                    "auto_signals": {"deliverable": False}}, ensure_ascii=False),
+    ]
+    p = tmp_path / "h.jsonl"
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rows, _ = calibration.load_hfl(p)
+    prov = calibration.provenance_divergence(rows, gold)
+    assert prov["n_overlap"] == 2 and prov["n_divergent"] == 1 and prov["n_inconclusive"] == 1
+    assert prov["n_provenance_matched"] == 0
+    by = {b["slug"]: b for b in prov["books"]}
+    assert by["DIV"]["status"] == "divergent"
+    assert "deliverable" in by["DIV"]["diffs"] and "seam_detected" in by["DIV"]["diffs"]
+    assert by["INC"]["status"] == "inconclusive" and by["INC"]["diffs"] == {}

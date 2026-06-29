@@ -127,3 +127,41 @@ def compat_report(rows, errors):
             for (ts, ds, sc, ver), n in sorted(buckets.items(), key=lambda kv: (-kv[1], str(kv[0])))
         },
     }
+
+
+def load_gold_signal_vectors(gold_dir):
+    """slug -> fixture['signals'](冻结向量)。只读 <gold_dir>/<slug>/fixture.json。"""
+    out = {}
+    for fx in sorted(Path(gold_dir).glob("*/fixture.json")):
+        data = json.loads(fx.read_text(encoding="utf-8"))
+        sigs = data.get("signals")
+        if isinstance(sigs, dict):
+            out[fx.parent.name] = sigs
+    return out
+
+
+def _comparable(a, b):
+    """两值是否类型可比: bool 仅与 bool 比; 数值(非bool)互比; 其余不可比。"""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return isinstance(a, bool) and isinstance(b, bool)
+    return isinstance(a, (int, float)) and isinstance(b, (int, float))
+
+
+def provenance_divergence(rows, gold_vectors):
+    """editor∩slug∩gold 的书: hfl auto_signals 经 LEGACY_TO_FROZEN 映射后逐可比较共享键比 gold。
+    divergent=任一键不等(证不同次跑); inconclusive=全等但 gold 无溯源字段(不算 matched)。
+    n_provenance_matched 结构性恒 0(gold 无溯源元数据, 绝不由 legacy 巧合相等推断)。"""
+    books, n_div, n_inc = [], 0, 0
+    for r in rows:
+        if r.truth_space != GROUND_TRUTH or not r.slug or r.slug not in gold_vectors:
+            continue
+        gv = gold_vectors[r.slug]
+        mapped = {LEGACY_TO_FROZEN[k]: v for k, v in r.auto_signals.items() if k in LEGACY_TO_FROZEN}
+        shared = [k for k in sorted(set(mapped) & set(gv)) if _comparable(mapped[k], gv[k])]
+        diffs = {k: [mapped[k], gv[k]] for k in shared if mapped[k] != gv[k]}
+        status = "divergent" if diffs else "inconclusive"
+        n_div += status == "divergent"
+        n_inc += status == "inconclusive"
+        books.append({"slug": r.slug, "shared_keys": shared, "diffs": diffs, "status": status})
+    return {"books": books, "n_overlap": len(books), "n_divergent": n_div,
+            "n_inconclusive": n_inc, "n_provenance_matched": 0}
