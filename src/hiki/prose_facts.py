@@ -196,6 +196,15 @@ def signal_counts_from_fact_table(ft: dict) -> dict:
     }
 
 
+def revival_candidates(findings: list[dict], n_ch: int) -> list[dict]:
+    """从 fact_table findings 取生死类 → 复活候选(who/clue/revive_ch 0-based/death_ch 0-based|None)。
+    单源: produce._fact_audit_repair 与 point_repair._verified_revivals 共用(曾逐字重复)。"""
+    return [{"who": f["who"], "clue": (f.get("why") or "")[:30], "revive_ch": f["ch_b"] - 1,
+             "death_ch": (f["ch_a"] - 1) if isinstance(f.get("ch_a"), int) else None}
+            for f in findings if f.get("cat") == "生死"
+            and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= n_ch]
+
+
 def _ctx(ch_texts: list[str], ch, who: str, span: int = 45) -> str:
     """取所指章内实体名首次出现处 ±span 字的上下文(供身份真矛盾裁决)。"""
     if not (isinstance(ch, int) and 1 <= ch <= len(ch_texts)):

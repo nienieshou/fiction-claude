@@ -1065,10 +1065,7 @@ async def _fact_audit_repair(cli: Client, ch_texts: list[str], out_dir: Path,
         if ft.get("n_unaudited", 0) > max(3, len(ch_texts) // 4):   # A1: >25%章抽取失败→审计不可信
             fact_audit_crashed = True
             print(f"⚠ 事实表对账 {ft['n_unaudited']}/{len(ch_texts)} 章抽取失败——审计覆盖不足,计入交付门")
-        cand = [{"who": f["who"], "clue": (f.get("why") or "")[:30], "revive_ch": f["ch_b"] - 1,
-                 "death_ch": (f["ch_a"] - 1) if isinstance(f.get("ch_a"), int) else None}
-                for f in ft["findings"] if f.get("cat") == "生死"
-                and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= len(ch_texts)]
+        cand = prose_facts.revival_candidates(ft["findings"], len(ch_texts))
         if cand:
             ft_deaths_verified = await prose_continuity.verify_revivals(cli, ch_texts, cand)
         if ft_deaths_verified:                        # R9b: 拦不如修——verify过的复活直喂修复器

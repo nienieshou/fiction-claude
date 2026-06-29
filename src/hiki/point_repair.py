@@ -59,10 +59,7 @@ def _reassemble(preamble: str, headers: list[str], bodies: list[str]) -> str:
 
 async def _verified_revivals(cli: Client, chs: list[str]) -> list[dict]:
     ft = await prose_facts.fact_table_audit(cli, chs)
-    cand = [{"who": f["who"], "clue": (f.get("why") or "")[:30], "revive_ch": f["ch_b"] - 1,
-             "death_ch": (f["ch_a"] - 1) if isinstance(f.get("ch_a"), int) else None}
-            for f in ft["findings"] if f.get("cat") == "生死"
-            and isinstance(f.get("ch_b"), int) and 1 <= f["ch_b"] <= len(chs)]
+    cand = prose_facts.revival_candidates(ft["findings"], len(chs))
     return await prose_continuity.verify_revivals(cli, chs, cand) if cand else []
 
 
