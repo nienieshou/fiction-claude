@@ -146,3 +146,24 @@ def test_provenance_divergence_classifies(tmp_path):
     assert by["DIV"]["status"] == "divergent"
     assert "deliverable" in by["DIV"]["diffs"] and "seam_detected" in by["DIV"]["diffs"]
     assert by["INC"]["status"] == "inconclusive" and by["INC"]["diffs"] == {}
+
+
+def test_comparable_bool_int_exclusion():
+    assert calibration._comparable(True, 1) is False     # bool 不与 int 比(bool⊂int 陷阱)
+    assert calibration._comparable(1, True) is False      # 对称
+    assert calibration._comparable(True, False) is True   # bool 与 bool 可比
+    assert calibration._comparable(1, 2) is True          # int 与 int 可比
+    assert calibration._comparable(1.5, 2) is True        # float 与 int 可比
+    assert calibration._comparable("a", "b") is False     # 非数值/非bool 不可比
+
+
+def test_load_gold_signal_vectors_skips_non_dict_signals(tmp_path):
+    import json
+    (tmp_path / "OK").mkdir()
+    (tmp_path / "OK" / "fixture.json").write_text(
+        json.dumps({"signals": {"deliverable": True}}), encoding="utf-8")
+    (tmp_path / "BAD").mkdir()
+    (tmp_path / "BAD" / "fixture.json").write_text(
+        json.dumps({"signals": None}), encoding="utf-8")
+    gv = calibration.load_gold_signal_vectors(tmp_path)
+    assert set(gv) == {"OK"}                               # signals 非 dict → 跳过
