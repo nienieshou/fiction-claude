@@ -1,38 +1,39 @@
-# 技术债 sweep 路线图(C 类 + A3 + E)
+# 技术债 sweep 路线图(C 类 + A3 + E + B1)
 
-> 2026-06-27 起。配套登记册 `docs/design/tech-debt.md`(权威状态)。本文件是**执行序列 + resume 指针**。
-> 纪律:每项独立 spec→plan→SDD→PR,项间用金标回归网(`assets/gold_regression/`)守等价。绝不一锅端。
+> 2026-06-27 起,2026-06-29 收尾。配套登记册 `docs/design/tech-debt.md`(权威状态)。
+> 纪律:每项独立 spec→plan→SDD→复核→合并,项间用金标/装配回归网(`tests/test_gold_regression.py`/`test_assembly_regression.py`)守等价。绝不一锅端。
 
-## 已落地
+## ✅ 已落地(全部并入 `origin/master`,截至 `880c7fd`)
 
-| 项 | 交付 | 状态 |
+| 项 | 交付 | 要点 |
 |---|---|---|
-| **E2 金标回归网** | PR #6 | ✅ 已合并 master。Tier-A 门决策快照网(7本)进 CI。 |
-| **C4 textnum 单源** | PR #7 | ✅ 已 rebase-merge 入 master(`54e02ba`)。中文数字+章节/卷正则收口,修 mining/slice 漏卷。 |
-| **E2.1 装配层网** | PR #7 | ✅ 已 rebase-merge 入 master。`signal_counts_from_fact_table` + fact_table 入库 + cross_check 语料(C1 等价基线)。 |
+| **E2 金标回归网** | PR #6 | Tier-A 门决策快照网(7本)进 CI。 |
+| **C4 textnum 单源** | PR #7 | 中文数字 + 章节/卷正则收口。 |
+| **E2.1 装配层网** | PR #7 | `signal_counts_from_fact_table` + fact_table 入库 + cross_check 语料(等价基线)。 |
+| **C5 name 谓词单源** | merged | `is_person_name`/`is_item_name` 单源,7 站点全迁。 |
+| **C1 死人复活 Ledger** | PR #8 | `RevivalLedger`(char_ledger.py),P1/P2/P3 迁移收口。 |
+| **C2 修为 PowerLedger** | merged | 序数/数值二引擎合并到 char_ledger.py。 |
+| **A3.1 schema 校验层** | merged | `llm_validate.complete_validated`(validate→retry→None)+ 逐契约 schema。 |
+| **C7.1 共享 ending_check** | merged | 逐字重复尾门检测收编。 |
+| **A3 wave2 LIFE_EVENTS** | merged | 静默丢生死事件治理(callable schema 向后兼容)。 |
+| **A3 wave3 detect_retry** | merged | `gate.detect_retry` 共享检测环 + 四检收编 + stderr 浮现。 |
+| **C6① DIMENSIONS 注册表** | merged | `Dim.gating`/`signals` + `NON_DIM_GATE_FLOORS` + 一致性守卫。 |
+| **C6② craft_audit 门控** | merged | `config.advisory_on` 单源 + produce 白烧门控(默认开)。 |
+| **A3 wave4 verify_identity** | merged | 身份验证解析耗尽 `verify_failed` 标记 + stderr(可见不动门)。 |
+| **A3 wave5 score_scenes** | PR #9 | 唯一 0 重试站点换 complete_validated(失软 + 可见)。 |
+| **C6 残留 slice_validate** | merged | dev 工具 EXTRACT 换 complete_validated(删 `_json`)+ craft_audit 门控。 |
+| **C7 余切 复活候选** | merged | `prose_facts.revival_candidates` 单源(produce + point_repair 共用)。 |
+| **B1 wave2 run() 外提** | merged | `_collect_valid_names`/`_detect_intra_repeats`/`_refit_short_chapters`/`_fix_pov_outliers`;run ~230→~190。 |
 
-## 进行中
+## ⏸ 剩余(未做 —— 阻塞或高风险,clean-slice 已稭干)
 
-| 项 | 交付 | 状态 |
+| 项 | 状态 | 原因 |
 |---|---|---|
-| **C1 死人复活 Ledger** | branch `feat/c1-revival-ledger` | spec + plan **已写未执行**。spec: `docs/superpowers/specs/2026-06-27-c1-revival-ledger-design.md`;plan: `docs/superpowers/plans/2026-06-27-c1-revival-ledger.md`(6 任务,SDD 执行)。 |
+| **C3 id_map 删除** | **阻塞(产品决策)** | 删 legacy `id_map` 渲染器依赖「HIKI_SPINE(Fact Spine 特性)是否转默认」的决策,非代码。注:`_spine_block`(名钉死)与 `_spine_roster`(身份钉死)是**两个不同**渲染器(非同数据异格式),不可合;共享 `_pin_block` 已是单源。 |
+| **B1 wave3 sig/report dict** | **延后(高churn/高风险)** | `run()` 末 `sig`(~11 locals)+ `report`(~51 行/~40 locals)dict 组装。抽 helper 需 dataclass 式重构(40 参比内联糟);`run()` 非金标/装配网端到端覆盖 → 等价无网兜底。维护性收益 vs 风险不划算,留待真有动机时另设计。 |
 
-## 待办(各自 spec→plan→SDD,建议序)
+## 收尾说明(2026-06-29)
 
-| 序 | 项 | 体量/风险 | 依赖/备注 |
-|---|---|---|---|
-| 1 | **C1 死人复活**(进行中) | 6路径/3模型,中高 | 计划已就绪,直接 SDD 执行。 |
-| 2 | **C2 修为合并** | 2 引擎(序数/数值),中 | 网未覆盖序数引擎 → 先补特征化(同 C1 P1/P3 套路)。可复用 RevivalLedger 模块(char_ledger.py)加 power concern。 |
-| 3 | **C5 name 谓词单源** | 5+ 处界 2-4/2-5/2-6/2-8,小 | 有真 bug(人名界 5 vs 6 → "欧阳修远"provenance 缺口)。`is_person_name`/`is_item_name` 单源;2-4 variant anchor 是有意紧界,保留。 |
-| 4 | **C3 身份渲染器** | 3 渲染器(2 个数据相同),中 | **半阻塞**:渲染器1(id_map)删除依赖 HIKI_SPINE 转正决策——需先定 HIKI_SPINE 是否转默认。渲染器2/3 可先合(数据同、仅格式异)。 |
-| 5 | **A3 schema 层** | 30 契约/34 调用点,大 | **风险最高**:改的是金标网兜不住的检测器层。须各契约 characterization 后再动;建 `validate(raw,schema)→retry→reject` 复用层 + 逐契约 schema。建议先做 Class-B(静默假阴)高危契约子集,非一次 30 个。范围图见会话 Explore 报告(A3)。 |
+sweep 达成既定目标:**检测器 sprawl 单源化**(C4/C5/C6/C7)、**LLM 契约静默失败硬化**(A3.1/wave2-5)、**承重 Ledger 化**(C1/C2)、**god-function 显著瘦身**(B1 wave2)。剩余两项一为产品决策阻塞(C3),一为高风险低收益(B1 wave3),故停在干净点。
 
-## Resume 指针(关机后从这里接)
-
-**当前分支**:`feat/c1-revival-ledger`(已 rebase 到 `master`@`54e02ba`,PR #7 已合并;`feat/techdebt-sweep` 已删)。
-**未推送**:本分支有 spec/plan/roadmap 的 doc commit,本地未 push(仅文档,可选择性 push 备份)。
-**下一步**:
-1. 直接执行 C1:调 `superpowers:subagent-driven-development`,按 `docs/superpowers/plans/2026-06-27-c1-revival-ledger.md` 逐任务跑(Task 1 ledger → Task 2 P1/P3 补网 → Task 3/4/5 迁移 → Task 6 收口)。
-2. SDD 进度账本:`.superpowers/sdd/progress.md`(本地持久,resume 时先读它)。
-
-**关键不变量(每步必守)**:`pytest tests/test_gold_regression.py tests/test_assembly_regression.py` 全绿 + 7 本 `ft_revival_residual` 零变化。
+**Resume**(若重启):SDD 进度账本 `.superpowers/sdd/progress.md`(本地持久)。每步不变量:`pytest tests/test_gold_regression.py tests/test_assembly_regression.py` 全绿。要续 C3 须先定 HIKI_SPINE 默认;要续 B1 wave3 须接受无网兜底 + 字符级复核为唯一等价机制。
