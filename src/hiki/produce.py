@@ -1278,7 +1278,7 @@ def _collect_valid_names(p: dict, bible: dict) -> set[str]:
     return valid_names
 
 
-def _intra_repeat(t: str, thr: float = 0.08) -> float:
+def _intra_repeat(t: str) -> float:
     s = _re.sub(r"\s", "", t or "")
     if len(s) < 800:
         return 0.0
