@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -1513,10 +1514,20 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         too_short_chapters=len([d for d in det if d.startswith("过短")]),
         final_consistent=final_consistent, intra_repeat_chapters=len(intra_rep),
         early_repeat=early_rep["count"])
+    report["engine_commit"] = _engine_commit()   # 本次跑引擎 commit, 供信号溯源(top-level, 不进 signals)
     # title/output/craft 字段 + 文件落盘由 finalize 阶段补全
     return await _stage_finalize(cli, src, out_dir, bible, final, deliverable, ship_issues, report,
                                  open_premise, immersion,         # C: 复用门前算好的 immersion(不重算)
                                  craft_advisory=config.advisory_on(_cfg, "craft_audit"))
+
+
+def _engine_commit() -> str:
+    """本次跑的引擎 git commit(供信号溯源)。best-effort: 失败→'unknown', 绝不阻塞 report 写盘。"""
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"],
+                                       stderr=subprocess.DEVNULL, timeout=5).decode().strip()
+    except Exception:
+        return "unknown"
 
 
 def _variety(beats: list[dict]) -> str:
