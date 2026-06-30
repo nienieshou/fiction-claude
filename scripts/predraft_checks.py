@@ -38,7 +38,8 @@ def kinship_uniqueness(bible) -> list[dict]:
             continue
         target = m.group(1).strip("的 ，,、").strip()
         role = _KINSHIP_ROLES[m.group(2)]
-        if target:
+        # target 须 ≥2 字: 排除 "陌生母亲"/"重生母亲"/"卫生父亲" 这类子串误切(target 落单字 陌/重/卫)
+        if len(target) >= 2:
             claims.setdefault((target, role), set()).add(name)
     out = []
     for (target, role), claimants in sorted(claims.items()):

@@ -35,6 +35,12 @@ def test_kinship_missing_field_no_crash():
     assert pc.kinship_uniqueness({}) == []                                  # 无 characters
 
 
+def test_kinship_substring_fp_excluded():
+    # "陌生母亲"=陌生+母亲, 正则切出 target="陌"(单字); len>=2 守卫排除 → 不误报(终审 Important)
+    b = _bible([("甲", "陌生母亲"), ("乙", "陌生母亲"), ("丙", "卫生父亲"), ("丁", "卫生父亲")])
+    assert pc.kinship_uniqueness(b) == []
+
+
 def _plan(chapter_scene_idxs):
     return {"chapters": [{"scenes": [{"source_scene_index": i} for i in idxs]} for idxs in chapter_scene_idxs]}
 
