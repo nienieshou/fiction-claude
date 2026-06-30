@@ -1,7 +1,6 @@
 """E3 Slice1 真数据不变量 smoke: 对真 assets/hfl.jsonl + gold_regression。
-characterization 性质: 钉当前快照(hfl=72行); hfl 增长时更新计数。
-72 = 旧60 + Stage-0 跨族陪审 6(opus×3+gpt55×3) + A档跨族陪审 6(valA opus×3+gpt55×3);
-均 proxy 空间, 不影响 editor/gold 不变量。"""
+characterization 性质: 钉当前快照(hfl=76行); hfl 增长时更新计数。
+76 = 旧60 + Stage-0 6 + A档 6 + B档 4(valB opus×2+gpt55×2); 均 proxy 空间, 不影响 editor/gold 不变量。"""
 from pathlib import Path
 
 from hiki import calibration
@@ -16,8 +15,8 @@ def test_realdata_structure_and_snapshot():
     # 结构不变量(对数据增长稳健)
     assert errors == [], f"hfl 有解析错误行: {errors}"
     assert all(r.truth_space == "editor" for r in rows if r.scorer == "网文编辑")
-    # 当前快照(hfl=72 行; 增长时更新以下精确值)
-    assert len(rows) == 72
+    # 当前快照(hfl=76 行; 增长时更新以下精确值)
+    assert len(rows) == 76
     compat = calibration.compat_report(rows, errors)
     assert compat["n_ground_truth"] == 14
     assert compat["by_truth_space"]["editor"] == 14

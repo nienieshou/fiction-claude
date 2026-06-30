@@ -1,0 +1,14 @@
+# E3 验证块 B 档(2 本鲜书). 协议 60章/refine3/best_of1. 折 PreDraft Review v0 校准.
+tasks:
+  - slug: valB_反派记忆曝光
+    source: "fictions_source/玄幻仙侠/反派：记忆曝光，女主为我痛哭（反派记忆曝光，全世界都为我流泪）73w.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: valB_冷战三年
+    source: "fictions_source/现代言情/冷战三年，离婚当日纪总哭红了眼.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
