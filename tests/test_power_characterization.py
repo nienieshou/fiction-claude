@@ -22,13 +22,13 @@ from hiki.audit import check_power_monotonic, fix_power_monotonic
 
 def _bible(ladder: str = "练气→筑基→金丹→元婴，赌注升级") -> dict:
     """≥3 级 → power_order_from_bible 返回本书梯(['练气','筑基','金丹','元婴'])。"""
-    return {"escalation_ladder": ladder}
+    return {"power_system": ladder}
 
 
 def _bible_with_alias() -> dict:
     """含别名 bible: 小叶 → 叶凡(验证 _alias_map 路径)。"""
     return {
-        "escalation_ladder": "练气→筑基→金丹→元婴，赌注升级",
+        "power_system": "练气→筑基→金丹→元婴，赌注升级",
         "protagonist": {"name": "叶凡", "aliases": ["小叶"]},
     }
 
@@ -110,7 +110,7 @@ def test_check_power_monotonic_default_ladder_when_bible_too_short():
         {"power_after": [["叶凡", "筑基"]]},
     ]
     # 只有 2 级 → power_order_from_bible 返回 None
-    issues = check_power_monotonic({"escalation_ladder": "练气→筑基，其他"}, scenes)
+    issues = check_power_monotonic({"power_system": "练气→筑基，其他"}, scenes)
     assert len(issues) == 1
 
 

@@ -1,6 +1,6 @@
 """audit.py 纯函数:broken_prose 合成用例 + _power_rank/power_order_from_bible。零 API。
 (原 scripts/_test_broken_prose.py + _test_r13_units #6 迁入;file-dependent 部分略去保持可移植)"""
-from hiki.audit import broken_prose, _power_rank, power_order_from_bible, check_places, enrich_places, reconcile_revival
+from hiki.audit import broken_prose, _power_rank, _POWER_ORDER, _realm_rank, power_order_from_bible, check_places, enrich_places, reconcile_revival, check_power_monotonic
 
 
 # ---------- 地点漂移 advisory(Plan-地点槽) ----------
@@ -95,3 +95,35 @@ def test_reconcile_revival():
     assert reconcile_revival(la, "袁麟") == "gate"        # 源书永久死却被写活 → 仍拦(真矛盾)
     assert reconcile_revival(la, "无名") == "gate"        # 无弧 → 保守拦(沿用现行,绝不放过未知)
     assert reconcile_revival({}, "谁") == "gate"          # 无 life_arcs(老书/抽取失败)→ 保守拦
+
+
+def test_realm_rank_default_first():
+    LING = ["灵徒", "灵师", "大灵师", "灵尊", "灵宗", "灵王", "灵圣"]
+    # 默认梯未知境界(灵*)→ 用 custom
+    assert _realm_rank("灵王巅峰", LING) == LING.index("灵王")
+    assert _realm_rank("大灵师", LING) == LING.index("大灵师")   # 非子串"灵师"(earliest-pos)
+    # 默认梯能判的值 → 走 default(custom 不查), 即使 custom 是默认境界子集
+    sub = ["练气", "筑基", "金丹"]
+    assert _realm_rank("练气中期", sub) == _power_rank("练气中期", _POWER_ORDER)
+    # codex-r2 锁定: 练气(default1) vs 凡人(default0) 同空间 → 仍可判回退
+    assert _realm_rank("练气", sub) > _realm_rank("凡人", sub)
+    # 默认+custom 均判不出 → -1
+    assert _realm_rank("莫名其妙", LING) == -1
+
+
+def test_check_power_monotonic_detects_realm_regression_via_power_system():
+    """bug 真修: 修仙 power_system(灵*)下, 灵王→灵师 回退被检出(修前默认梯无灵*→空)。"""
+    bible = {"power_system": "修炼境界：灵徒、灵师、大灵师、灵尊、灵宗、灵王、灵圣。"}
+    scenes = [{"power_after": [["云朝歌", "灵王巅峰"]]},
+              {"power_after": [["云朝歌", "灵师"]]}]
+    issues = check_power_monotonic(bible, scenes)
+    assert any("云朝歌" in s and "回退" in s for s in issues)
+
+
+def test_check_power_monotonic_subset_power_system_no_degrade():
+    """power_system 只列默认境界子集(缺凡人)→ default 优先兜底, 凡人仍判 → 练气后退凡人被检出。"""
+    bible = {"power_system": "练气、筑基、金丹"}
+    scenes = [{"power_after": [["甲", "练气中期"]]},
+              {"power_after": [["甲", "凡人"]]}]
+    issues = check_power_monotonic(bible, scenes)
+    assert any("甲" in s and "回退" in s for s in issues)

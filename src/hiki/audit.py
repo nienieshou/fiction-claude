@@ -253,6 +253,16 @@ def _power_rank(p: str, order: list[str] | None = None) -> int:
     return best
 
 
+def _realm_rank(raw: str, custom: list[str] | None) -> int:
+    """default _POWER_ORDER 权威优先; 仅当 default 判不出(-1, 灵*/散仙等非默认境界)才用 custom。
+    → 默认梯能判的值全在 default 空间一致比较(status quo 检测零退化); custom 只补默认未知境界。
+    绝不混 custom-local idx 与 default-global idx 致漏判(codex r2)。"""
+    r = _power_rank(raw, _POWER_ORDER)
+    if r >= 0:
+        return r
+    return _power_rank(raw, custom) if custom else -1
+
+
 def power_order_from_bible(bible: dict) -> list[str] | None:
     """从 bible.power_system 尽力解析本书境界梯(灵徒→…→灵圣)。power_system 是异构散文
     ('修炼境界:灵徒、灵师(1-9阶)、…、灵圣(及以上)。…' / '灵者→灵士→…' / '无'):取首句首梯、
@@ -283,7 +293,7 @@ def fix_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
     alias = _alias_map(bible)
 
     def _rank_fn(raw: str) -> float | None:
-        r = _power_rank(raw, order)
+        r = _realm_rank(raw, order)
         return float(r) if r >= 0 else None
 
     lg = PowerLedger(ordinal_comparator(_rank_fn))
@@ -310,7 +320,7 @@ def check_power_monotonic(bible: dict, scenes: list[dict]) -> list[str]:
     alias = _alias_map(bible)
 
     def _rank_fn(raw: str) -> float | None:
-        r = _power_rank(raw, order)
+        r = _realm_rank(raw, order)
         return float(r) if r >= 0 else None
 
     lg = PowerLedger(ordinal_comparator(_rank_fn))
