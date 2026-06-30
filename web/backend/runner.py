@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -119,7 +120,8 @@ def job_status(slug: str) -> dict | None:
         return None
     return {"slug": slug, "status": j["status"], "stage": j.get("stage", 0),
             "log": j.get("log", [])[-12:], "error": j.get("error"),
-            "throws": j.get("throws", 1), "best_of": j.get("best_of", 1)}
+            "throws": j.get("throws", 1), "best_of": j.get("best_of", 1),
+            "queued_at": j.get("queued_at"), "started_at": j.get("started_at")}
 
 
 def _classify_bestof(history: list[dict]) -> str:
@@ -141,6 +143,10 @@ async def _run_job(slug: str, src_path: Path, run_fn=None) -> None:
     job["best_of"] = best_of
     async with _JOB_SEM:                                  # 并发闸:多本上传排队,不齐发(防APITimeout崩)
         job["status"] = "running"
+        job["started_at"] = time.time()
+        _stub = JOB_BOOKS.get(f"{slug}_full")
+        if _stub is not None:
+            _stub["started"] = job["started_at"]
         job["log"].append(f"start · {src_path.name} · best-of-{best_of} · 质量优先(Spine开,精修{QUALITY['refine_rounds']}轮,候选{QUALITY['n_cand']})")
         try:
             if QUALITY["spine"]:
@@ -204,10 +210,11 @@ async def enqueue(orig_name: str, new_name: str, content: bytes) -> dict:
     src_path = _resolve_src(orig_name, new_name, content)
 
     JOBS[slug] = {"status": "queued", "stage": 0, "log": [], "error": None,
-                  "src_path": str(src_path)}
+                  "src_path": str(src_path), "queued_at": time.time()}
     stub = {"id": f"{slug}_full", "title": new_name or orig_name, "src": orig_name,
             "slug": slug, "genre": "待识别", "grade": "—", "comp": "—", "stage": 0,
-            "status": "running", "mode": 0, "human": None, "cost": 0, "uploaded": True}
+            "status": "running", "mode": 0, "human": None, "cost": 0, "uploaded": True,
+            "queued": JOBS[slug]["queued_at"]}
     JOB_BOOKS[stub["id"]] = stub
 
     JOBS[slug]["task"] = asyncio.create_task(_run_job(slug, src_path))
@@ -224,6 +231,6 @@ async def resume(slug: str) -> dict:
     if src is None:
         raise FileNotFoundError(f"无可续跑的源(缺 source/clean.txt): {slug}")
     JOBS[slug] = {"status": "queued", "stage": 0, "log": [f"resume · {src.name}"],
-                  "error": None, "src_path": str(src)}
+                  "error": None, "src_path": str(src), "queued_at": time.time()}
     JOBS[slug]["task"] = asyncio.create_task(_run_job(slug, src))
     return {"job_slug": slug, "resumed": True}

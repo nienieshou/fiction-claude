@@ -69,3 +69,50 @@ def test_explicit_finished_at_preferred(client, tmp_path):
             "finished_at": 9999.0}, timing={"started_at": 1000.0})
     b = _book(client, "exp_full")
     assert b["finished"] == 9999.0   # 显式优先于 started+seconds(=1060)
+
+
+import asyncio
+from web.backend import runner
+
+
+def test_job_status_returns_timestamps():
+    runner.JOBS["js0"] = {"status": "running", "stage": 1, "log": [], "error": None,
+                          "queued_at": 111.0, "started_at": 222.0}
+    try:
+        s = runner.job_status("js0")
+        assert s["queued_at"] == 111.0 and s["started_at"] == 222.0
+    finally:
+        runner.JOBS.pop("js0", None)
+
+
+def test_run_job_records_started_at(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner.paths, "OUTPUT", tmp_path)
+    slug = "rj0"
+    runner.JOBS[slug] = {"status": "queued", "stage": 0, "log": [], "error": None, "queued_at": 5.0}
+    runner.JOB_BOOKS[f"{slug}_full"] = {"id": f"{slug}_full", "status": "running", "stage": 0}
+
+    async def fake_run(src, **kw):
+        return {"deliverable": True, "交付门": ["通过"], "cost_cny": 1}
+    try:
+        asyncio.run(runner._run_job(slug, tmp_path / "s.txt", run_fn=fake_run))
+        assert isinstance(runner.JOBS[slug].get("started_at"), float)
+        assert isinstance(runner.JOB_BOOKS[f"{slug}_full"].get("started"), float)
+    finally:
+        runner.JOBS.pop(slug, None); runner.JOB_BOOKS.pop(f"{slug}_full", None)
+
+
+def test_enqueue_records_queued_at(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner.paths, "OUTPUT", tmp_path)
+    monkeypatch.setattr(runner.paths, "SOURCES", tmp_path / "src")
+    monkeypatch.setattr(runner, "UPLOAD_DIR", tmp_path / "src" / "_uploads")  # import 时定, 不patch会写真库
+    async def noop(*a, **k):
+        return None
+    monkeypatch.setattr(runner, "_run_job", noop)   # 不真跑 produce
+    try:
+        res = asyncio.run(runner.enqueue("书.txt", "书", b"content"))
+        slug = res["job_slug"]
+        assert isinstance(runner.JOBS[slug].get("queued_at"), float)
+        assert isinstance(runner.JOB_BOOKS[res["book"]["id"]].get("queued"), float)
+    finally:
+        for s in list(runner.JOBS): runner.JOBS.pop(s, None)
+        for b in list(runner.JOB_BOOKS): runner.JOB_BOOKS.pop(b, None)
