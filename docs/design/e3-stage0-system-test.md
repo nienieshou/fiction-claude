@@ -133,3 +133,8 @@ python -m hiki run --tasks-file tasks.yaml --parallel 2 --spine
 5. 🟡【调参非召回】spine_net_min=6 偏高 / verify_identity 短路 / 生死 beat 降级。
 
 诚实:本例测不准主体 = 检测器**漏检**(尤其 #1 单 bug),非降级误判。
+
+---
+
+## 修复进度
+- **#1 power 境界检测器(根因①)✅ 已修(2026-06-30, master 23c8f2c)**:`power_order_from_bible` 改读+解析 `power_system`(异构散文/`_NON_REALM`/<3→None)+ `_realm_rank`(default优先/custom补默认未知境界灵*)接入 check/fix。plan 层 `fix_power_monotonic` 预防对真境界梯生效(境界乱序/修为倒退现钉回);检测零退化、不误钉(codex spec r3+plan r2+opus 终审,实跑8本bible+434全量绿)。spec/plan: `docs/superpowers/{specs,plans}/2026-06-30-power-realm-detector-fix*`。**残**:#2 性别/共指/语义重复(整类无检测器)+ #2/B prose 序数门检(drafting 新引入残留)。
