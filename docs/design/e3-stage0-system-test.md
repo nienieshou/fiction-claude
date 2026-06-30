@@ -9,12 +9,13 @@
 
 **不是**:交付验证 / 拟合模型 / 批准 10k。真交付门 = 第二阶段 ~12–20 本新鲜盲评(排除 10% 假阳率需 ~30)。
 
-## 评委(纯三模型,无人评本轮)
-- **Opus**(=Claude 本体,session 内直读 final.md 评)
-- **Deepseek**(=管线 client,`scripts/jury_grade.py` 调,模型走 models.yaml)
+## 评委(跨族双模型,无人评本轮)
+- **Opus 4.8**(=Claude 本体,session 内 subagent 直读 final.md 评)
 - **GPT-5.5**(=`codex exec` 喂 rubric + final.md)
 
-三个不同模型家族 = 独立盲点 + 可 scale。**局限(明确记下)**:无人锚 → 本轮不校验"陪审团是否对齐人类口味";circularity 仍在(门按人编辑旧批调,陪审团是另一口径)→ 这测"时间复制+管线健康",非独立质量证据。
+> **2026-06-30 更新:移除 Deepseek 评委。** 本轮结果实证 deepseek(=管线作者模型)评自己写的书系统性 +30 分自评偏(全 yes/72-83 vs 跨族 27-56),= 假信号 → 同族自评不可作 proxy。陪审团只保留**跨族** Opus4.8 + GPT5.5(旧 `scripts/jury_grade.py` deepseek 腿已删)。
+
+两个不同模型家族 = 独立盲点 + 可 scale。**局限(明确记下)**:无人锚 → 本轮不校验"陪审团是否对齐人类口味";circularity 仍在(门按人编辑旧批调,陪审团是另一口径)→ 这测"时间复制+管线健康",非独立质量证据;双评委仍有尺度差(GPT5.5 比 Opus 狠~20),需校准。
 
 ## 选书(按质量档分层,非题材)
 11 本新鲜源(不在 gold/hfl):DYBXS00073 / ZTGGY02038 / ZTGGY02336 / ZTGGY03708 / ZTGWM01838 / ZTGXY01825 / ZYGGX02936 / ZYGXN02142 / ZYGXY01824 / ZYGXY01876 / ZYGXY01893。
@@ -48,7 +49,7 @@ python -m hiki run --tasks-file tasks.yaml --parallel 2 --spine
 ```
 > **阈值冻结**:跑前不得改 `config/pipeline.yaml ship_gate` / `gate.SHIP_GATE_DEFAULTS`。跑完更不得"调阈值再叫验证"。
 
-**③ 三模型盲评**(每本 final.md,各模型独立,**不给**门结果/signals/选书理由):用下「盲评 prompt」。产物 = `output/stage0/jury/<slug>__<model>.json`。`scripts/jury_grade.py`(Deepseek 腿)待 ② 后建。
+**③ 双模型盲评**(每本 final.md,各模型独立,**不给**门结果/signals/选书理由):用下「盲评 prompt」。产物 = `output/stage0/jury/<slug>__<model>.json`。Opus 腿=并行 subagent 直读;GPT5.5 腿=`codex exec`。(Deepseek 腿已移除,见评委节。)
 
 **④ IRR + ingest**:三评委每本算总分极差(IRR);转 `scorecard_*.yaml`(每模型一卡)→ `python scripts/hfl_ingest.py output/stage0 --round stage0-jury --write`(产 9 条 frozen proxy 行)。
 
