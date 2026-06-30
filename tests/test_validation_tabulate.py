@@ -161,3 +161,19 @@ def test_format_snapshot_smoke():
     assert "分歧桶" in out        # |Δ|>15 桶必现
     assert "AI-only" in out      # 诚实边界提醒必现
     assert isinstance(out, str) and len(out) > 0
+
+
+def test_load_records_reads_deliverable_and_skips_incomplete(tmp_path):
+    import json
+    (tmp_path / "bk").mkdir()
+    (tmp_path / "bk" / "report.json").write_text(
+        json.dumps({"signals": {"deliverable": True, "schema_version": 1}}), encoding="utf-8")
+    jd = tmp_path / "jury"; jd.mkdir()
+    (jd / "bk__opus.json").write_text(
+        json.dumps({"故事性": 60, "笔力": 60, "人": 60, "承重": 40, "deliver": "no"},
+                   ensure_ascii=False), encoding="utf-8")
+    (jd / "bk__gpt55.json").write_text(                      # 缺 人/承重
+        json.dumps({"故事性": 50, "笔力": 50}, ensure_ascii=False), encoding="utf-8")
+    recs = vt.load_records(tmp_path)
+    assert len(recs) == 1 and recs[0].deliverable is True    # 读 signals.deliverable
+    assert "opus" in recs[0].jury and "gpt55" not in recs[0].jury   # 缺维 gpt55 跳过, 不崩

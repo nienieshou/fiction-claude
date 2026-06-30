@@ -57,6 +57,10 @@ def load_records(vdir, labels: dict | None = None) -> list[BookRecord]:
             p = jury_dir / f"{slug}__{j}.json"
             if p.exists():
                 d = json.loads(p.read_text(encoding="utf-8"))
+                missing = [k for k in STORY4_W if k not in d]
+                if missing:                       # 缺 story4 维 → 跳过该 judge, 不崩(spec 边界)
+                    print(f"  ⚠ 跳过 {slug}__{j}: jury JSON 缺 story4 维 {missing}", file=sys.stderr)
+                    continue
                 d.setdefault("total", _story4_total(d))
                 jury[j] = d
         upstream = {}
