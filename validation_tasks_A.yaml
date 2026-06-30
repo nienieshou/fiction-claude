@@ -1,0 +1,20 @@
+# E3 验证块 A 档(烟雾 3 本 = Stage-0 trio 于 #1-修复引擎). 协议: 60章/refine3/best_of1.
+tasks:
+  - slug: valA_误嫁豪门
+    source: "fictions_source/现代言情/误嫁豪门，战神老公蓄意偏宠.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: valA_危险关系
+    source: "fictions_source/现代言情/危险关系：禁欲上司夜痴缠.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: valA_第一符术师
+    source: "fictions_source/玄幻仙侠/第一符术师.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
