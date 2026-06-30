@@ -334,7 +334,7 @@ function ovHtml(){
     <div class="item"><div class="lab">认证状态</div><div class="val" style="color:${statusInfo(b).c}">${statusInfo(b).t}</div><div class="note">${esc(certNote(b))}</div></div>
     <div class="item"><div class="lab">当前阶段</div><div class="val">${S.stages[b.stage]?S.stages[b.stage].name+" · "+S.stages[b.stage].cn:"—"}</div></div>
     <div class="item"><div class="lab">时间</div><div class="val">${
-      b.started ? `${fmtTime(b.started)} ~ ${b.finished?fmtTime(b.finished):"进行中"}`
+      b.started ? `${fmtTime(b.started)} ~ ${b.finished?fmtTime(b.finished):(b.status==="running"?"进行中":"未完成")}`
       : (b.queued ? `排队中(${fmtTime(b.queued)} 入队)` : "—")
     }</div></div>
     <div class="item"><div class="lab">best-of 稿次</div><div class="val">${(()=>{const j=S.jobs[b.slug],bo=S.detail&&S.detail.bestof;if(j&&((j.throws||1)>1||(j.best_of||1)>1))return `第${j.throws||1}/${j.best_of||1}稿(进行中)`;if(bo)return `${bo.classification||''} · ${bo.throws}/${bo.best_of}稿`;return "—";})()}</div>
