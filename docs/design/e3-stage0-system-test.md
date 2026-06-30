@@ -110,3 +110,26 @@ python -m hiki run --tasks-file tasks.yaml --parallel 2 --spine
 **Stage-0 ≠ pilot-pass。不进 12-20 批,更不进 10k。先修两处:**
 1. **门漏承重硬伤**:残缝门拦对了典型/弱(方向对),但边缘的境界乱序/修为倒退/改名/性别错/整章复制 = C2 PowerLedger / C1 RevivalLedger / 章内复制 域,门当前 spine/seam 检测**召回不足**,把这些放过了。
 2. **AI-jury proxy 不可用同族自评**:deepseek 评 deepseek = 自我吹捧;只能用跨族(Opus/GPT5.5),且需校准两者尺度差。→ 印证 E3 测量危机:廉价同模型自动评分 = 假信号。
+
+---
+
+## #1 门假阳根因诊断(2026-06-30, opus 深挖 stage0_edge)
+
+门"看见"的:signals `spine_num_contra=2 / spine_id_contra=0 / ft_revival_residual=0 / intra_repeat=0 / reenact=1 / seam_residual=6`,全低于阈值(`spine_net_min=6`/`seam_residual_max=8`)→ 0 ship_issue → 过。**评委的 5 类硬伤门信号里几乎全无体现 = 召回缺口为主,非降级误判。**
+
+| 硬伤 | 责任检测器 | 进门 | 根因 | 性质 |
+|---|---|---|---|---|
+| 境界矛盾(大灵师↔灵王) | `power_order_from_bible` (audit.py:255) | 否 | **读错 bible 字段**:读 `escalation_ladder`(剧情弧)非 `power_system`(真境界梯灵徒→…→灵圣);默认梯无"灵*"词→`_power_rank` 全 -1→None→PowerLedger 永不记录 | 🔴召回(单bug) |
+| 修为倒退(灵王→灵师) | 同上 + prose `cross_check` power | 否 | plan 层同上;prose 层只有 numeric 账本(`_num_of`),**无序数/境界账本**→realm 零覆盖 | 🔴召回(单bug) |
+| 结尾性别错(落羽 男→她) | `continuity_check` | 否 | 三重洞:只读 `final[:8000]`(全书21万字,结尾在窗外)+ 只问主角(落羽配角)+ 即便检出也只 advisory(`block_on_final_inconsistent=False`);全角色性别一致性**无检测器** | 🟠整类无检测器 |
+| 混名(云诺/楚诺同人) | 异名归一 + 身份 cross_check | 否 | 身份表按 `who` 建,检"一名多角色",**共指(多名同一人)结构上检不了**;`verify_identity` 因 `spine_net_num>=2` 短路never跑(produce.py:1119) | 🟠整类无检测器 |
+| 整章/桥段重复(闭关演两遍) | `_intra_repeat`/reenact/邻章 | 否 | `_intra_repeat`=单章内逐字12-gram(跨章/语义改写重复逃逸);reenact 窗口仅前3章且 advisory | 🟠语义层逃逸 |
+
+**根因排序(最该补在前):**
+1. **🔴【最高·单bug低成本】power 序数检测器读错字段** — `audit.py:255` 读 `escalation_ladder` 应读 `power_system` + 补"灵*"梯 + prose 加序数 power 账本。**一处修同时让境界矛盾+修为倒退两条最重承重硬伤显形。** = C2 PowerLedger 召回缺口的真根因(印证 hfl 老毛病"中文境界串排不了"实为读错字段)。
+2. 🟠 全角色性别一致性 — 整类无检测器(continuity 只读前8000字+只问主角)。
+3. 🟠 名字共指(同人多名) — 整类无检测器 + verify_identity 短路。
+4. 🟠 语义/跨章重复 — 仅单章逐字 + reenact 窗口3。
+5. 🟡【调参非召回】spine_net_min=6 偏高 / verify_identity 短路 / 生死 beat 降级。
+
+诚实:本例测不准主体 = 检测器**漏检**(尤其 #1 单 bug),非降级误判。
