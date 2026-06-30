@@ -69,3 +69,51 @@ def load_records(vdir, labels: dict | None = None) -> list[BookRecord]:
                                upstream=upstream, observed=list(labels.get(slug, [])),
                                severity=min(carries) if carries else None))
     return recs
+
+
+def is_false_accept(rec: BookRecord, judge: str, carry_threshold: float = CARRY_THRESHOLD) -> bool:
+    """假阳 = 门放行(deliverable) 但该 judge 判 deliver==no 或 承重<阈。门未放行的书不算假阳。"""
+    if not rec.deliverable:
+        return False
+    j = rec.jury.get(judge)
+    if not j:
+        return False
+    return str(j.get("deliver")).lower() == "no" or float(j.get("承重", 100)) < carry_threshold
+
+
+def false_accept_table(records, carry_threshold: float = CARRY_THRESHOLD) -> dict:
+    passed = [r for r in records if r.deliverable]
+    per_judge = {}
+    for jdg in JUDGES:
+        fp = [r.slug for r in passed if is_false_accept(r, jdg, carry_threshold)]
+        per_judge[jdg] = {"fp_slugs": fp, "n": len(fp)}
+    fp_sets = [set(per_judge[j]["fp_slugs"]) for j in JUDGES]
+    overlap = sorted(set.intersection(*fp_sets)) if fp_sets else []
+    rows = [{"slug": r.slug, "judge": j, "承重": r.jury[j]["承重"],
+             "total": r.jury[j]["total"], "reject_reason": r.jury[j].get("reject_reason", "")}
+            for r in passed for j in JUDGES if is_false_accept(r, j, carry_threshold)]
+    return {"n_passed": len(passed), "per_judge": per_judge,
+            "overlap_slugs": overlap, "n_overlap": len(overlap), "rows": rows}
+
+
+def gate_decision(records, carry_threshold: float = CARRY_THRESHOLD,
+                  min_power: int = MIN_POWER, overlap_stop: int = OVERLAP_STOP) -> dict:
+    t = false_accept_table(records, carry_threshold)
+    P = t["n_passed"]
+    per_judge_fp = {j: t["per_judge"][j]["n"] for j in JUDGES}
+    n_overlap = t["n_overlap"]
+    notes = []
+    if P < min_power:
+        verdict = "low_power_inconclusive"
+        notes.append(f"门放行 P={P}<{min_power}: 假阳检验功效不足, 不当'安全'自动升档; 另评门拒收书测过度拒收; 门放行率过低本身=发现(门可能过严)")
+    elif n_overlap >= overlap_stop:
+        verdict = "unsafe_consensus"
+        notes.append(f"重叠假阳 {n_overlap}>={overlap_stop}(双族共识): 门非交付安全 → 停升, 转修门/上游")
+    elif any(per_judge_fp[j] >= overlap_stop for j in JUDGES):
+        verdict = "single_judge_investigate"
+        hi = [j for j in JUDGES if per_judge_fp[j] >= overlap_stop]
+        notes.append(f"单 judge 假阳≥{overlap_stop}({','.join(hi)}) 但重叠<{overlap_stop}: 不全局停; 标该 judge 视角不安全 + 触发调查(judge 偏严 vs 真硬伤), 本档=待查, 可带 flag 升档")
+    else:
+        verdict = "safe_advance"
+    return {"P": P, "per_judge_fp": per_judge_fp, "n_overlap": n_overlap,
+            "verdict": verdict, "notes": notes}
