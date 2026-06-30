@@ -22,6 +22,10 @@ class Book(BaseModel):
     reject_reason: str | None = None
     seconds: float | None = None
     calls: int | None = None
+    started: float | None = None
+    finished: float | None = None
+    queued: float | None = None
+    bestof: dict | None = None
 
 
 class Stats(BaseModel):
