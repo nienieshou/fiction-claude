@@ -124,6 +124,8 @@ const modelStyle = {pro:{c:"#bc8cff",b:"rgba(188,140,255,.12)"},flash:{c:"#39c5c
 const MODE = {0:"—",1:"模式1 · 保真压缩",2:"模式2 · 强化改写",3:"模式3 · 类型化重构",4:"模式4 · 概念级重启"};
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtDur = s => { if(s==null) return "—"; s=Math.round(s); const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60; return h?`${h}h ${m}m`:`${m}m ${x}s`; };
+const fmtTime = e => e==null ? "—" : new Date(e*1000).toLocaleString("zh-CN",{hour12:false});
+const fmtAgo = e => { if(e==null) return ""; const s=Date.now()/1000-e; const h=Math.floor(s/3600),m=Math.floor(s%3600/60); return h?`${h}h前`:`${m}m前`; };
 
 function statusInfo(b){
   if(b.status==="certified") return {t:"认证出货",c:"#3fb950",bg:"rgba(63,185,80,.12)"};
@@ -248,7 +250,7 @@ function renderSide(){
           ${(b.real||b.uploaded)
             ? `<span class="del" title="删除任务" onclick="delBook(event,'${b.id}')">✕</span>`
             : `<span class="demo" title="演示样例 · 非真实任务,不可删除">演示</span>`}</span></div>
-      <div class="row2"><span class="genre">${esc(b.genre)} · <span style="color:${si.c}">${si.t}</span> ${throwBadge(b)}${bestofChip(b)}</span>
+      <div class="row2"><span class="genre">${esc(b.genre)} · <span style="color:${si.c}">${si.t}</span> ${throwBadge(b)}${bestofChip(b)}${b.started?`<span class="note"> · 开 ${fmtAgo(b.started)}</span>`:(b.queued?`<span class="note"> · 排队</span>`:"")}</span>
         <span class="hbadge" style="color:${humanColor(b.human)}">${b.human==null?"—":b.human}</span></div>
       <div class="dots" style="margin-top:7px">${dots}</div></div>`;
   }).join("");
@@ -331,6 +333,10 @@ function ovHtml(){
   return rej + `<div class="grid g2">
     <div class="item"><div class="lab">认证状态</div><div class="val" style="color:${statusInfo(b).c}">${statusInfo(b).t}</div><div class="note">${esc(certNote(b))}</div></div>
     <div class="item"><div class="lab">当前阶段</div><div class="val">${S.stages[b.stage]?S.stages[b.stage].name+" · "+S.stages[b.stage].cn:"—"}</div></div>
+    <div class="item"><div class="lab">时间</div><div class="val">${
+      b.started ? `${fmtTime(b.started)} ~ ${b.finished?fmtTime(b.finished):"进行中"}`
+      : (b.queued ? `排队中(${fmtTime(b.queued)} 入队)` : "—")
+    }</div></div>
     <div class="item"><div class="lab">best-of 稿次</div><div class="val">${(()=>{const j=S.jobs[b.slug],bo=S.detail&&S.detail.bestof;if(j&&((j.throws||1)>1||(j.best_of||1)>1))return `第${j.throws||1}/${j.best_of||1}稿(进行中)`;if(bo)return `${bo.classification||''} · ${bo.throws}/${bo.best_of}稿`;return "—";})()}</div>
       <div class="note">${(()=>{const bo=S.detail&&S.detail.bestof;if(!bo||!bo.history)return "";return bo.history.map(h=>`稿${h.throw} ${h.deliverable?'✓':'✗'}${h.reason?(' '+esc(h.reason)):''}`).join(' · ');})()}</div></div>
     <div class="item"><div class="lab">改写模式</div><div class="val">${esc(S.mode.text||MODE[b.mode]||"—")}</div><div class="note">${esc(S.mode.note||"")}</div></div>
