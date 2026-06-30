@@ -1,6 +1,6 @@
 """audit.py 纯函数:broken_prose 合成用例 + _power_rank/power_order_from_bible。零 API。
 (原 scripts/_test_broken_prose.py + _test_r13_units #6 迁入;file-dependent 部分略去保持可移植)"""
-from hiki.audit import broken_prose, _power_rank, _POWER_ORDER, _realm_rank, power_order_from_bible, check_places, enrich_places, reconcile_revival, check_power_monotonic
+from hiki.audit import broken_prose, _power_rank, _POWER_ORDER, _realm_rank, power_order_from_bible, check_places, enrich_places, reconcile_revival, check_power_monotonic, fix_power_monotonic
 
 
 # ---------- 地点漂移 advisory(Plan-地点槽) ----------
@@ -127,3 +127,24 @@ def test_check_power_monotonic_subset_power_system_no_degrade():
               {"power_after": [["甲", "凡人"]]}]
     issues = check_power_monotonic(bible, scenes)
     assert any("甲" in s and "回退" in s for s in issues)
+
+
+def test_fix_power_monotonic_pins_realm_regression_via_power_system():
+    """fix(mutating) 路: 修仙 power_system(灵*)下, 灵王→灵师 回退被钉回 current_best。"""
+    bible = {"power_system": "修炼境界：灵徒、灵师、大灵师、灵尊、灵宗、灵王、灵圣。"}
+    scenes = [{"power_after": [["云朝歌", "灵王巅峰"]]},
+              {"power_after": [["云朝歌", "灵师"]]}]
+    fixed = fix_power_monotonic(bible, scenes)
+    assert fixed, "灵* 回退应被 fix 钉回"
+    assert scenes[1]["power_after"][0][1] == "灵王巅峰"   # 回退值钉回运行最高
+
+
+def test_fix_power_monotonic_subset_power_system_no_wrong_pin():
+    """subset power_system(缺凡人)下: 正常升阶不误钉(default 优先兜底, 不跨空间误判)。"""
+    bible = {"power_system": "练气、筑基、金丹"}
+    scenes = [{"power_after": [["甲", "练气中期"]]},
+              {"power_after": [["甲", "筑基初期"]]},
+              {"power_after": [["甲", "金丹"]]}]
+    fixed = fix_power_monotonic(bible, scenes)
+    assert fixed == [], f"正常升阶不应被钉回, 得 {fixed}"
+    assert [p["power_after"][0][1] for p in scenes] == ["练气中期", "筑基初期", "金丹"]  # scenes 未被改
