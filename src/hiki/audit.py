@@ -237,6 +237,7 @@ def check_factions(bible: dict, scenes: list[dict]) -> list[str]:
 
 
 _POWER_ORDER = ["凡人", "炼气", "筑基", "结丹", "金丹", "元婴", "化神", "炼虚", "合体", "大乘", "渡劫"]
+_NON_REALM = ("传承", "属性", "体系", "系统", "境界", "修炼", "修为")  # provenance/标签词, 非境界名
 
 
 def _power_rank(p: str, order: list[str] | None = None) -> int:
@@ -253,11 +254,22 @@ def _power_rank(p: str, order: list[str] | None = None) -> int:
 
 
 def power_order_from_bible(bible: dict) -> list[str] | None:
-    """从 bible.escalation_ladder 解析本书境界梯('练气→筑基→金丹…，赌注从…'→取→链头段)。
-    解析不出≥3级返回 None(调用方退默认梯);宁缺勿错。"""
-    raw = str((bible or {}).get("escalation_ladder") or "")
-    head = re.split(r"[，。,;；\s]", raw)[0]
-    stages = [t.strip() for t in re.split(r"[→>＞]+", head) if 1 < len(t.strip()) <= 6]
+    """从 bible.power_system 尽力解析本书境界梯(灵徒→…→灵圣)。power_system 是异构散文
+    ('修炼境界:灵徒、灵师(1-9阶)、…、灵圣(及以上)。…' / '灵者→灵士→…' / '无'):取首句首梯、
+    剥前缀/括注/尾注、按顿号|→拆、过滤 provenance 词。<3 干净境界→None(调用方退默认梯;宁缺勿错)。"""
+    raw = str((bible or {}).get("power_system") or "").strip()
+    if not raw or raw in ("无", "—", "暂无"):
+        return None
+    head = re.split(r"[。;；，,]", raw)[0]                # 首段(到首个 句号/分号/逗号 边界, 切掉 '…，赌注升级' 类尾注)
+    m = re.match(r"^([^:：]{0,8})[:：]", head)            # 仅剥**含标签词**的前缀(修炼境界:/修炼体系:),
+    if m and any(w in m.group(1) for w in _NON_REALM):  # 不剥真境界名(灵徒:…)—— codex r1 修
+        head = head[m.end():]
+    stages = []
+    for t in re.split(r"[、→>＞]+", head):                # 顿号/→ 拆境界(逗号已作首段边界)
+        t = re.sub(r"[（(][^)）]*[)）]", "", t).strip()    # 剥括注 (1-9阶)/(及以上)
+        t = t.replace("及以上", "").strip()
+        if 1 < len(t) <= 5 and not any(w in t for w in _NON_REALM):
+            stages.append(t)
     return stages if len(stages) >= 3 else None
 
 

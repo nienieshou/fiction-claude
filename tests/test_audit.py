@@ -69,8 +69,22 @@ def test_power_rank_paren_not_hijacked():
 
 
 def test_power_order_from_bible():
-    assert power_order_from_bible({"escalation_ladder": "练气→筑基→金丹，赌注…"}) == ["练气", "筑基", "金丹"]
-    assert power_order_from_bible({"escalation_ladder": "瞎写的"}) is None   # 解析不出→退默认梯
+    # 读 power_system(散文格式: 顿号 + (N阶) + 前缀 + 及以上)
+    edge = {"power_system": "修炼境界：灵徒、灵师（1-9阶）、大灵师（1-9阶）、灵尊（1-9阶）、灵宗（1-9阶）、灵王（1-9阶）、灵圣（及以上）。灵力属性：火、冰。"}
+    assert power_order_from_bible(edge) == ["灵徒", "灵师", "大灵师", "灵尊", "灵宗", "灵王", "灵圣"]
+    # → 分隔的干净梯
+    assert power_order_from_bible({"power_system": "灵者（1-3阶）→灵士→灵师→大灵师→灵尊"}) == ["灵者", "灵士", "灵师", "大灵师", "灵尊"]
+    # 无修为体系 / 缺字段 → None(退默认梯)
+    assert power_order_from_bible({"power_system": "无"}) is None
+    assert power_order_from_bible({}) is None
+    # provenance/标签词被 _NON_REALM 过滤; 干净境界<3 → None
+    assert power_order_from_bible({"power_system": "修炼体系：丹武经传承，筑基（暂未现）"}) is None
+    # 标签前缀(修炼境界:)剥; 真境界名前缀(灵徒)不被误剥(codex r1)
+    assert power_order_from_bible({"power_system": "灵徒、灵师、灵尊、灵王"}) == ["灵徒", "灵师", "灵尊", "灵王"]
+    # 逗号作首段边界 → 尾注'赌注升级'不混入
+    assert power_order_from_bible({"power_system": "练气→筑基→金丹→元婴，赌注升级"}) == ["练气", "筑基", "金丹", "元婴"]
+    # 不再误读剧情弧 escalation_ladder
+    assert power_order_from_bible({"escalation_ladder": "练气→筑基→金丹，赌注…"}) is None
 
 
 def test_reconcile_revival():
