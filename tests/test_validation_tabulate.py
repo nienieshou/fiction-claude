@@ -90,3 +90,40 @@ def test_gate_decision_safe_advance():
     recs = [_rec(f"p{i}", True, (90, "yes"), (85, "yes")) for i in range(5)]
     d = vt.gate_decision(recs)
     assert d["verdict"] == "safe_advance"
+
+
+def test_separation_delta():
+    recs = [_rec("p1", True, (90, "yes"), (80, "yes")),   # pass 组
+            _rec("r1", False, (40, "no"), (30, "no"))]    # reject 组
+    s = vt.separation(recs)
+    # opus pass total = story4(承重90,其余60)=... 只验 delta 为正(pass>reject)
+    assert s["opus"]["delta"] > 0 and s["gpt55"]["delta"] > 0
+
+
+def test_judge_reliability():
+    recs = [_rec("b1", True, (80, "yes"), (60, "no")),    # deliver 不同判
+            _rec("b2", True, (70, "yes"), (70, "yes"))]   # 同判
+    rel = vt.judge_reliability(recs)
+    assert rel["deliver_agreement_rate"] == 0.5
+    assert rel["per_book_spread"]["b1"] >= 0
+    assert rel["mean_bias"] is not None   # opus−gpt55 平均
+
+
+def test_judge_reliability_divergence_bucket():
+    # 承重差 80 → total spread = 0.2*80 = 16 > 15 → 进分歧桶
+    recs = [_rec("big", True, (100, "yes"), (20, "no")),
+            _rec("small", True, (70, "yes"), (65, "yes"))]
+    rel = vt.judge_reliability(recs)
+    assert "big" in rel["divergent_slugs"] and "small" not in rel["divergent_slugs"]
+
+
+def test_failure_mode_table():
+    recs = [_rec("b1", False, (30, "no"), (30, "no"), observed=["境界乱序", "修为倒退"]),
+            _rec("b2", True, (40, "no"), (40, "no"), observed=["境界乱序"]),
+            _rec("b3", True, (90, "yes"), (90, "yes"), observed=[])]
+    tbl = vt.failure_mode_table(recs)
+    assert tbl["境界乱序"]["n_books"] == 2
+    assert abs(tbl["境界乱序"]["freq"] - 2/3) < 1e-9
+    assert tbl["境界乱序"]["gate_caught"] == 1     # b1 门拒(deliverable False)
+    assert tbl["修为倒退"]["n_books"] == 1
+    assert "性别错" not in tbl or tbl["性别错"]["n_books"] == 0

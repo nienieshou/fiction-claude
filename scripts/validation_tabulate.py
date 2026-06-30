@@ -117,3 +117,47 @@ def gate_decision(records, carry_threshold: float = CARRY_THRESHOLD,
         verdict = "safe_advance"
     return {"P": P, "per_judge_fp": per_judge_fp, "n_overlap": n_overlap,
             "verdict": verdict, "notes": notes}
+
+
+def _mean(xs):
+    xs = [x for x in xs if x is not None]
+    return round(sum(xs) / len(xs), 2) if xs else None
+
+
+def separation(records) -> dict:
+    out = {}
+    for jdg in JUDGES:
+        pas = [r.jury[jdg]["total"] for r in records if r.deliverable and jdg in r.jury]
+        rej = [r.jury[jdg]["total"] for r in records if not r.deliverable and jdg in r.jury]
+        pm, rm = _mean(pas), _mean(rej)
+        out[jdg] = {"pass_mean": pm, "reject_mean": rm,
+                    "delta": round(pm - rm, 2) if pm is not None and rm is not None else None}
+    return out
+
+
+def judge_reliability(records) -> dict:
+    spread, bias, agree = {}, [], []
+    for r in records:
+        if "opus" in r.jury and "gpt55" in r.jury:
+            o, g = r.jury["opus"], r.jury["gpt55"]
+            spread[r.slug] = round(abs(o["total"] - g["total"]), 2)
+            bias.append(o["total"] - g["total"])
+            agree.append(str(o.get("deliver")).lower() == str(g.get("deliver")).lower())
+    return {"per_book_spread": spread,
+            "divergent_slugs": sorted([s for s, sp in spread.items() if sp > 15]),
+            "mean_bias": round(sum(bias) / len(bias), 2) if bias else None,
+            "deliver_agreement_rate": round(sum(agree) / len(agree), 4) if agree else None}
+
+
+def failure_mode_table(records) -> dict:
+    N = len(records) or 1
+    out = {}
+    for cat in FAILURE_CATEGORIES:
+        books = [r for r in records if cat in r.observed]
+        if not books:
+            continue
+        sev = _mean([r.severity for r in books])
+        out[cat] = {"n_books": len(books), "freq": len(books) / N,
+                    "avg_severity": sev,
+                    "gate_caught": sum(1 for r in books if not r.deliverable)}
+    return out
