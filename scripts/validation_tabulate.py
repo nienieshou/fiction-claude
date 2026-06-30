@@ -182,3 +182,48 @@ def upstream_interception(records) -> dict:
     return {"per_book": per_book,
             "overall_rate": (tot_int / tot_obs) if tot_obs else None,
             "by_category": by_cat}
+
+
+def format_snapshot(records, rung: str = "") -> str:
+    gd = gate_decision(records)
+    fa = false_accept_table(records)
+    sep = separation(records)
+    rel = judge_reliability(records)
+    fm = failure_mode_table(records)
+    up = upstream_interception(records)
+    L = [f"=== 验证块快照 rung={rung or '?'} (n={len(records)}) ==="]
+    L.append(f"[go/no-go] verdict={gd['verdict']} P={gd['P']} per_judge_fp={gd['per_judge_fp']} 重叠={gd['n_overlap']}")
+    for n in gd["notes"]:
+        L.append(f"  - {n}")
+    L.append(f"[假阳] 放行={fa['n_passed']} opus={fa['per_judge']['opus']['n']} gpt55={fa['per_judge']['gpt55']['n']} 重叠={fa['overlap_slugs']}")
+    for row in fa["rows"]:
+        L.append(f"    · {row['slug']} [{row['judge']}] 承重{row['承重']} 总分{row['total']} 因:{row['reject_reason']}")
+    L.append(f"[门分离度] " + " ".join(f"{j}:Δ{sep[j]['delta']}" for j in JUDGES))
+    L.append(f"[judge可靠性] 偏置(opus-gpt55)={rel['mean_bias']} deliver同判率={rel['deliver_agreement_rate']} 分歧桶(|Δ|>15)={rel['divergent_slugs']}")
+    L.append("[失败模式 频率×严重度]")
+    for c, v in sorted(fm.items(), key=lambda kv: -kv[1]["freq"]):
+        L.append(f"  {c}: 频率{v['freq']:.0%}({v['n_books']}本) 严重度(承重){v['avg_severity']} 门抓到{v['gate_caught']}")
+    L.append(f"[上游可拦率] overall={up['overall_rate']}")
+    for c, v in sorted(up["by_category"].items(), key=lambda kv: -kv[1]["observed"]):
+        L.append(f"  {c}: 实测{v['observed']}本 上游预测中{v['predicted_upstream']}本")
+    L.append("[诚实边界] AI-only 无人锚→非真值; 小n+~20分judge分歧→误差带; 种子行来自#1前引擎不混入当前门相关性。")
+    return "\n".join(L)
+
+
+def main(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("validation_dir")
+    ap.add_argument("--labels", default=None, help="人工实测硬伤标注 YAML: {slug:[类目]}")
+    ap.add_argument("--rung", default="")
+    a = ap.parse_args(argv)
+    labels = {}
+    if a.labels and Path(a.labels).exists():
+        import yaml
+        labels = yaml.safe_load(Path(a.labels).read_text(encoding="utf-8")) or {}
+    recs = load_records(a.validation_dir, labels)
+    print(format_snapshot(recs, rung=a.rung))
+
+
+if __name__ == "__main__":
+    main()

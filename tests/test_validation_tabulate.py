@@ -151,3 +151,13 @@ def test_upstream_interception_no_observed():
     u = vt.upstream_interception(recs)
     assert u["per_book"]["b"]["rate"] is None
     assert u["overall_rate"] is None     # 无 observed → N/A 不崩
+
+
+def test_format_snapshot_smoke():
+    recs = [_rec("p1", True, (40, "no"), (40, "no"), observed=["境界乱序"],
+                 upstream={"opus": ["境界乱序"], "gpt55": []})]
+    out = vt.format_snapshot(recs, rung="C")
+    assert "go/no-go" in out and "上游可拦率" in out
+    assert "分歧桶" in out        # |Δ|>15 桶必现
+    assert "AI-only" in out      # 诚实边界提醒必现
+    assert isinstance(out, str) and len(out) > 0
