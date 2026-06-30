@@ -17,7 +17,7 @@ from hiki.produce import _plan_macro, _plan_one_chapter, _handoff
 from hiki.slice_validate import _process_scene, _fit_chapter, _truncate, _assemble
 from hiki.prose_facts import fact_audit
 
-SRC = Path("fictions_source/ZYGGY03733团宠小师妹靠摆烂带飞全宗门.txt")
+SRC = Path("fictions_source/玄幻仙侠/团宠小师妹靠摆烂带飞全宗门.txt")
 OUT = Path("output/_m0_seq")
 OUT.mkdir(parents=True, exist_ok=True)
 N_CH, N_CAND = 60, 3

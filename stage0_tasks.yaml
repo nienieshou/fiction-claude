@@ -2,19 +2,19 @@
 # 跑: $env:PYTHONPATH='src'; python -m hiki run --tasks-file stage0_tasks.yaml --parallel 2 --spine
 tasks:
   - slug: stage0_typical
-    source: "fictions_source/ZTGXY01825误嫁豪门，战神老公蓄意偏宠.txt"
+    source: "fictions_source/现代言情/误嫁豪门，战神老公蓄意偏宠.txt"
     out: output/stage0
     chapters: 60
     refine_rounds: 3
     best_of: 1
   - slug: stage0_weak
-    source: "fictions_source/ZYGXY01824危险关系：禁欲上司夜痴缠.txt"
+    source: "fictions_source/现代言情/危险关系：禁欲上司夜痴缠.txt"
     out: output/stage0
     chapters: 60
     refine_rounds: 3
     best_of: 1
   - slug: stage0_edge
-    source: "fictions_source/ZYGGX02936第一符术师.txt"
+    source: "fictions_source/玄幻仙侠/第一符术师.txt"
     out: output/stage0
     chapters: 60
     refine_rounds: 3

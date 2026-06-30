@@ -62,7 +62,9 @@ def _find_existing_source(content: bytes) -> Path | None:
     """内容命中已跟踪库内源(顶层 .txt) → 返回其路径(去重,复用原文件)。大小先筛再 hash。"""
     n = len(content)
     h = None
-    for p in paths.SOURCES.glob("*.txt"):          # 非递归:不含 _uploads/ 子目录
+    for p in paths.SOURCES.rglob("*.txt"):         # 递归:含题材子目录; 跳过 _uploads 暂存区
+        if UPLOAD_DIR in p.parents:                # 暂存区不算"已跟踪库内源"
+            continue
         try:
             if p.stat().st_size != n:
                 continue
