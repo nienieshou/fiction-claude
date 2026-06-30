@@ -127,3 +127,27 @@ def test_failure_mode_table():
     assert tbl["境界乱序"]["gate_caught"] == 1     # b1 门拒(deliverable False)
     assert tbl["修为倒退"]["n_books"] == 1
     assert "性别错" not in tbl or tbl["性别错"]["n_books"] == 0
+
+
+def test_upstream_interception():
+    recs = [
+        _rec("b1", False, (30, "no"), (30, "no"), observed=["境界乱序", "性别错"],
+             upstream={"opus": ["境界乱序"], "gpt55": ["境界乱序", "数值错"]}),  # 拦到 境界乱序, 漏 性别错
+        _rec("b2", True, (40, "no"), (40, "no"), observed=["章节复制/注水"],
+             upstream={"opus": [], "gpt55": []}),                                # 上游全漏
+    ]
+    u = vt.upstream_interception(recs)
+    assert sorted(u["per_book"]["b1"]["intercepted"]) == ["境界乱序"]
+    assert abs(u["per_book"]["b1"]["rate"] - 0.5) < 1e-9
+    assert u["per_book"]["b2"]["rate"] == 0.0
+    # overall = 拦到1(境界乱序) / observed总3 = 1/3
+    assert abs(u["overall_rate"] - 1/3) < 1e-9
+    assert u["by_category"]["境界乱序"]["observed"] == 1
+    assert u["by_category"]["境界乱序"]["predicted_upstream"] == 1
+
+
+def test_upstream_interception_no_observed():
+    recs = [_rec("b", True, (90, "yes"), (90, "yes"), observed=[], upstream={"opus": [], "gpt55": []})]
+    u = vt.upstream_interception(recs)
+    assert u["per_book"]["b"]["rate"] is None
+    assert u["overall_rate"] is None     # 无 observed → N/A 不崩

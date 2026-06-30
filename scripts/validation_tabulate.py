@@ -161,3 +161,24 @@ def failure_mode_table(records) -> dict:
                     "avg_severity": sev,
                     "gate_caught": sum(1 for r in books if not r.deliverable)}
     return out
+
+
+def upstream_interception(records) -> dict:
+    per_book, tot_int, tot_obs = {}, 0, 0
+    by_cat = {}
+    for r in records:
+        obs = set(r.observed)
+        pred = set().union(*[set(r.upstream.get(j, [])) for j in JUDGES]) if r.upstream else set()
+        inter = obs & pred
+        rate = (len(inter) / len(obs)) if obs else None
+        per_book[r.slug] = {"observed": sorted(obs), "predicted": sorted(pred),
+                            "intercepted": sorted(inter), "rate": rate}
+        if obs:
+            tot_int += len(inter); tot_obs += len(obs)
+        for c in obs:
+            by_cat.setdefault(c, {"observed": 0, "predicted_upstream": 0})["observed"] += 1
+        for c in (pred & obs):
+            by_cat.setdefault(c, {"observed": 0, "predicted_upstream": 0})["predicted_upstream"] += 1
+    return {"per_book": per_book,
+            "overall_rate": (tot_int / tot_obs) if tot_obs else None,
+            "by_category": by_cat}
