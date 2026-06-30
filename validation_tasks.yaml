@@ -1,0 +1,128 @@
+# E3 验证块预登记花名册(冻结于 2026-06-30,看产物前). 见 spec 同名文档.
+tasks:
+  - slug: val_误嫁豪门，战神老公蓄
+    source: "fictions_source/现代言情/误嫁豪门，战神老公蓄意偏宠.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_危险关系：禁欲上司夜
+    source: "fictions_source/现代言情/危险关系：禁欲上司夜痴缠.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_第一符术师
+    source: "fictions_source/玄幻仙侠/第一符术师.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_反派：记忆曝光，女主
+    source: "fictions_source/玄幻仙侠/反派：记忆曝光，女主为我痛哭（反派记忆曝光，全世界都为我流泪）73w.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_冷战三年，离婚当日纪
+    source: "fictions_source/现代言情/冷战三年，离婚当日纪总哭红了眼.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_修罗剑神
+    source: "fictions_source/传统武侠/修罗剑神.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_1960六零饥荒年：
+    source: "fictions_source/年代纪实/1960六零饥荒年：我靠团购娇养冷面知青.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_你当我傻？末世你带娃
+    source: "fictions_source/末世科幻/你当我傻？末世你带娃找我复合.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_乡村桃运神医
+    source: "fictions_source/都市异能/乡村桃运神医.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_崽崽惊呆！娘亲她成了
+    source: "fictions_source/种田基建文/崽崽惊呆！娘亲她成了逃荒路上的美食供应商.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_买来的禁欲夫君是太子
+    source: "fictions_source/古代言情/买来的禁欲夫君是太子.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_开局冰川探墓，你管这
+    source: "fictions_source/灵异悬疑惊悚/开局冰川探墓，你管这叫娱乐主播.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_宠爆！大小姐归来，亲
+    source: "fictions_source/现代言情/宠爆！大小姐归来，亲哥们跪唱征服.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_听说我死后成了反派白
+    source: "fictions_source/玄幻仙侠/听说我死后成了反派白月光.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_七零：绝美军嫂想要赚
+    source: "fictions_source/年代纪实/七零：绝美军嫂想要赚钱养老.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_全球陆沉：我开超级战
+    source: "fictions_source/末世科幻/全球陆沉：我开超级战舰横扫末世.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_惊！全家盼来的小福宝
+    source: "fictions_source/都市异能/惊！全家盼来的小福宝是玄学大佬.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_桃源渔村
+    source: "fictions_source/种田基建文/桃源渔村.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_傲世狂妃太逆天
+    source: "fictions_source/古代言情/傲世狂妃太逆天.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_团宠小师妹靠摆烂带飞
+    source: "fictions_source/玄幻仙侠/团宠小师妹靠摆烂带飞全宗门.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: val_对照组女配在军旅综艺
+    source: "fictions_source/现代言情/对照组女配在军旅综艺爆红了.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
