@@ -49,3 +49,32 @@ def kinship_uniqueness(bible) -> list[dict]:
                 f"{who} 都被标为「{target}」的{role}(生身唯一角色被多人声称)",
                 "det", "key_relation~生母/生父"))
     return out
+
+
+def duplicate_chapter_intent(plan) -> list[dict]:
+    chapters = (plan or {}).get("chapters") or []
+    sets = []
+    for ch in chapters:
+        if not isinstance(ch, dict):
+            sets.append(set()); continue
+        idxs = set()
+        for sc in (ch.get("scenes") or []):
+            if isinstance(sc, dict):
+                v = sc.get("source_scene_index")
+                if isinstance(v, int) and v >= 0:
+                    idxs.add(v)
+        sets.append(idxs)
+    out = []
+    for a in range(len(sets)):
+        for b in range(a + 1, len(sets)):
+            shared = sets[a] & sets[b]
+            if shared:
+                out.append(_finding(
+                    "章节复制/注水", "hard", f"plan.chapters[{a}|{b}].scenes[].source_scene_index",
+                    f"第{a}章与第{b}章共享源场景 {sorted(shared)}(同源被拆多章=复演/注水风险)",
+                    "det", "source_scene_index 集合相交"))
+    return out
+
+
+def predraft_checks(bible, plan) -> list[dict]:
+    return kinship_uniqueness(bible) + duplicate_chapter_intent(plan)
