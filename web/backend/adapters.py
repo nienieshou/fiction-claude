@@ -108,6 +108,16 @@ def dir_to_book(d: Path, hidx: dict[str, float], active: frozenset[str] = frozen
     mode = mode_raw if isinstance(mode_raw, int) else _MODE_STR_TO_INT.get(mode_raw, 0)
     human = hidx.get(slug) or hidx.get((report or {}).get("source", "").rsplit(".", 1)[0]) \
         or hidx.get(Path((report or {}).get("source", "")).stem)
+    timing = paths.load_json(d / "_timing.json")
+    started = timing.get("started_at") if isinstance(timing, dict) else None
+    if isinstance(started, bool) or not isinstance(started, (int, float)):
+        started = None
+    finished = None
+    secs = (report or {}).get("seconds")
+    if status in ("certified", "rejected") and isinstance(started, (int, float)) \
+            and isinstance(secs, (int, float)) and not isinstance(secs, bool):
+        fin = (report or {}).get("finished_at")
+        finished = fin if (isinstance(fin, (int, float)) and not isinstance(fin, bool)) else started + secs
     bof = paths.load_json(d / "_bestof.json")
     bestof = ({"throws": bof.get("throws"), "classification": bof.get("classification")}
               if isinstance(bof, dict) and bof.get("throws") else None)
@@ -121,6 +131,7 @@ def dir_to_book(d: Path, hidx: dict[str, float], active: frozenset[str] = frozen
         "cost": round((report or {}).get("cost_cny") or 0),
         "real": True, "reject_reason": reject_reason,
         "seconds": (report or {}).get("seconds"), "calls": (report or {}).get("calls"),
+        "started": started, "finished": finished,
         "bestof": bestof,
     }
 
