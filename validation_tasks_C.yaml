@@ -1,0 +1,20 @@
+# E3 验证块 C 档(+3 本鲜书, 累积 n=8 首决策门). 协议 60章/refine3/best_of1. 折 PreDraft v0.
+tasks:
+  - slug: valC_修罗剑神
+    source: "fictions_source/传统武侠/修罗剑神.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: valC_六零饥荒年
+    source: "fictions_source/年代纪实/1960六零饥荒年：我靠团购娇养冷面知青.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
+  - slug: valC_末世带娃
+    source: "fictions_source/末世科幻/你当我傻？末世你带娃找我复合.txt"
+    out: output/validation
+    chapters: 60
+    refine_rounds: 3
+    best_of: 1
