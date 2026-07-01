@@ -13,8 +13,9 @@ import os
 import subprocess
 import sys
 import time
+import copy
 from pathlib import Path
-from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config, event_audit, signals
+from . import prompts, gate, ledger, audit, mining, prose_continuity, prose_facts, config, event_audit, signals, predraft
 from .client import Client
 from .ingest import ingest
 from .slice_validate import (_process_scene, _fit_chapter, _truncate, _assemble,
@@ -1322,6 +1323,19 @@ async def _fix_pov_outliers(cli: Client, ch_texts: list[str], p: dict) -> list[s
     return ch_texts
 
 
+def _predraft_shelved_report(out_dir: Path, src: Path, gate: dict, regens: int,
+                             cli, grade, started) -> dict:
+    """预起草门搁置: 不落 final, 省 draft/refine 成本。字段对齐 batch/web/normalize(缺 final 跳过)。"""
+    why = f"预起草门:章节复制顽固(plan-regen×{regens} 未净)"
+    rep = {"rejected": True, "deliverable": False, "交付门": [why], "reject_why": why,
+           "predraft_blocked": True, "predraft_regens": regens, "predraft_shelved": True,
+           "source": str(src), "grade": grade, "cost_cny": round(cli.cost_cny, 4),
+           "seconds": round(time.time() - started, 1),
+           "predraft_evidence": gate.get("evidence", {})}
+    (out_dir / "report.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
+    return rep
+
+
 async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
               refine_rounds: int = 5, min_grade: str | None = None,
               out_dir: Path | None = None, force: bool = False) -> dict:
@@ -1340,6 +1354,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
         (out_dir / "report.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
         return rep
     bible, scenes, grade = mine["bible"], mine["scenes"], mine["grade"]
+    bible_mined = copy.deepcopy(bible)                   # v0.5: regen 用干净副本(隔离 enrich_places)
     meta, clean = mine["meta"], mine["clean"]
     all_scene_count, chunks = mine["all_scene_count"], mine["chunks"]
     p = bible.get("protagonist", {})                     # 起草区 POV/人名归一仍用 p
@@ -1347,13 +1362,24 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     plan, beats, ordered = pl["plan"], pl["beats"], pl["ordered"]
     n_scenes, macro = pl["n_scenes"], pl["macro"]
     _ps = pl.get("stats", {})                            # plan-repair 统计(供 report;resume 时缺省)
+
+    # 2.5) 预起草门(v0.5): 只硬拦 det 章节复制 → plan-regen ≤2 → 仍拦搁置(跳起草省钱)
+    bible, pl, _pd_regens, _pd_blocked = await predraft.predraft_gate_loop(
+        cli, bible, bible_mined, scenes, out_dir, n_ch, pl, _stage_plan)
+    if _pd_regens:
+        plan, beats, ordered = pl["plan"], pl["beats"], pl["ordered"]
+        n_scenes, macro = pl["n_scenes"], pl["macro"]; _ps = pl.get("stats", {})
+        print(f"预起草门: plan-regen×{_pd_regens}")
+    if _pd_blocked:
+        return _predraft_shelved_report(out_dir, src, predraft.predraft_gate_check(plan, scenes),
+                                        _pd_regens, cli, grade, started)
     dropped = _ps.get("dropped", [])
     hs_found, hs_fixed = _ps.get("hs_found", 0), _ps.get("hs_fixed", 0)
     ev_fixed, plan_dups, pw_fixed = _ps.get("ev_fixed", []), _ps.get("plan_dups", []), _ps.get("pw_fixed", [])
 
     # 3) draft(B1-4): 造峰+gold+控制面 → 波次并行起草、波间结算(逐章落盘,mid-draft resume)
     d = await _stage_draft(cli, bible, scenes, p, plan, ordered, beats, n_scenes, n_cand,
-                           refine_rounds, target_chars, prod, out_dir, force)
+                           refine_rounds, target_chars, prod, out_dir, force or _pd_regens > 0)
     ch_texts, waves = d["ch_texts"], d["waves"]
 
     # 4) 后端：双向控字 + 硬截断 + POV统一 + 人名归一(双名守卫+近似名) + advisory连续性
@@ -1465,6 +1491,7 @@ async def run(src: Path, n_ch: int = 60, n_chunks: int = 12, n_cand: int = 3,
     # 9) finalize(B1-2): report 主体在此组装(引用各相位局部),title/输出/落盘交给 _stage_finalize
     report = {
         "deliverable": deliverable, "交付门": ship_issues or ["通过"],
+        "predraft_blocked": _pd_blocked, "predraft_regens": _pd_regens, "predraft_shelved": False,  # v0.5 审计
         "source": src.name, "wan_zi": meta.approx_wan_zi, "out_chapters": len(plan["chapters"]),
         "scenes": n_scenes, "all_scene_count": all_scene_count, "chunks": chunks,
         "grade": grade, "central_conflict": macro.get("central_conflict", ""),
