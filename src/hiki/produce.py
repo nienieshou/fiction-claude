@@ -1329,7 +1329,7 @@ def _predraft_shelved_report(out_dir: Path, src: Path, gate: dict, regens: int,
     why = f"预起草门:章节复制顽固(plan-regen×{regens} 未净)"
     rep = {"rejected": True, "deliverable": False, "交付门": [why], "reject_why": why,
            "predraft_blocked": True, "predraft_regens": regens, "predraft_shelved": True,
-           "source": str(src), "grade": grade, "cost_cny": round(cli.cost_cny, 4),
+           "source": src.name, "grade": grade, "cost_cny": round(cli.cost_cny, 2),
            "seconds": round(time.time() - started, 1),
            "predraft_evidence": gate.get("evidence", {})}
     (out_dir / "report.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
