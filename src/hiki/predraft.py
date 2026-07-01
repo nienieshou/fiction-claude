@@ -50,3 +50,18 @@ def predraft_gate_check(plan, scenes) -> dict:
     blocked = any(f["severity"] == "hard" for f in findings)
     return {"blocked": blocked, "findings": findings,
             "evidence": {"dup_pairs": dup_pairs, "unsourced_chapters": unsourced_chapters}}
+
+
+async def predraft_gate_loop(cli, bible0, bible_mined, scenes, out_dir, n_ch, pl0,
+                             plan_fn, max_regen=PREDRAFT_MAX_PLAN_REGEN):
+    """预起草门 regen 回路。bible0/pl0=attempt0 结果。blocked 则从 bible_mined 干净副本重规划(plan-rooted)。
+    返回 (bible, pl, regens, blocked): 用于 run() 决定搁置 or 进 draft(draft_force=regens>0)。"""
+    bible, pl = bible0, pl0
+    gate = predraft_gate_check(pl["plan"], scenes)
+    regens = 0
+    while gate["blocked"] and regens < max_regen:
+        regens += 1
+        bible = copy.deepcopy(bible_mined)                # 干净副本: 隔离失败次 enrich_places 累积
+        pl = await plan_fn(cli, bible, scenes, out_dir, n_ch, True)   # 原地 enrich 到该副本 + 重写 plan.json
+        gate = predraft_gate_check(pl["plan"], scenes)
+    return bible, pl, regens, gate["blocked"]
